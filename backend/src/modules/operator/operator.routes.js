@@ -478,18 +478,24 @@ router.get('/incidents', authenticateToken, requireRole('OPERATOR'), async (_req
 
 router.post('/incidents', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
   try {
-    const { hubId, targetType, vehicleId = null, chargingPointId = null, severity = 'MEDIUM', title, description } = req.body;
+    const { hubId, targetType, vehicleId = null, chargingPointId = null, parkingSlotId = null, severity = 'MEDIUM', title, description } = req.body;
     const incidentCode = `INC-${Date.now()}`;
     const [result] = await pool.execute(
-      `INSERT INTO incidents (incident_code, reported_by, hub_id, target_type, vehicle_id, charging_point_id, severity, title, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [incidentCode, req.user.id, hubId, targetType, vehicleId, chargingPointId, severity, title, description]
+      `INSERT INTO incidents (incident_code, reported_by, hub_id, target_type, vehicle_id, charging_point_id, parking_slot_id, severity, title, description)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [incidentCode, req.user.id, hubId, targetType, vehicleId, chargingPointId, parkingSlotId, severity, title, description]
     );
     if (targetType === 'VEHICLE' && vehicleId) {
       await pool.execute('UPDATE vehicles SET status = "OUT_OF_SERVICE" WHERE id = ?', [vehicleId]);
     }
     if (targetType === 'CHARGING_POINT' && chargingPointId) {
       await pool.execute('UPDATE charging_points SET status = "OUT_OF_SERVICE" WHERE id = ?', [chargingPointId]);
+    }
+    if (targetType === "PARKING_SLOT" && parkingSlotId) {
+      await pool.execute('UPDATE parking_slots SET status = "OUT_OF_SERVICE" WHERE id = ?', [parkingSlotId]);
+    }
+    if (targetType === "HUB") {
+      await pool.execute('UPDATE hubs SET status = "MAINTENANCE" WHERE id = ?', [hubId]);
     }
     res.status(201).json({ success: true, data: { id: result.insertId, incidentCode, status: 'OPEN' } });
   } catch (err) {
@@ -498,17 +504,120 @@ router.post('/incidents', authenticateToken, requireRole('OPERATOR'), async (req
 });
 
 router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
+  const connection = await pool.getConnection();
   try {
-    const { resolutionNotes = 'Repaired and verified.' } = req.body;
-    await pool.execute(
-      `UPDATE incidents SET status = 'CLOSED', resolution_notes = ?, closed_at = NOW() WHERE id = ?`,
-      [resolutionNotes, req.params.incidentId]
+    const incidentId = Number(req.params.incidentId);
+    const {
+      resolutionNotes = 'Repaired and verified.'
+    } = req.body;
+    if (!Number.isInteger(incidentId) || incidentId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid incident ID.'
+      });
+    }
+    await connection.beginTransaction();
+    
+    // 1. Find and lock the incident
+    const [rows] = await connection.execute(
+      `SELECT *
+                 FROM incidents
+                 WHERE id = ?
+                 FOR UPDATE`,
+      [incidentId]
     );
-    res.json({ success: true, data: { id: Number(req.params.incidentId), status: 'CLOSED' } });
+
+    if (rows.length === 0) {
+      await connection.rollback();
+
+      return res.status(404).json({
+        success: false,
+        message: 'Incident not found.'
+      });
+    }
+
+    const incident = rows[0];
+
+    if (incident.status === 'CLOSED') {
+      await connection.rollback();
+
+      return res.status(409).json({
+        success: false,
+        message: 'Incident is already closed.'
+      });
+    }
+
+    // 2. Restore the affected object's status
+    if (incident.target_type === 'VEHICLE') {
+
+      if (!incident.vehicle_id) {
+        throw new Error(
+          'Incident has no associated vehicle.'
+        );
+      }
+
+      await connection.execute(
+        `UPDATE vehicles
+                     SET status = 'AVAILABLE'
+                     WHERE id = ?`,
+        [incident.vehicle_id]
+      );
+
+    } else if (incident.target_type === 'CHARGING_POINT') {
+
+      if (!incident.charging_point_id) {
+        throw new Error(
+          'Incident has no associated charging point.'
+        );
+      }
+
+      await connection.execute(
+        `UPDATE charging_points
+                     SET status = 'AVAILABLE'
+                     WHERE id = ?`,
+        [incident.charging_point_id]
+      );
+
+    } else if (incident.target_type === 'PARKING_SLOT') {
+
+      throw new Error(
+        'Parking slot restoration requires parking_slot_id in incidents schema.'
+      );
+
+    }
+
+    // 3. Close the incident
+    await connection.execute(
+      `UPDATE incidents
+                 SET status = 'CLOSED',
+                     resolution_notes = ?,
+                     closed_at = NOW()
+                 WHERE id = ?`,
+      [resolutionNotes, incidentId]
+    );
+
+    // 4. Commit all changes
+    await connection.commit();
+
+    res.json({
+      success: true,
+      data: {
+        id: incidentId,
+        targetType: incident.target_type,
+        status: 'CLOSED',
+        resolutionNotes
+      }
+    });
+
   } catch (err) {
+    await connection.rollback();
     next(err);
+
+  } finally {
+    connection.release();
   }
-});
+}
+);
 
 // UC13: Redistribute Vehicles Between Hubs
 router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {

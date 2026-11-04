@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS incidents (
   target_type ENUM('VEHICLE', 'CHARGING_POINT', 'PARKING_SLOT', 'HUB') NOT NULL,
   vehicle_id INT NULL,
   charging_point_id INT NULL,
+  parking_slot_id INT NULL,
   severity ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NOT NULL DEFAULT 'MEDIUM',
   title VARCHAR(160) NOT NULL,
   description TEXT NOT NULL,
@@ -156,7 +157,8 @@ CREATE TABLE IF NOT EXISTS incidents (
   CONSTRAINT fk_inc_reporter FOREIGN KEY (reported_by) REFERENCES users(id),
   CONSTRAINT fk_inc_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
   CONSTRAINT fk_inc_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
-  CONSTRAINT fk_inc_charger FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL
+  CONSTRAINT fk_inc_charger FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL,
+  CONSTRAINT fk_inc_slot FOREIGN KEY (parking_slot_id) REFERENCES parking_slots(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- 9. Vehicle Redistribution / Dispatch Orders (UC13)
