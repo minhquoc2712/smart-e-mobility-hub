@@ -9,25 +9,52 @@ const { authenticateToken, requireRole } = require('../../middlewares/auth.middl
 const router = express.Router();
 
 // UC10: Operator Network Overview Dashboard
-router.get('/operator/dashboard', authenticateToken, requireRole('OPERATOR'), async (_req, res, next) => {
+router.get('/operator/dashboard/overview', authenticateToken, requireRole('OPERATOR'), async (_req, res, next) => {
   try {
     const [[vehicleStats]] = await pool.execute(`
       SELECT
         COUNT(*) AS totalVehicles,
-        SUM(status = 'AVAILABLE') AS availableVehicles,
-        SUM(status = 'IN_USE') AS inUseVehicles,
-        SUM(status = 'CHARGING') AS chargingVehicles,
-        SUM(status = 'OUT_OF_SERVICE') AS outOfServiceVehicles
+        COUNT(CASE WHEN status = 'AVAILABLE' THEN 1 END) AS availableVehicles,
+        COUNT(CASE WHEN status = 'IN_USE' THEN 1 END) AS inUseVehicles,
+        COUNT(CASE WHEN status = 'CHARGING' THEN 1 END) AS chargingVehicles,
+        COUNT(CASE WHEN status = 'OUT_OF_SERVICE' THEN 1 END) AS outOfServiceVehicles
       FROM vehicles
     `);
     const [[incidentStats]] = await pool.execute(`
-      SELECT COUNT(*) AS openIncidents FROM incidents WHERE status IN ('OPEN', 'IN_PROGRESS')
+      SELECT SUM(CASE WHEN status = 'OPEN' OR status = 'IN_PROGRESS' THEN 1 ELSE 0 END) AS openIncidents FROM incidents
     `);
+    const [[hubStats]] = await pool.execute(`
+      SELECT
+        COUNT(*) AS totalHubs
+      FROM hubs
+    `);
+    const [hubRows] = await pool.execute(`
+      SELECT
+        h.id,
+        h.name,
+        COUNT (CASE when v.status = 'AVAILABLE' THEN 1 END) AS availableVehicles
+      FROM hubs h
+      LEFT JOIN vehicles v ON h.id = v.current_hub_id
+      GROUP BY h.id, h.name
+      `);
+    // LOW THRESHOLD là ngưỡng bao nhiêu?
+    const LOW_THRESHOLD = process.env.HUB_STATUS_LOW_THRESHOLD || 5;
+    const hubStatuses = hubRows.map(hub => {
+      const availableCounts = Number(hub.availableVehicles);
+      return {
+        id: hub.id,
+        name: hub.name,
+        availableVehicles: availableCounts,
+        status: availableCounts <= LOW_THRESHOLD ? "Low stock" : "Operating"
+      }
+    });
     res.json({
       success: true,
       data: {
+        totalHubs: hubStats.totalHubs,
         ...vehicleStats,
         openIncidents: incidentStats.openIncidents,
+        hubStatusList: hubStatuses
       },
     });
   } catch (err) {
