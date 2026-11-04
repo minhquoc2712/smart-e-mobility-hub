@@ -1,0 +1,590 @@
+openapi: 3.0.3
+info:
+  title: Smart E-Mobility Hub API
+  version: 1.0.0
+  description: >
+    RESTful API specification for the VNU-HCM Smart E-Mobility Hub system
+    (React + Node.js/Express + MySQL). Covers UC01–UC18 across Authentication,
+    Hubs, Vehicles, Reservations/Pickup/Return, Charging Scheduling, Operator
+    Monitoring, Incident Management, Redistribution, IoT Telemetry, and What-If Simulation.
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Local Node.js Development Server
+
+tags:
+  - name: Auth
+    description: Google OAuth2 sign-in, session verification, and role mapping (Task 3.1c)
+  - name: Hubs
+    description: Mobility Hub status, parking slots, and charging points (UC01, UC03)
+  - name: Vehicles
+    description: Rental EV search, battery status, and availability check (UC02, UC04a)
+  - name: Reservations
+    description: Vehicle & parking reservation, cancellation, pickup, and return (UC04–UC08)
+  - name: Charging
+    description: Rental & private EV charging queue and priority scheduling (UC09, UC15)
+  - name: Operator
+    description: Network utilization monitoring, incidents, and vehicle redistribution (UC10–UC13)
+  - name: Telemetry
+    description: A3 IoT sensor / simulator telemetry ingestion (UC14)
+  - name: Simulation
+    description: Isolated What-if Simulation scenarios and coordination recommendations (UC16–UC18)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Requested vehicle is no longer available.
+
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        email: { type: string, example: student@hcmut.edu.vn }
+        fullName: { type: string, example: Nguyễn Văn Sinh Viên }
+        role:
+          type: string
+          enum: [USER, OPERATOR]
+        privateVehiclePlate: { type: string, nullable: true, example: "59-MĐ1 123.45" }
+        privateVehicleModel: { type: string, nullable: true, example: "VinFast Evo200 Lite" }
+
+    HubSummary:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        code: { type: string, example: HUB-BK-GATE1 }
+        name: { type: string, example: HCMUT Main Gate Hub }
+        campusZone: { type: string, example: HCMUT Campus Dĩ An }
+        address: { type: string }
+        totalParkingSlots: { type: integer, example: 20 }
+        freeParkingSlots: { type: integer, example: 8 }
+        totalChargingPoints: { type: integer, example: 6 }
+        availableChargingPoints: { type: integer, example: 4 }
+        availableBikes: { type: integer, example: 5 }
+        availableScooters: { type: integer, example: 3 }
+        status:
+          type: string
+          enum: [ACTIVE, NEAR_FULL, FULL, MAINTENANCE]
+
+    Vehicle:
+      type: object
+      properties:
+        id: { type: integer, example: 101 }
+        code: { type: string, example: EB-102 }
+        type:
+          type: string
+          enum: [ELECTRIC_BIKE, ELECTRIC_SCOOTER]
+        model: { type: string, example: Campus E-Bike Gen2 }
+        currentHubId: { type: integer, nullable: true, example: 1 }
+        currentHubName: { type: string, nullable: true, example: HCMUT Main Gate Hub }
+        batteryLevel: { type: integer, minimum: 0, maximum: 100, example: 88 }
+        estimatedRangeKm: { type: number, example: 42.0 }
+        status:
+          type: string
+          enum: [AVAILABLE, RESERVED, IN_USE, CHARGING, OUT_OF_SERVICE]
+
+    Reservation:
+      type: object
+      properties:
+        id: { type: integer }
+        reservationCode: { type: string, example: RES-20261102-001 }
+        userId: { type: integer }
+        reservationType:
+          type: string
+          enum: [VEHICLE, PARKING]
+        hubId: { type: integer }
+        hubName: { type: string }
+        vehicleId: { type: integer, nullable: true }
+        vehicleCode: { type: string, nullable: true }
+        parkingSlotCode: { type: string, nullable: true }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, ACTIVE, COMPLETED, CANCELLED, EXPIRED]
+
+paths:
+  /auth/google:
+    post:
+      tags: [Auth]
+      summary: Verify Google ID token and issue JWT session (Task 3.1c)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential]
+              properties:
+                credential:
+                  type: string
+                  description: Google Identity Services ID token
+      responses:
+        "200":
+          description: Authenticated user session and JWT
+        "401":
+          description: Invalid Google token
+
+  /auth/dev-login:
+    post:
+      tags: [Auth]
+      summary: Development-only role login (disabled in production)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, example: student@hcmut.edu.vn }
+      responses:
+        "200":
+          description: Dev JWT session issued
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      summary: Get current authenticated user profile
+      responses:
+        "200":
+          description: Current user profile
+
+  /hubs:
+    get:
+      tags: [Hubs]
+      summary: List all Mobility Hubs and live resource counts (UC01)
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: vehicleType
+          schema:
+            type: string
+            enum: [ELECTRIC_BIKE, ELECTRIC_SCOOTER]
+      responses:
+        "200":
+          description: Array of HubSummary objects
+
+  /hubs/{hubId}:
+    get:
+      tags: [Hubs]
+      summary: View detailed Hub info, parking slots, and chargers (UC01, UC03)
+      parameters:
+        - in: path
+          name: hubId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Detailed Hub information
+
+  /hubs/{hubId}/parking-slots:
+    get:
+      tags: [Hubs]
+      summary: List parking slots at a Hub (UC03, UC07a)
+      parameters:
+        - in: path
+          name: hubId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Parking slots at Hub
+
+  /hubs/{hubId}/charging-points:
+    get:
+      tags: [Hubs]
+      summary: List charging points and statuses at a Hub (UC03, UC09a)
+      parameters:
+        - in: path
+          name: hubId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Charging points at Hub
+
+  /vehicles:
+    get:
+      tags: [Vehicles]
+      summary: Search rental vehicles across Hubs (UC02)
+      parameters:
+        - in: query
+          name: hubId
+          schema: { type: integer }
+        - in: query
+          name: type
+          schema: { type: string, enum: [ELECTRIC_BIKE, ELECTRIC_SCOOTER] }
+        - in: query
+          name: minBattery
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: status
+          schema: { type: string, enum: [AVAILABLE, RESERVED, IN_USE, CHARGING, OUT_OF_SERVICE] }
+      responses:
+        "200":
+          description: Filtered vehicle list
+
+  /vehicles/{vehicleId}/availability:
+    get:
+      tags: [Vehicles]
+      summary: Check vehicle availability for a requested time window (UC04a)
+      parameters:
+        - in: path
+          name: vehicleId
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: startTime
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endTime
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Availability check result
+
+  /reservations/my:
+    get:
+      tags: [Reservations]
+      security: [{ bearerAuth: [] }]
+      summary: Get current user's vehicle and parking reservations
+      responses:
+        "200":
+          description: List of user reservations
+
+  /reservations/vehicles:
+    post:
+      tags: [Reservations]
+      security: [{ bearerAuth: [] }]
+      summary: Reserve a rental electric vehicle (UC04)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hubId, vehicleId, startTime, endTime]
+              properties:
+                hubId: { type: integer }
+                vehicleId: { type: integer }
+                startTime: { type: string, format: date-time }
+                endTime: { type: string, format: date-time }
+      responses:
+        "201":
+          description: Reservation confirmed (Vehicle -> RESERVED)
+        "409":
+          description: Booking conflict or insufficient battery
+
+  /reservations/parking:
+    post:
+      tags: [Reservations]
+      security: [{ bearerAuth: [] }]
+      summary: Reserve a parking space at a Hub (UC08 — shared or private EV)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hubId, startTime, endTime]
+              properties:
+                hubId: { type: integer }
+                slotType: { type: string, enum: [PRIVATE_EV, UNIVERSAL], default: PRIVATE_EV }
+                startTime: { type: string, format: date-time }
+                endTime: { type: string, format: date-time }
+      responses:
+        "201":
+          description: Parking slot reserved
+
+  /reservations/{reservationId}/cancel:
+    patch:
+      tags: [Reservations]
+      security: [{ bearerAuth: [] }]
+      summary: Cancel an active reservation before pickup (UC05)
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Reservation cancelled and resource released
+
+  /reservations/{reservationId}/pickup:
+    post:
+      tags: [Reservations]
+      security: [{ bearerAuth: [] }]
+      summary: Confirm vehicle pickup at Hub (UC06 — RESERVED -> IN_USE)
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Vehicle picked up, parking slot freed
+
+  /reservations/{reservationId}/return:
+    post:
+      tags: [Reservations]
+      security: [{ bearerAuth: [] }]
+      summary: Return rental vehicle to a Hub with free-parking validation (UC07)
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [returnHubId]
+              properties:
+                returnHubId: { type: integer }
+                remainingBattery: { type: integer, example: 54 }
+                conditionNote: { type: string, example: Normal condition }
+      responses:
+        "200":
+          description: Vehicle returned (IN_USE -> AVAILABLE or CHARGING)
+        "409":
+          description: Target Hub has no free parking slots
+
+  /charging-requests:
+    get:
+      tags: [Charging]
+      security: [{ bearerAuth: [] }]
+      summary: View charging queue (own requests for USER; full network queue for OPERATOR)
+      responses:
+        "200":
+          description: Charging queue list
+    post:
+      tags: [Charging]
+      security: [{ bearerAuth: [] }]
+      summary: Schedule or queue a charging session for rental or private EV (UC09)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hubId, ownershipType, scheduledStart, scheduledEnd]
+              properties:
+                hubId: { type: integer }
+                ownershipType: { type: string, enum: [RENTAL, PRIVATE] }
+                vehicleId: { type: integer, nullable: true }
+                privateVehicleLabel: { type: string, nullable: true }
+                currentBatteryLevel: { type: integer, default: 25 }
+                targetBatteryLevel: { type: integer, default: 85 }
+                scheduledStart: { type: string, format: date-time }
+                scheduledEnd: { type: string, format: date-time }
+      responses:
+        "201":
+          description: Charging request scheduled or queued
+
+  /charging-requests/{requestId}/priority:
+    patch:
+      tags: [Charging]
+      security: [{ bearerAuth: [] }]
+      summary: "[Operator] Update charging priority level in queue (UC15)"
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [priority]
+              properties:
+                priority: { type: string, enum: [LOW, NORMAL, HIGH, URGENT] }
+      responses:
+        "200":
+          description: Priority updated and queue re-ordered
+
+  /operator/dashboard:
+    get:
+      tags: [Operator]
+      security: [{ bearerAuth: [] }]
+      summary: "[Operator] Network overview KPIs, utilization, and near-full Hub alerts (UC10)"
+      responses:
+        "200":
+          description: Operator monitoring dashboard summary
+
+  /incidents:
+    get:
+      tags: [Operator]
+      security: [{ bearerAuth: [] }]
+      summary: "[Operator] List operational incidents"
+      responses:
+        "200":
+          description: List of incidents
+    post:
+      tags: [Operator]
+      security: [{ bearerAuth: [] }]
+      summary: "[Operator] Record vehicle or charging point incident (UC11 -> OUT_OF_SERVICE)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hubId, targetType, severity, title, description]
+              properties:
+                hubId: { type: integer }
+                targetType: { type: string, enum: [VEHICLE, CHARGING_POINT, PARKING_SLOT, HUB] }
+                vehicleId: { type: integer, nullable: true }
+                chargingPointId: { type: integer, nullable: true }
+                severity: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+                title: { type: string }
+                description: { type: string }
+      responses:
+        "201":
+          description: Incident recorded and affected resource marked OUT_OF_SERVICE
+
+  /incidents/{incidentId}/close:
+    patch:
+      tags: [Operator]
+      security: [{ bearerAuth: [] }]
+      summary: "[Operator] Close incident after repair and restore resource (UC12)"
+      parameters:
+        - in: path
+          name: incidentId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolutionNotes: { type: string }
+      responses:
+        "200":
+          description: Incident closed and resource restored to AVAILABLE
+
+  /dispatch/redistribute:
+    post:
+      tags: [Operator]
+      security: [{ bearerAuth: [] }]
+      summary: "[Operator] Redistribute vehicles between Hubs after checking free parking (UC13)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceHubId, destinationHubId, vehicleCount]
+              properties:
+                sourceHubId: { type: integer }
+                destinationHubId: { type: integer }
+                vehicleCount: { type: integer, minimum: 1 }
+                reason: { type: string }
+      responses:
+        "201":
+          description: Dispatch order created
+        "409":
+          description: Destination Hub lacks free parking capacity
+
+  /telemetry/ingest:
+    post:
+      tags: [Telemetry]
+      summary: "[A3 Simulator] Ingest periodic status & battery telemetry updates (UC14)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                simulatorKey: { type: string }
+                vehicleUpdates:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      vehicleCode: { type: string }
+                      batteryLevel: { type: integer }
+                      status: { type: string }
+      responses:
+        "200":
+          description: Telemetry batch processed
+
+  /simulations/scenarios:
+    get:
+      tags: [Simulation]
+      security: [{ bearerAuth: [] }]
+      summary: "[Operator] List configurable What-if Simulation scenario templates (UC16)"
+      responses:
+        "200":
+          description: Scenario list
+
+  /simulations/run:
+    post:
+      tags: [Simulation]
+      security: [{ bearerAuth: [] }]
+      summary: "[Operator] Clone operational state and execute What-if scenario (UC16, UC17)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scenarioCode, params]
+              properties:
+                scenarioCode: { type: string, example: SCN-METRO-SURGE }
+                params: { type: object }
+      responses:
+        "200":
+          description: Simulation impact metrics and generated coordination recommendations
+
+  /simulations/runs/{runId}/apply-recommendation:
+    post:
+      tags: [Simulation]
+      security: [{ bearerAuth: [] }]
+      summary: "[Operator] Apply a generated recommendation as live dispatch/priority action (UC18)"
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recommendationId]
+              properties:
+                recommendationId: { type: string }
+      responses:
+        "200":
+          description: Recommendation applied to operational system

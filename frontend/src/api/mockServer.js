@@ -1,0 +1,278 @@
+/**
+ * Stateful Mock API Server (Task 3.0)
+ * Persists state inside sessionStorage so UI screens (Tasks 3.2a, 3.3a, 4.1a, 4.2a)
+ * experience realistic state transitions (AVAILABLE -> RESERVED -> IN_USE -> AVAILABLE)
+ * before the Node.js + MySQL backend is connected.
+ */
+import { INITIAL_MOCK_DB } from './mockData';
+
+const STORAGE_KEY = 'semh_mock_db_v1';
+
+function loadDb() {
+  const raw = sessionStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MOCK_DB));
+    return structuredClone(INITIAL_MOCK_DB);
+  }
+  return JSON.parse(raw);
+}
+
+function saveDb(db) {
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+}
+
+function delay(ms = 180) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export const mockServer = {
+  resetMockDb() {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MOCK_DB));
+    return structuredClone(INITIAL_MOCK_DB);
+  },
+
+  async demoLogin(email) {
+    await delay();
+    const db = loadDb();
+    let user = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (!user) {
+      user = {
+        id: Date.now(),
+        email,
+        fullName: email.split('@')[0],
+        role: email.toLowerCase().includes('operator') ? 'OPERATOR' : 'USER',
+      };
+      db.users.push(user);
+      saveDb(db);
+    }
+    return {
+      token: `mock-jwt-token-${user.id}-${user.role}`,
+      user,
+    };
+  },
+
+  async getHubs({ search = '', vehicleType = '' } = {}) {
+    await delay();
+    const db = loadDb();
+    return db.hubs.filter((h) => {
+      const matchText =
+        !search ||
+        h.name.toLowerCase().includes(search.toLowerCase()) ||
+        h.campusZone.toLowerCase().includes(search.toLowerCase());
+      const matchType =
+        !vehicleType ||
+        (vehicleType === 'ELECTRIC_BIKE' && h.availableBikes > 0) ||
+        (vehicleType === 'ELECTRIC_SCOOTER' && h.availableScooters > 0);
+      return matchText && matchType;
+    });
+  },
+
+  async getHubById(hubId) {
+    await delay();
+    const db = loadDb();
+    const hub = db.hubs.find((h) => h.id === Number(hubId));
+    if (!hub) throw new Error('Hub not found');
+    const vehicles = db.vehicles.filter((v) => v.currentHubId === Number(hubId));
+    return { ...hub, vehicles };
+  },
+
+  async getVehicles({ hubId, type, minBattery = 0, status } = {}) {
+    await delay();
+    const db = loadDb();
+    return db.vehicles.filter((v) => {
+      if (hubId && v.currentHubId !== Number(hubId)) return false;
+      if (type && v.type !== type) return false;
+      if (v.batteryLevel < Number(minBattery)) return false;
+      if (status && v.status !== status) return false;
+      return true;
+    });
+  },
+
+  async getMyReservations(userId) {
+    await delay();
+    const db = loadDb();
+    return db.reservations.filter((r) => !userId || r.userId === userId);
+  },
+
+  async reserveVehicle({ userId, hubId, vehicleId, startTime, endTime }) {
+    await delay();
+    const db = loadDb();
+    const vehicle = db.vehicles.find((v) => v.id === Number(vehicleId));
+    const hub = db.hubs.find((h) => h.id === Number(hubId));
+    if (!vehicle || vehicle.status !== 'AVAILABLE') {
+      throw new Error('Selected vehicle is not AVAILABLE.');
+    }
+    vehicle.status = 'RESERVED';
+    const newReservation = {
+      id: Date.now(),
+      reservationCode: `RES-V-${String(Date.now()).slice(-5)}`,
+      userId,
+      reservationType: 'VEHICLE',
+      hubId: Number(hubId),
+      hubName: hub?.name || 'Campus Hub',
+      vehicleId: vehicle.id,
+      vehicleCode: vehicle.code,
+      startTime,
+      endTime,
+      status: 'CONFIRMED',
+    };
+    db.reservations.unshift(newReservation);
+    saveDb(db);
+    return newReservation;
+  },
+
+  async pickupReservation(reservationId) {
+    await delay();
+    const db = loadDb();
+    const res = db.reservations.find((r) => r.id === Number(reservationId));
+    if (!res) throw new Error('Reservation not found');
+    res.status = 'ACTIVE';
+    const vehicle = db.vehicles.find((v) => v.id === res.vehicleId);
+    if (vehicle) vehicle.status = 'IN_USE';
+    saveDb(db);
+    return res;
+  },
+
+  async returnReservation(reservationId, { returnHubId }) {
+    await delay();
+    const db = loadDb();
+    const res = db.reservations.find((r) => r.id === Number(reservationId));
+    if (!res) throw new Error('Reservation not found');
+    const hub = db.hubs.find((h) => h.id === Number(returnHubId)) || db.hubs[0];
+    if (hub.freeParkingSlots <= 0) {
+      throw new Error(`${hub.name} has no free parking spaces!`);
+    }
+    res.status = 'COMPLETED';
+    const vehicle = db.vehicles.find((v) => v.id === res.vehicleId);
+    if (vehicle) {
+      vehicle.status = 'AVAILABLE';
+      vehicle.currentHubId = hub.id;
+      vehicle.currentHubName = hub.name;
+      vehicle.batteryLevel = Math.max(15, vehicle.batteryLevel - 14);
+    }
+    saveDb(db);
+    return res;
+  },
+
+  async cancelReservation(reservationId) {
+    await delay();
+    const db = loadDb();
+    const res = db.reservations.find((r) => r.id === Number(reservationId));
+    if (!res) throw new Error('Reservation not found');
+    res.status = 'CANCELLED';
+    const vehicle = db.vehicles.find((v) => v.id === res.vehicleId);
+    if (vehicle && vehicle.status === 'RESERVED') vehicle.status = 'AVAILABLE';
+    saveDb(db);
+    return res;
+  },
+
+  async getChargingRequests() {
+    await delay();
+    return loadDb().chargingRequests;
+  },
+
+  async createChargingRequest(payload) {
+    await delay();
+    const db = loadDb();
+    const hub = db.hubs.find((h) => h.id === Number(payload.hubId));
+    const item = {
+      id: Date.now(),
+      requestCode: `CHG-${String(Date.now()).slice(-5)}`,
+      ...payload,
+      hubName: hub?.name || 'Campus Hub',
+      priority: 'NORMAL',
+      queuePosition: db.chargingRequests.length + 1,
+      status: 'SCHEDULED',
+    };
+    db.chargingRequests.push(item);
+    saveDb(db);
+    return item;
+  },
+
+  async updateChargingPriority(requestId, priority) {
+    await delay();
+    const db = loadDb();
+    const req = db.chargingRequests.find((c) => c.id === Number(requestId));
+    if (req) req.priority = priority;
+    saveDb(db);
+    return req;
+  },
+
+  async getOperatorDashboard() {
+    await delay();
+    const db = loadDb();
+    return {
+      totalVehicles: db.vehicles.length,
+      availableVehicles: db.vehicles.filter((v) => v.status === 'AVAILABLE').length,
+      inUseVehicles: db.vehicles.filter((v) => v.status === 'IN_USE').length,
+      chargingVehicles: db.vehicles.filter((v) => v.status === 'CHARGING').length,
+      outOfServiceVehicles: db.vehicles.filter((v) => v.status === 'OUT_OF_SERVICE').length,
+      openIncidents: db.incidents.filter((i) => i.status !== 'CLOSED').length,
+      hubs: db.hubs,
+    };
+  },
+
+  async getIncidents() {
+    await delay();
+    return loadDb().incidents;
+  },
+
+  async createIncident(payload) {
+    await delay();
+    const db = loadDb();
+    const hub = db.hubs.find((h) => h.id === Number(payload.hubId));
+    const incident = {
+      id: Date.now(),
+      incidentCode: `INC-${String(Date.now()).slice(-5)}`,
+      ...payload,
+      hubName: hub?.name || 'Campus Hub',
+      status: 'OPEN',
+      createdAt: new Date().toISOString(),
+    };
+    db.incidents.unshift(incident);
+    saveDb(db);
+    return incident;
+  },
+
+  async closeIncident(incidentId) {
+    await delay();
+    const db = loadDb();
+    const inc = db.incidents.find((i) => i.id === Number(incidentId));
+    if (inc) inc.status = 'CLOSED';
+    saveDb(db);
+    return inc;
+  },
+
+  async getScenarios() {
+    await delay();
+    return loadDb().scenarios;
+  },
+
+  async runSimulation({ scenarioCode, params }) {
+    await delay(300);
+    const db = loadDb(); // Read-only clone — never mutates operational mock DB!
+    return {
+      runId: `SIM-${String(Date.now()).slice(-6)}`,
+      scenarioCode,
+      isolatedSnapshotCounts: { hubsCloned: db.hubs.length, vehiclesCloned: db.vehicles.length },
+      paramsUsed: params,
+      impactSummary: {
+        unmetDemandEstimate: 11,
+        peakUtilizationPercent: 93,
+        avgWaitMinutes: 12,
+      },
+      recommendations: [
+        {
+          id: 'REC-1',
+          actionType: 'DISPATCH',
+          summary: 'Redistribute 5 available e-bikes from Dormitory Zone B Hub to Metro Suoi Tien - VNU Hub.',
+        },
+        {
+          id: 'REC-2',
+          actionType: 'CHARGING_PRIORITY',
+          summary: 'Promote vehicles above 55% SoC to URGENT fast top-up to meet peak departure wave.',
+        },
+      ],
+    };
+  },
+};
