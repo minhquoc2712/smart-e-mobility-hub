@@ -178,7 +178,27 @@ CREATE TABLE IF NOT EXISTS dispatch_orders (
   CONSTRAINT fk_disp_dst FOREIGN KEY (destination_hub_id) REFERENCES hubs(id)
 ) ENGINE=InnoDB;
 
--- 10. What-If Simulation Scenario Templates & Saved Runs (UC16, UC17, UC18)
+-- 10. Dispatch Order Items (One-to-One Vehicle-to-Slot Pairing)
+CREATE TABLE IF NOT EXISTS dispatch_order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    dispatch_order_id INT NOT NULL,
+    vehicle_id INT NOT NULL,
+    destination_slot_id INT NOT NULL,
+    UNIQUE KEY uq_dispatch_vehicle (dispatch_order_id, vehicle_id),
+    UNIQUE KEY uq_dispatch_slot (dispatch_order_id, destination_slot_id),
+    CONSTRAINT fk_item_order
+        FOREIGN KEY (dispatch_order_id)
+        REFERENCES dispatch_orders(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_item_vehicle
+        FOREIGN KEY (vehicle_id)
+        REFERENCES vehicles(id),
+    CONSTRAINT fk_item_slot
+        FOREIGN KEY (destination_slot_id)
+        REFERENCES parking_slots(id)
+) ENGINE=InnoDB;
+
+-- 11. What-If Simulation Scenario Templates & Saved Runs (UC16, UC17, UC18)
 CREATE TABLE IF NOT EXISTS scenarios (
   id INT AUTO_INCREMENT PRIMARY KEY,
   code VARCHAR(50) NOT NULL UNIQUE,
