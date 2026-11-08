@@ -131,10 +131,10 @@ CREATE TABLE IF NOT EXISTS charging_requests (
   status ENUM('QUEUED', 'SCHEDULED', 'CHARGING', 'COMPLETED', 'CANCELLED', 'FAILED') NOT NULL DEFAULT 'SCHEDULED',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_chg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_chg_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
-  CONSTRAINT fk_chg_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
-  CONSTRAINT fk_chg_point FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL
+  CONSTRAINT fk_chgreq_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_chgreq_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
+  CONSTRAINT fk_chgreq_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
+  CONSTRAINT fk_chgreq_point FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- 8. Operational Incidents (UC11 & UC12)
@@ -146,7 +146,6 @@ CREATE TABLE IF NOT EXISTS incidents (
   target_type ENUM('VEHICLE', 'CHARGING_POINT', 'PARKING_SLOT', 'HUB') NOT NULL,
   vehicle_id INT NULL,
   charging_point_id INT NULL,
-  parking_slot_id INT NULL,
   severity ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NOT NULL DEFAULT 'MEDIUM',
   title VARCHAR(160) NOT NULL,
   description TEXT NOT NULL,
@@ -154,11 +153,10 @@ CREATE TABLE IF NOT EXISTS incidents (
   resolution_notes TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   closed_at DATETIME NULL,
-  CONSTRAINT fk_inc_reporter FOREIGN KEY (reported_by) REFERENCES users(id),
-  CONSTRAINT fk_inc_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
-  CONSTRAINT fk_inc_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
-  CONSTRAINT fk_inc_charger FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL,
-  CONSTRAINT fk_inc_slot FOREIGN KEY (parking_slot_id) REFERENCES parking_slots(id) ON DELETE SET NULL
+  CONSTRAINT fk_incidents_reporter FOREIGN KEY (reported_by) REFERENCES users(id),
+  CONSTRAINT fk_incidents_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
+  CONSTRAINT fk_incidents_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
+  CONSTRAINT fk_incidents_charger FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- 9. Vehicle Redistribution / Dispatch Orders (UC13)
@@ -173,32 +171,12 @@ CREATE TABLE IF NOT EXISTS dispatch_orders (
   status ENUM('PENDING', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME NULL,
-  CONSTRAINT fk_disp_operator FOREIGN KEY (operator_id) REFERENCES users(id),
-  CONSTRAINT fk_disp_src FOREIGN KEY (source_hub_id) REFERENCES hubs(id),
-  CONSTRAINT fk_disp_dst FOREIGN KEY (destination_hub_id) REFERENCES hubs(id)
+  CONSTRAINT fk_dispatch_orders_operator FOREIGN KEY (operator_id) REFERENCES users(id),
+  CONSTRAINT fk_dispatch_orders_src FOREIGN KEY (source_hub_id) REFERENCES hubs(id),
+  CONSTRAINT fk_dispatch_orders_dst FOREIGN KEY (destination_hub_id) REFERENCES hubs(id)
 ) ENGINE=InnoDB;
 
--- 10. Dispatch Order Items (One-to-One Vehicle-to-Slot Pairing)
-CREATE TABLE IF NOT EXISTS dispatch_order_items (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    dispatch_order_id INT NOT NULL,
-    vehicle_id INT NOT NULL,
-    destination_slot_id INT NOT NULL,
-    UNIQUE KEY uq_dispatch_vehicle (dispatch_order_id, vehicle_id),
-    UNIQUE KEY uq_dispatch_slot (dispatch_order_id, destination_slot_id),
-    CONSTRAINT fk_item_order
-        FOREIGN KEY (dispatch_order_id)
-        REFERENCES dispatch_orders(id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_item_vehicle
-        FOREIGN KEY (vehicle_id)
-        REFERENCES vehicles(id),
-    CONSTRAINT fk_item_slot
-        FOREIGN KEY (destination_slot_id)
-        REFERENCES parking_slots(id)
-) ENGINE=InnoDB;
-
--- 11. What-If Simulation Scenario Templates & Saved Runs (UC16, UC17, UC18)
+-- 10. What-If Simulation Scenario Templates & Saved Runs (UC16, UC17, UC18)
 CREATE TABLE IF NOT EXISTS scenarios (
   id INT AUTO_INCREMENT PRIMARY KEY,
   code VARCHAR(50) NOT NULL UNIQUE,
