@@ -14,9 +14,13 @@ import { ReservationsPage } from '../pages/student/ReservationsPage';
 import { ChargingPage } from '../pages/student/ChargingPage';
 
 import { OperatorDashboardPage } from '../pages/operator/OperatorDashboardPage';
+import { HubUtilizationPage } from '../pages/operator/HubUtilizationPage';
+import { ManageParkingPage } from '../pages/operator/ManageParkingPage';
+import { VehicleChargingStatusPage } from '../pages/operator/VehicleChargingStatusPage';
 import { IncidentsPage } from '../pages/operator/IncidentsPage';
 import { DispatchPage } from '../pages/operator/DispatchPage';
 import { SimulationPage } from '../pages/operator/SimulationPage';
+import { OperatorProfilePage } from '../pages/operator/OperatorProfilePage';
 
 export function AppRouter() {
   return (
@@ -37,14 +41,18 @@ export function AppRouter() {
         </Route>
       </Route>
 
-      {/* Operator-Only Routes (Role: OPERATOR) */}
+      {/* Operator / Staff Routes (Role: OPERATOR) */}
       <Route element={<ProtectedRoute allowedRoles={['OPERATOR']} />}>
         <Route path="/operator" element={<OperatorLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<OperatorDashboardPage />} />
+          <Route path="hub-utilization" element={<HubUtilizationPage />} />
+          <Route path="manage-parking" element={<ManageParkingPage />} />
+          <Route path="vehicles-charging" element={<VehicleChargingStatusPage />} />
           <Route path="incidents" element={<IncidentsPage />} />
           <Route path="dispatch" element={<DispatchPage />} />
           <Route path="simulation" element={<SimulationPage />} />
+          <Route path="profile" element={<OperatorProfilePage />} />
         </Route>
       </Route>
 
