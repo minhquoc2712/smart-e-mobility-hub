@@ -71,7 +71,7 @@ router.get('/operator/dashboard', authenticateToken, requireRole('OPERATOR'), as
                     AS outOfServiceChargingPoints,
 
                 -- Vehicle statistics at this hub
-                (v.available_vehicles, 0)
+                COALESCE(v.available_vehicles, 0)
                     AS availableVehicles,
                 COALESCE(v.reserved_vehicles, 0)
                     AS reservedVehicles,
@@ -580,7 +580,7 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
 
       await connection.execute(
         `UPDATE parking_slots
-                     SET status = 'AVAILABLE'
+                     SET status = 'FREE'
                      WHERE id = ?`,
         [incident.parking_slot_id]
       );
