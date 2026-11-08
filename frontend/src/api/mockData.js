@@ -92,29 +92,40 @@ export const INITIAL_MOCK_DB = {
   ],
 
   parkingSlots: [
+    // Hub 1: HCMUT Main Gate Hub
     { id: 1, hubId: 1, slotCode: 'BK-P01', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T07:30:00Z' },
     { id: 2, hubId: 1, slotCode: 'BK-P02', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T08:00:00Z' },
     { id: 3, hubId: 1, slotCode: 'BK-P03', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T08:15:00Z' },
     { id: 4, hubId: 1, slotCode: 'BK-P04', slotType: 'SHARED_EV', status: 'FREE', updatedAt: '2026-11-08T08:20:00Z' },
+    { id: 21, hubId: 1, slotCode: 'BK-P05', slotType: 'SHARED_EV', status: 'FREE', updatedAt: '2026-11-08T08:25:00Z' },
+    { id: 22, hubId: 1, slotCode: 'BK-P06', slotType: 'SHARED_EV', status: 'FREE', updatedAt: '2026-11-08T08:28:00Z' },
     { id: 5, hubId: 1, slotCode: 'BK-C01', slotType: 'PRIVATE_EV', status: 'OCCUPIED', vehiclePlate: '59G2-713.82', checkInAt: '08:45', durationLabel: '1h 30m', updatedAt: '2026-11-08T08:45:00Z' },
     { id: 6, hubId: 1, slotCode: 'BK-C02', slotType: 'UNIVERSAL', status: 'FREE', updatedAt: '2026-11-08T08:50:00Z' },
 
+    // Hub 2: VNU Central Library Hub
     { id: 7, hubId: 2, slotCode: 'A01', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T07:30:00Z' },
     { id: 8, hubId: 2, slotCode: 'A02', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T08:10:00Z' },
-    { id: 9, hubId: 2, slotCode: 'A03', slotType: 'SHARED_EV', status: 'FREE', updatedAt: '2026-11-08T08:12:00Z' },
+    { id: 9, hubId: 2, slotCode: 'A03', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T08:12:00Z' },
+    { id: 23, hubId: 2, slotCode: 'A04', slotType: 'SHARED_EV', status: 'FREE', updatedAt: '2026-11-08T08:16:00Z' },
+    { id: 24, hubId: 2, slotCode: 'A05', slotType: 'SHARED_EV', status: 'FREE', updatedAt: '2026-11-08T08:20:00Z' },
     { id: 10, hubId: 2, slotCode: 'C07', slotType: 'PRIVATE_EV', status: 'OCCUPIED', vehiclePlate: '59-MĐ1 123.45', checkInAt: '08:45', durationLabel: '1h 30m', updatedAt: '2026-11-08T08:45:00Z' },
     { id: 11, hubId: 2, slotCode: 'C12', slotType: 'PRIVATE_EV', status: 'OCCUPIED', vehiclePlate: '59H1-265.09', checkInAt: '09:40', durationLabel: '35m', updatedAt: '2026-11-08T09:40:00Z' },
     { id: 12, hubId: 2, slotCode: 'C15', slotType: 'UNIVERSAL', status: 'FREE', updatedAt: '2026-11-08T09:00:00Z' },
 
+    // Hub 3: Dormitory Zone B Hub
     { id: 13, hubId: 3, slotCode: 'DB-P01', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T07:20:00Z' },
     { id: 14, hubId: 3, slotCode: 'DB-P02', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T07:45:00Z' },
+    { id: 25, hubId: 3, slotCode: 'DB-P06', slotType: 'SHARED_EV', status: 'FREE', updatedAt: '2026-11-08T08:05:00Z' },
     { id: 15, hubId: 3, slotCode: 'DB-P03', slotType: 'PRIVATE_EV', status: 'OCCUPIED', vehiclePlate: '60B8-441.19', checkInAt: '07:55', durationLabel: '2h 20m', updatedAt: '2026-11-08T07:55:00Z' },
     { id: 16, hubId: 3, slotCode: 'DB-P04', slotType: 'PRIVATE_EV', status: 'RESERVED', vehiclePlate: '61C1-908.12', checkInAt: '09:50', durationLabel: 'Reserved', updatedAt: '2026-11-08T09:50:00Z' },
     { id: 17, hubId: 3, slotCode: 'DB-P05', slotType: 'UNIVERSAL', status: 'FREE', updatedAt: '2026-11-08T08:30:00Z' },
 
+    // Hub 4: Metro Suoi Tien - VNU Hub
     { id: 18, hubId: 4, slotCode: 'MT-P01', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T07:10:00Z' },
     { id: 19, hubId: 4, slotCode: 'MT-P02', slotType: 'SHARED_EV', status: 'OCCUPIED', updatedAt: '2026-11-08T07:25:00Z' },
     { id: 20, hubId: 4, slotCode: 'MT-P03', slotType: 'UNIVERSAL', status: 'FREE', updatedAt: '2026-11-08T08:05:00Z' },
+    { id: 26, hubId: 4, slotCode: 'MT-P04', slotType: 'SHARED_EV', status: 'FREE', updatedAt: '2026-11-08T08:12:00Z' },
+    { id: 27, hubId: 4, slotCode: 'MT-P05', slotType: 'SHARED_EV', status: 'FREE', updatedAt: '2026-11-08T08:18:00Z' },
   ],
 
   chargingPoints: [
@@ -135,6 +146,7 @@ export const INITIAL_MOCK_DB = {
     { id: 104, code: 'ES-301', type: 'ELECTRIC_SCOOTER', model: 'Smart E-Scooter S1', currentHubId: 2, currentHubName: 'VNU Central Library Hub', parkingSlotId: 7, batteryLevel: 92, estimatedRangeKm: 60.0, status: 'AVAILABLE' },
     { id: 105, code: 'EB-108', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 2, currentHubName: 'VNU Central Library Hub', parkingSlotId: null, batteryLevel: 64, estimatedRangeKm: 29.0, status: 'CHARGING' },
     { id: 106, code: 'EB-220', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 2, currentHubName: 'VNU Central Library Hub', parkingSlotId: 8, batteryLevel: 81, estimatedRangeKm: 39.0, status: 'AVAILABLE' },
+    { id: 113, code: 'ES-308', type: 'ELECTRIC_SCOOTER', model: 'Smart E-Scooter S1', currentHubId: 2, currentHubName: 'VNU Central Library Hub', parkingSlotId: 9, batteryLevel: 86, estimatedRangeKm: 52.0, status: 'AVAILABLE' },
     { id: 107, code: 'ES-410', type: 'ELECTRIC_SCOOTER', model: 'Smart E-Scooter S1', currentHubId: 3, currentHubName: 'Dormitory Zone B Hub', parkingSlotId: 13, batteryLevel: 65, estimatedRangeKm: 41.0, status: 'RESERVED' },
     { id: 108, code: 'EB-315', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 3, currentHubName: 'Dormitory Zone B Hub', parkingSlotId: 14, batteryLevel: 79, estimatedRangeKm: 37.0, status: 'AVAILABLE' },
     { id: 109, code: 'EB-309', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 4, currentHubName: 'Metro Suoi Tien - VNU Hub', parkingSlotId: 18, batteryLevel: 15, estimatedRangeKm: 6.5, status: 'OUT_OF_SERVICE' },

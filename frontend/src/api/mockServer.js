@@ -6,7 +6,7 @@
 import { INITIAL_MOCK_DB } from './mockData';
 import { buildOperatorDashboardBundle, normalizeIncident } from './operatorAdapter';
 
-const STORAGE_KEY = 'semh_mock_db_v2';
+const STORAGE_KEY = 'semh_mock_db_v3';
 
 function loadDb() {
   const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -349,15 +349,88 @@ export const mockServer = {
     return inc ? normalizeIncident(inc) : null;
   },
 
-  async redistributeVehicles({ sourceHubId, destinationHubId, vehicleCount, assignedStaff }) {
+  async redistributeVehicles({
+    sourceHubId,
+    destinationHubId,
+    vehicleCount,
+    assignedStaff,
+    allocations,
+  }) {
     await delay();
     const db = loadDb();
+    const destHub = db.hubs.find((h) => h.id === Number(destinationHubId));
+
+    // Slot-to-slot arrangement mode (S1->V1 ===> Dest Slot S2, or same-hub slot rearrangement)
+    if (Array.isArray(allocations) && allocations.length > 0) {
+      const nowIso = new Date().toISOString();
+
+      // Phase A: vacate all source slots first (supports safe swaps within the same hub)
+      allocations.forEach((item) => {
+        const veh = db.vehicles.find((v) => v.id === Number(item.vehicleId));
+        const oldSlotId = item.fromSlotId ?? veh?.parkingSlotId;
+        if (oldSlotId) {
+          const oldSlot = db.parkingSlots.find((s) => s.id === Number(oldSlotId));
+          if (oldSlot) {
+            oldSlot.status = 'FREE';
+            oldSlot.updatedAt = nowIso;
+            delete oldSlot.vehiclePlate;
+            delete oldSlot.checkInAt;
+            delete oldSlot.durationLabel;
+          }
+        }
+        if (veh) {
+          veh.parkingSlotId = null;
+        }
+      });
+
+      // Phase B: occupy target slots and update vehicle hub + slot bindings
+      allocations.forEach((item) => {
+        const veh = db.vehicles.find((v) => v.id === Number(item.vehicleId));
+        const newSlot = db.parkingSlots.find((s) => s.id === Number(item.toSlotId));
+        if (veh && newSlot) {
+          newSlot.status = 'OCCUPIED';
+          newSlot.updatedAt = nowIso;
+          veh.currentHubId = Number(destinationHubId);
+          veh.currentHubName = destHub?.name || veh.currentHubName;
+          veh.parkingSlotId = newSlot.id;
+        }
+      });
+
+      saveDb(db);
+      return {
+        orderCode: `DSP-${String(Date.now()).slice(-4)}`,
+        movedCount: allocations.length,
+        assignedStaff: assignedStaff || 'S. Patel',
+        allocations,
+        status: 'COMPLETED',
+      };
+    }
+
+    // Legacy fallback (count-only dispatch)
     const count = Math.max(1, Number(vehicleCount) || 1);
     const movable = db.vehicles
       .filter((v) => v.currentHubId === Number(sourceHubId) && v.status === 'AVAILABLE')
       .slice(0, count);
-    movable.forEach((v) => {
+    const freeDestSlots = db.parkingSlots.filter(
+      (s) =>
+        s.hubId === Number(destinationHubId) &&
+        (s.slotType === 'SHARED_EV' || s.slotType === 'UNIVERSAL') &&
+        s.status === 'FREE'
+    );
+    movable.forEach((v, idx) => {
+      if (v.parkingSlotId) {
+        const oldSlot = db.parkingSlots.find((s) => s.id === v.parkingSlotId);
+        if (oldSlot) oldSlot.status = 'FREE';
+      }
       v.currentHubId = Number(destinationHubId);
+      v.currentHubName = destHub?.name || v.currentHubName;
+      const targetSlot = freeDestSlots[idx];
+      if (targetSlot) {
+        targetSlot.status = 'OCCUPIED';
+        v.parkingSlotId = targetSlot.id;
+      } else {
+        v.parkingSlotId = null;
+      }
     });
     saveDb(db);
     return {
