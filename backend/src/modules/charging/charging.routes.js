@@ -1,7 +1,29 @@
+const express=require('express');
+const {authenticateToken,requireRole}=require('../../middlewares/auth.middleware');
+const {pool}=require('../../config/db');
+const wrap=require('../../utils/asyncHandler');
+const service=require('./charging.service');
+const AppError=require('../../utils/appError');
+const router=express.Router();router.use(authenticateToken);
+router.get('/',wrap(async(req,res)=>res.json({success:true,data:await service.list(req.user)})));
+router.get('/:requestId',wrap(async(req,res)=>res.json({success:true,data:await service.detail(req.user,req.params.requestId)})));
+router.post('/',wrap(async(req,res)=>res.status(201).json({success:true,data:await service.schedule(req.user,req.body)})));
+// Priority belongs to the shared/operator charging workflow; preserve API for the teammate.
+router.patch('/:requestId/priority',requireRole('OPERATOR'),wrap(async(req,res)=>{
+ const allowed=['LOW','NORMAL','HIGH','URGENT'];
+ if(!allowed.includes(req.body.priority))throw new AppError(400,'VALIDATION_FAILED','Invalid priority.');
+ const [result]=await pool.execute("UPDATE charging_requests SET priority=? WHERE id=? AND status IN ('QUEUED','SCHEDULED')",[req.body.priority,req.params.requestId]);
+ if(!result.affectedRows)throw new AppError(409,'INVALID_STATE_TRANSITION','Request not found or not editable.');
+ res.json({success:true,data:{id:Number(req.params.requestId),priority:req.body.priority}});
+}));
+module.exports=router;
+
+
+
 /**
  * Module: Charging Requests & Smart Priority Scheduling (Task 3.2b & Task 4.1b)
  * Implements UC09 (Schedule charging) and UC15 (Set charging priority).
- */
+
 const express = require('express');
 const { pool } = require('../../config/db');
 const { authenticateToken, requireRole } = require('../../middlewares/auth.middleware');
@@ -72,3 +94,5 @@ router.patch('/:requestId/priority', requireRole('OPERATOR'), async (req, res, n
 });
 
 module.exports = router;
+
+**/
