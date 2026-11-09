@@ -28,6 +28,5 @@ Thumbs.db
 !.env.example
 
 .gitignore
-
 backend/package-lock.json
 frontend/package-lock.json
