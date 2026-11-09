@@ -1,5 +1,5 @@
 /**
- * Module: Authentication & Role-Based Access (Task 3.1c — Owner: Phạm Tuấn Minh)
+ * Module: Authentication & Role-Based Access (Task 3.1c : Pham Tuan Minh)
  * Verifies Google ID token, maps configured emails to OPERATOR (others -> USER), and issues JWT.
  */
 const express = require('express');
@@ -75,6 +75,91 @@ router.post('/google', async (req, res, next) => {
   }
 });
 
+
+router.post('/dev-login', async (req, res, next) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Dev login is disabled in production.',
+        },
+      });
+    }
+
+    const email = String(req.body?.email || '').trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Email is required.',
+        },
+      });
+    }
+
+    // Only allow known development seed accounts.
+    const allowedEmails = [
+      'student@hcmut.edu.vn',
+      'ev.owner@hcmut.edu.vn',
+      'operator@hcmut.edu.vn',
+    ];
+
+    if (!allowedEmails.includes(email)) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Not an allowed development account.',
+        },
+      });
+    }
+
+    // Retrieve the actual MySQL user ID and role.
+    const [rows] = await pool.execute(
+      `SELECT id, email, full_name, role
+       FROM users
+       WHERE email = ?
+       LIMIT 1`,
+      [email]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'Development user not found.',
+        },
+      });
+    }
+
+    const user = rows[0];
+    const token = signSessionToken(user);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.full_name,
+          role: user.role,
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+
+/**
+
 // Safe Dev-Login endpoint (ONLY active when NODE_ENV=development)
 router.post('/dev-login', async (req, res, next) => {
   try {
@@ -94,6 +179,7 @@ router.post('/dev-login', async (req, res, next) => {
     return next(err);
   }
 });
+**/
 
 router.get('/me', authenticateToken, (req, res) => {
   res.json({ success: true, data: { user: req.user } });

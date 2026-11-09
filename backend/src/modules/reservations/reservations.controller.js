@@ -1,0 +1,4 @@
+const service=require('./reservations.service');
+const wrap=require('../../utils/asyncHandler');
+const action=(method,status=200)=>wrap(async(req,res)=>res.status(status).json({success:true,data:await service[method](req.user,...(method==='list'?[req.query]:method==='detail'?[req.params.reservationId]:method==='reserveVehicle'||method==='reserveParking'?[req.body]:method==='cancel'||method==='parkingCheckIn'||method==='parkingCheckOut'?[req.params.reservationId]:[req.params.reservationId,req.body]))}));
+module.exports={list:action('list'),detail:action('detail'),reserveVehicle:action('reserveVehicle',201),reserveParking:action('reserveParking',201),cancel:action('cancel'),pickup:action('pickup'),returnVehicle:action('returnVehicle'),parkingCheckIn:action('parkingCheckIn'),parkingCheckOut:action('parkingCheckOut')};
