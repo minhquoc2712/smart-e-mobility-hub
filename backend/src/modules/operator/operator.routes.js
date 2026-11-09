@@ -331,22 +331,6 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
 }
 );
 
-// UC13: Redistribute Vehicles Between Hubs
-// router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
-//   try {
-//     const { sourceHubId, destinationHubId, vehicleCount, reason = 'Manual balancing' } = req.body;
-//     const orderCode = `DSP-${Date.now()}`;
-//     const [result] = await pool.execute(
-//       `INSERT INTO dispatch_orders (order_code, operator_id, source_hub_id, destination_hub_id, vehicle_count, reason, status)
-//        VALUES (?, ?, ?, ?, ?, ?, 'PENDING')`,
-//       [orderCode, req.user.id, sourceHubId, destinationHubId, vehicleCount, reason]
-//     );
-//     res.status(201).json({ success: true, data: { id: result.insertId, orderCode, status: 'PENDING' } });
-//   } catch (err) {
-//     next(err);
-//   }
-// });
-
 const buildPlaceholders = (count) => Array(count).fill('?').join(',');
 
 const createHttpError = (statusCode, message) => {
