@@ -19,8 +19,6 @@ async function startSimulator() {
       // Handle cases where API returns { data: [...] } or just an array [...]
       const vehicles = responseData.data || responseData;
       
-      
-      //console.log("Données reçues du backend :", vehicles[0]);
       // 2. Calculate realistic battery changes
       const vehicleUpdates = vehicles.map(v => {
         // Check for both camelCase and snake_case depending on API response format
@@ -33,13 +31,11 @@ async function startSimulator() {
 
         let newBattery = Number(currentBattery);
         
-        // Increase battery if charging, decrease if in use or idle
+        // Increase battery if charging, decrease if in use (stops at 0)
         if (v.status === 'CHARGING') {
           newBattery = Math.min(100, newBattery + 5);
         } else if (v.status === 'IN_USE') {
-          newBattery = Math.max(5, newBattery - 2);
-        } else if (v.status === 'AVAILABLE' && Math.random() < 0.2) {
-          newBattery = Math.max(5, newBattery - 1); // Slight drain while idle
+          newBattery = Math.max(0, newBattery - 2); // stop at 0 % 
         }
 
         // Support both code and vehicleCode from API
