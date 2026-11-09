@@ -119,12 +119,13 @@ export function ManageParkingPage() {
         });
       } else if (v.status !== 'IN_USE') {
         const slot = v.parkingSlotId ? slotById.get(v.parkingSlotId) : null;
+        const inZoneC = Boolean(slot && slot.slotType !== 'SHARED_EV');
         rows.push({
           key: `veh-${v.id}`,
           label: v.code,
-          zoneCode: 'A',
-          zoneLabel: 'A · Rental vehicles',
-          space: slot?.slotCode || 'A01',
+          zoneCode: inZoneC ? 'C' : 'A',
+          zoneLabel: inZoneC ? 'C · Universal (Fleet)' : 'A · Rental vehicles',
+          space: slot?.slotCode || 'Unassigned',
           checkIn: formatClock(v.updatedAt),
           duration: formatDuration(v.updatedAt, '2h 10m'),
           statusText:
