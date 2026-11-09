@@ -12,6 +12,9 @@ import { HubListPage } from '../pages/student/HubListPage';
 import { HubDetailPage } from '../pages/student/HubDetailPage';
 import { ReservationsPage } from '../pages/student/ReservationsPage';
 import { ChargingPage } from '../pages/student/ChargingPage';
+import { HubInfoPage } from '../pages/student/HubInfoPage';
+import { ParkingBookingPage } from '../pages/student/ParkingBookingPage';
+import { MyVehiclesPage } from '../pages/student/MyVehiclesPage';
 
 import { OperatorDashboardPage } from '../pages/operator/OperatorDashboardPage';
 import { IncidentsPage } from '../pages/operator/IncidentsPage';
@@ -31,9 +34,12 @@ export function AppRouter() {
         <Route path="/student" element={<StudentLayout />}>
           <Route index element={<Navigate to="hubs" replace />} />
           <Route path="hubs" element={<HubListPage />} />
-          <Route path="hubs/:hubId" element={<HubDetailPage />} />
+          <Route path="hubs/:hubId/info" element={<HubInfoPage />} />
+          <Route path="hubs/:hubId/vehicles" element={<HubDetailPage />} />
+          <Route path="hubs/:hubId/parking" element={<ParkingBookingPage />} />
           <Route path="reservations" element={<ReservationsPage />} />
           <Route path="charging" element={<ChargingPage />} />
+          <Route path="vehicles" element={<MyVehiclesPage />} />
         </Route>
       </Route>
 

@@ -7,7 +7,6 @@ import { httpRequest } from './httpClient';
 import { mockServer } from './mockServer';
 
 export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API !== 'false';
-
 export const authApi = {
   loginWithGoogle: (credential) =>
     IS_MOCK_MODE
@@ -45,6 +44,10 @@ export const reservationApi = {
     IS_MOCK_MODE
       ? mockServer.reserveVehicle(payload)
       : httpRequest('/reservations/vehicles', { method: 'POST', body: JSON.stringify(payload) }),
+  reserveParking: (payload) =>
+    IS_MOCK_MODE
+      ? mockServer.reserveParking(payload)
+      : httpRequest('/reservations/parking', { method: 'POST', body: JSON.stringify(payload) }),
   pickupReservation: (id) =>
     IS_MOCK_MODE
       ? mockServer.pickupReservation(id)
@@ -66,6 +69,10 @@ export const chargingApi = {
     IS_MOCK_MODE
       ? mockServer.createChargingRequest(payload)
       : httpRequest('/charging-requests', { method: 'POST', body: JSON.stringify(payload) }),
+  cancelChargingRequest: (id) =>
+    IS_MOCK_MODE
+      ? mockServer.cancelChargingRequest(id)
+      : httpRequest(`/charging-requests/${id}`, { method: 'DELETE' }),
   updatePriority: (id, priority) =>
     IS_MOCK_MODE
       ? mockServer.updateChargingPriority(id, priority)

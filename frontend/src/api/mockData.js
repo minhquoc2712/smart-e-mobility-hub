@@ -89,16 +89,16 @@ export const INITIAL_MOCK_DB = {
   ],
 
   vehicles: [
-    { id: 101, code: 'EB-102', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 1, currentHubName: 'HCMUT Main Gate Hub', batteryLevel: 88, estimatedRangeKm: 42.0, status: 'AVAILABLE' },
-    { id: 102, code: 'EB-205', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 1, currentHubName: 'HCMUT Main Gate Hub', batteryLevel: 74, estimatedRangeKm: 35.5, status: 'AVAILABLE' },
-    { id: 103, code: 'ES-110', type: 'ELECTRIC_SCOOTER', model: 'Smart E-Scooter S1', currentHubId: 1, currentHubName: 'HCMUT Main Gate Hub', batteryLevel: 91, estimatedRangeKm: 58.0, status: 'AVAILABLE' },
-    { id: 104, code: 'ES-301', type: 'ELECTRIC_SCOOTER', model: 'Smart E-Scooter S1', currentHubId: 2, currentHubName: 'VNU Central Library Hub', batteryLevel: 92, estimatedRangeKm: 60.0, status: 'AVAILABLE' },
-    { id: 105, code: 'EB-108', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 2, currentHubName: 'VNU Central Library Hub', batteryLevel: 24, estimatedRangeKm: 11.0, status: 'CHARGING' },
-    { id: 106, code: 'EB-220', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 2, currentHubName: 'VNU Central Library Hub', batteryLevel: 81, estimatedRangeKm: 39.0, status: 'AVAILABLE' },
-    { id: 107, code: 'ES-410', type: 'ELECTRIC_SCOOTER', model: 'Smart E-Scooter S1', currentHubId: 3, currentHubName: 'Dormitory Zone B Hub', batteryLevel: 65, estimatedRangeKm: 41.0, status: 'RESERVED' },
-    { id: 108, code: 'EB-315', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 3, currentHubName: 'Dormitory Zone B Hub', batteryLevel: 79, estimatedRangeKm: 37.0, status: 'AVAILABLE' },
-    { id: 109, code: 'EB-309', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 4, currentHubName: 'Metro Suoi Tien - VNU Hub', batteryLevel: 15, estimatedRangeKm: 6.5, status: 'OUT_OF_SERVICE' },
-    { id: 110, code: 'EB-402', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 4, currentHubName: 'Metro Suoi Tien - VNU Hub', batteryLevel: 84, estimatedRangeKm: 40.0, status: 'AVAILABLE' },
+    { id: 101, code: 'EB-102', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 1, currentHubName: 'HCMUT Main Gate Hub', parkingSlotCode: 'BK-P01', batteryLevel: 88, estimatedRangeKm: 42.0, status: 'AVAILABLE' },
+    { id: 102, code: 'EB-205', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 1, currentHubName: 'HCMUT Main Gate Hub', parkingSlotCode: 'BK-P02', batteryLevel: 74, estimatedRangeKm: 35.5, status: 'AVAILABLE' },
+    { id: 103, code: 'ES-110', type: 'ELECTRIC_SCOOTER', model: 'Smart E-Scooter S1', currentHubId: 1, currentHubName: 'HCMUT Main Gate Hub', parkingSlotCode: 'BK-P03', batteryLevel: 91, estimatedRangeKm: 58.0, status: 'AVAILABLE' },
+    { id: 104, code: 'ES-301', type: 'ELECTRIC_SCOOTER', model: 'Smart E-Scooter S1', currentHubId: 2, currentHubName: 'VNU Central Library Hub', parkingSlotCode: 'CT-P01', batteryLevel: 92, estimatedRangeKm: 60.0, status: 'AVAILABLE' },
+    { id: 105, code: 'EB-108', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 2, currentHubName: 'VNU Central Library Hub', parkingSlotCode: null, batteryLevel: 24, estimatedRangeKm: 11.0, status: 'CHARGING' },
+    { id: 106, code: 'EB-220', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 2, currentHubName: 'VNU Central Library Hub', parkingSlotCode: 'CT-P02', batteryLevel: 81, estimatedRangeKm: 39.0, status: 'AVAILABLE' },
+    { id: 107, code: 'ES-410', type: 'ELECTRIC_SCOOTER', model: 'Smart E-Scooter S1', currentHubId: 3, currentHubName: 'Dormitory Zone B Hub', parkingSlotCode: 'DB-P01', batteryLevel: 65, estimatedRangeKm: 41.0, status: 'RESERVED' },
+    { id: 108, code: 'EB-315', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 3, currentHubName: 'Dormitory Zone B Hub', parkingSlotCode: 'DB-P02', batteryLevel: 79, estimatedRangeKm: 37.0, status: 'AVAILABLE' },
+    { id: 109, code: 'EB-309', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 4, currentHubName: 'Metro Suoi Tien - VNU Hub', parkingSlotCode: 'MT-P01', batteryLevel: 15, estimatedRangeKm: 6.5, status: 'OUT_OF_SERVICE' },
+    { id: 110, code: 'EB-402', type: 'ELECTRIC_BIKE', model: 'Campus E-Bike Gen2', currentHubId: 4, currentHubName: 'Metro Suoi Tien - VNU Hub', parkingSlotCode: 'MT-P02', batteryLevel: 84, estimatedRangeKm: 40.0, status: 'AVAILABLE' },
   ],
 
   reservations: [

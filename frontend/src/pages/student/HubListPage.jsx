@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { hubApi } from '../../api';
-import { StatusBadge } from '../../components/common/StatusBadge';
 
 /**
  * Starter Screen for UC01 & UC03 (Wireframe 3: Find Hub / Vehicle)
@@ -10,16 +9,21 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 export function HubListPage() {
   const [hubs, setHubs] = useState([]);
   const [search, setSearch] = useState('');
-  const [vehicleType, setVehicleType] = useState('');
+  const [vehicleType, setVehicleType] = useState('ELECTRIC_BIKE');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setError('');
     hubApi
       .getHubs({ search, vehicleType })
       .then((data) => {
         if (active) setHubs(data);
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message || 'Unable to load mobility hubs.');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -29,67 +33,81 @@ export function HubListPage() {
     };
   }, [search, vehicleType]);
 
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Location services are not supported by this browser.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      () => setSearch(''),
+      () => setError('Unable to access your current location.'),
+      { enableHighAccuracy: true },
+    );
+  };
+
   return (
-    <div>
-      <div style={{ marginBottom: '1.25rem' }}>
-        <h2 style={{ margin: '0 0 0.25rem' }}>Where are you? Find the nearest Mobility Hub</h2>
-        <p style={{ margin: 0, color: '#556b5d' }}>Real-time vehicle, parking capacity, and charger availability across VNU-HCM.</p>
+    <div className="find-hub-page">
+      <div className="find-hub-heading">
+        <h1>Where are you? We’ll find the nearest hub.</h1>
+        <p>Search your location and choose a vehicle to see nearby hubs.</p>
       </div>
 
-      <div className="card" style={{ marginBottom: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <div className="hub-location-search">
+        <span className="hub-location-search-icon" aria-hidden="true">⌕</span>
         <input
-          className="input"
-          style={{ flex: '1 1 260px' }}
-          placeholder="Search hub name or campus zone (e.g., HCMUT, Dormitory B, Metro)..."
+          aria-label="Search location"
+          placeholder="Campus main gate"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select
-          className="select"
-          style={{ flex: '0 1 220px' }}
-          value={vehicleType}
-          onChange={(e) => setVehicleType(e.target.value)}
-        >
-          <option value="">All Vehicle Types</option>
-          <option value="ELECTRIC_BIKE">🚲 Electric Bike</option>
-          <option value="ELECTRIC_SCOOTER">🛵 Electric Scooter</option>
-        </select>
+        <button type="button" onClick={useCurrentLocation}>Use my location</button>
       </div>
 
+      <div className="vehicle-type-filter">
+        <span>Choose vehicle</span>
+        <div>
+          <button
+            type="button"
+            className={vehicleType === 'ELECTRIC_BIKE' ? 'active' : ''}
+            onClick={() => setVehicleType('ELECTRIC_BIKE')}
+          >
+            Electric bike {vehicleType === 'ELECTRIC_BIKE' && '✓'}
+          </button>
+          <button
+            type="button"
+            className={vehicleType === 'ELECTRIC_SCOOTER' ? 'active' : ''}
+            onClick={() => setVehicleType('ELECTRIC_SCOOTER')}
+          >
+            Electric scooter {vehicleType === 'ELECTRIC_SCOOTER' && '✓'}
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="find-hub-error">{error}</div>}
+
+      <h2 className="nearby-hubs-title">Available hub nearby</h2>
       {loading ? (
         <p>Loading Mobility Hubs...</p>
       ) : (
-        <div className="grid-2">
+        <div className="nearby-hub-list">
           {hubs.map((hub) => (
-            <div key={hub.id} className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <div>
-                  <h3 style={{ margin: '0 0 0.2rem' }}>{hub.name}</h3>
-                  <div style={{ fontSize: '0.84rem', color: '#556b5d' }}>{hub.address}</div>
-                </div>
-                <StatusBadge status={hub.status} />
+            <article key={hub.id} className="nearby-hub-row">
+              <div className="nearby-hub-info">
+                <h3>{hub.name}</h3>
+                <p>{hub.campusZone}</p>
               </div>
-
-              <div className="grid-3" style={{ margin: '1rem 0', fontSize: '0.88rem' }}>
-                <div style={{ background: '#f4f9f4', padding: '0.6rem', borderRadius: 8 }}>
-                  <div>🚲 Bikes: <strong>{hub.availableBikes}</strong></div>
-                  <div>🛵 Scooters: <strong>{hub.availableScooters}</strong></div>
-                </div>
-                <div style={{ background: '#f4f9f4', padding: '0.6rem', borderRadius: 8 }}>
-                  <div>🅿️ Free Parking</div>
-                  <strong>{hub.freeParkingSlots} / {hub.totalParkingSlots}</strong>
-                </div>
-                <div style={{ background: '#f4f9f4', padding: '0.6rem', borderRadius: 8 }}>
-                  <div>🔌 Chargers Ready</div>
-                  <strong>{hub.availableChargingPoints} / {hub.totalChargingPoints}</strong>
-                </div>
+              <div className="nearby-hub-availability">
+                <span>
+                  {hub.availableBikes} electric {hub.availableBikes === 1 ? 'bike' : 'bikes'} · {hub.availableScooters} electric {hub.availableScooters === 1 ? 'scooter' : 'scooters'}
+                </span>
               </div>
-
-              <Link to={`/student/hubs/${hub.id}`} className="btn btn-primary" style={{ width: '100%' }}>
-                View Hub Info & Vehicles →
+              <Link to={`/student/hubs/${hub.id}/info`} className="view-vehicles-button">
+                View hub
               </Link>
-            </div>
+            </article>
           ))}
+          {!hubs.length && <p className="find-hub-empty">No hubs match this search and vehicle type.</p>}
         </div>
       )}
     </div>

@@ -1,16 +1,31 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { IS_MOCK_MODE } from '../../api';
+
+import logo from '../../components/common/images/logo.jpg';
 
 export function LoginPage() {
   const { loginWithGoogleCredential, loginDemo } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const googleButtonRef = useRef(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const selectedRole = location.state?.role === 'operator' ? 'operator' : 'customer';
+  const demoUsername = selectedRole === 'operator'
+    ? 'operator@hcmut.edu.vn'
+    : 'student@hcmut.edu.vn';
+
+  useEffect(() => {
+    if (!googleClientId) {
+      setUsername(demoUsername);
+      setPassword('demo123');
+    }
+  }, [demoUsername, googleClientId]);
 
   // Dynamically loads Google Identity Services ONLY when VITE_GOOGLE_CLIENT_ID is configured
   useEffect(() => {
@@ -67,62 +82,90 @@ export function LoginPage() {
     }
   };
 
-  return (
-    <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '90vh' }}>
-      <div className="card" style={{ maxWidth: 460, width: '100%', padding: '2rem' }}>
-        <h2 style={{ marginTop: 0, textAlign: 'center' }}>HCMUT Account Sign In</h2>
-        <p style={{ color: '#556b5d', textAlign: 'center', fontSize: '0.92rem' }}>
-          Sign in with Google OAuth 2.0. Operator emails are automatically routed to the Operator Console.
-        </p>
+  const handleCredentialLogin = async (event) => {
+    event.preventDefault();
+    const normalizedUsername = username.trim().toLowerCase();
+    const role = normalizedUsername.includes('operator') || normalizedUsername.includes('staff')
+      ? 'operator'
+      : location.state?.role || 'customer';
+    await handleQuickDemoLogin(role === 'operator' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn');
+  };
 
+  const handleGoogleButtonClick = () => {
+    const googleButton = googleButtonRef.current?.querySelector('[role="button"]');
+    if (googleButton) {
+      googleButton.click();
+      return;
+    }
+    window.google?.accounts?.id?.prompt();
+  };
+
+  return (
+    <div className="auth-page">
+      <img className="auth-logo" src={logo} alt="Smart E-MOBILITY HUB logo" />
+      <h2 className="auth-brand-title">Hello {selectedRole === 'operator' ? 'staff' : 'customer'}!!!</h2>
+      <div className="card auth-card auth-login-card">
+        <h3 className="auth-card-title">Log In</h3>
         {error && (
-          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.6rem 0.8rem', borderRadius: 8, marginBottom: '1rem', fontSize: '0.88rem' }}>
+          <div className="auth-error">
             {error}
           </div>
         )}
-
-        {googleClientId ? (
-          <div style={{ display: 'flex', justifyContent: 'center', margin: '1.25rem 0' }}>
-            <div ref={googleButtonRef} />
-          </div>
-        ) : (
-          <div style={{ background: '#e6f4ea', padding: '0.75rem', borderRadius: 8, fontSize: '0.84rem', marginBottom: '1rem', color: '#182b20' }}>
-            <strong>Google OAuth Ready:</strong> Set <code>VITE_GOOGLE_CLIENT_ID</code> in <code>frontend/.env</code> to render the live Google button. On shared/dev machines, use the safe quick-login roles below.
-          </div>
+        <form id="credential-login-form" className="auth-login-form" onSubmit={handleCredentialLogin}>
+          <label htmlFor="username" style = {{fontFamily: 'Arbutus'}}>User name:</label>
+          <input
+            id="username"
+            className="auth-login-input"
+            type="text"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            disabled={loading}
+          />
+          <label htmlFor="password" style = {{fontFamily: 'Arbutus'}}>Password:</label>
+          <input
+            id="password"
+            className="auth-login-input"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            disabled={loading}
+          />
+        </form>
+      </div>
+      <div className="auth-google-button-wrap">
+        <button
+          type="button"
+          className="auth-google-button"
+          onClick={handleGoogleButtonClick}
+          disabled={loading}
+          aria-label="Log in with Google"
+        >
+          G
+        </button>
+        {googleClientId && (
+          <div className="auth-google-provider" ref={googleButtonRef} aria-hidden="true" />
         )}
-
-        {(IS_MOCK_MODE || !googleClientId) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '1rem' }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#556b5d', textTransform: 'uppercase' }}>
-              Quick Role Sign-In (Mock / Dev Mode)
-            </div>
-            <button
-              type="button"
-              disabled={loading}
-              className="btn btn-primary"
-              onClick={() => handleQuickDemoLogin('student@hcmut.edu.vn')}
-            >
-              🎓 Sign in as Student (USER)
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              className="btn btn-outline"
-              onClick={() => handleQuickDemoLogin('ev.owner@hcmut.edu.vn')}
-            >
-              🛵 Sign in as Private EV Owner (USER)
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              className="btn btn-outline"
-              onClick={() => handleQuickDemoLogin('operator@hcmut.edu.vn')}
-            >
-              🛠️ Sign in as Hub Operator (OPERATOR)
-            </button>
-          </div>
+        {!googleClientId && (
+          <button
+            type="button"
+            className="auth-google-demo-link"
+            disabled={loading}
+            onClick={() => handleQuickDemoLogin('student@hcmut.edu.vn')}
+          >
+            Demo Google sign-in
+          </button>
         )}
       </div>
+      <button
+        className="auth-login-submit"
+        style={{ position: 'absolute', right: '24rem', top: '29rem' }}
+        type="submit"
+        form="credential-login-form"
+        disabled={loading}
+        aria-label="Confirm login"
+      >
+        &rarr;
+      </button>
     </div>
   );
 }

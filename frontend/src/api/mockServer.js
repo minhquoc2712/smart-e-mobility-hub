@@ -25,6 +25,17 @@ function delay(ms = 180) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isValidFutureRange(startTime, endTime) {
+  if (typeof startTime !== 'string' || typeof endTime !== 'string') return false;
+  const start = new Date(startTime).getTime();
+  const end = new Date(endTime).getTime();
+  return Number.isFinite(start)
+    && Number.isFinite(end)
+    && start >= Date.now()
+    && end >= Date.now()
+    && end > start;
+}
+
 export const mockServer = {
   resetMockDb() {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_MOCK_DB));
@@ -96,6 +107,9 @@ export const mockServer = {
 
   async reserveVehicle({ userId, hubId, vehicleId, startTime, endTime }) {
     await delay();
+    if (!isValidFutureRange(startTime, endTime)) {
+      throw new Error('Reservation start and end times must be valid future times, and end must be after start.');
+    }
     const db = loadDb();
     const vehicle = db.vehicles.find((v) => v.id === Number(vehicleId));
     const hub = db.hubs.find((h) => h.id === Number(hubId));
@@ -112,6 +126,7 @@ export const mockServer = {
       hubName: hub?.name || 'Campus Hub',
       vehicleId: vehicle.id,
       vehicleCode: vehicle.code,
+      parkingSlotCode: vehicle.parkingSlotCode || null,
       startTime,
       endTime,
       status: 'CONFIRMED',
@@ -119,6 +134,34 @@ export const mockServer = {
     db.reservations.unshift(newReservation);
     saveDb(db);
     return newReservation;
+  },
+
+  async reserveParking({ userId, hubId, startTime, endTime, licensePlate }) {
+    await delay();
+    if (!isValidFutureRange(startTime, endTime)) {
+      throw new Error('Parking start and end times must be valid future times, and departure must be after arrival.');
+    }
+    const db = loadDb();
+    const hub = db.hubs.find((item) => item.id === Number(hubId));
+    if (!hub) throw new Error('Hub not found.');
+    if (hub.freeParkingSlots <= 0) throw new Error('No free parking slots available at this hub.');
+    hub.freeParkingSlots -= 1;
+    const reservation = {
+      id: Date.now(),
+      reservationCode: `RES-P-${String(Date.now()).slice(-5)}`,
+      userId,
+      reservationType: 'PARKING',
+      hubId: Number(hubId),
+      hubName: hub.name,
+      parkingSlotCode: `P-${String(hub.id).padStart(2, '0')}-${String(Date.now()).slice(-3)}`,
+      startTime,
+      endTime,
+      licensePlate,
+      status: 'CONFIRMED',
+    };
+    db.reservations.unshift(reservation);
+    saveDb(db);
+    return reservation;
   },
 
   async pickupReservation(reservationId) {
@@ -162,6 +205,10 @@ export const mockServer = {
     res.status = 'CANCELLED';
     const vehicle = db.vehicles.find((v) => v.id === res.vehicleId);
     if (vehicle && vehicle.status === 'RESERVED') vehicle.status = 'AVAILABLE';
+    if (res.reservationType === 'PARKING') {
+      const hub = db.hubs.find((item) => item.id === res.hubId);
+      if (hub) hub.freeParkingSlots = Math.min(hub.totalParkingSlots, hub.freeParkingSlots + 1);
+    }
     saveDb(db);
     return res;
   },
@@ -173,6 +220,9 @@ export const mockServer = {
 
   async createChargingRequest(payload) {
     await delay();
+    if (!isValidFutureRange(payload.scheduledStart, payload.scheduledEnd)) {
+      throw new Error('Charging start and end times must be valid future times, and end must be after start.');
+    }
     const db = loadDb();
     const hub = db.hubs.find((h) => h.id === Number(payload.hubId));
     const item = {
@@ -184,9 +234,20 @@ export const mockServer = {
       queuePosition: db.chargingRequests.length + 1,
       status: 'SCHEDULED',
     };
+
     db.chargingRequests.push(item);
     saveDb(db);
     return item;
+  },
+
+  async cancelChargingRequest(requestId) {
+    await delay();
+    const db = loadDb();
+    const requestIndex = db.chargingRequests.findIndex((request) => request.id === Number(requestId));
+    if (requestIndex < 0) throw new Error('Charging registration not found.');
+    const [request] = db.chargingRequests.splice(requestIndex, 1);
+    saveDb(db);
+    return request;
   },
 
   async updateChargingPriority(requestId, priority) {

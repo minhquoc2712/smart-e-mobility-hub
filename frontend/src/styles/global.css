@@ -49,6 +49,1056 @@ a {
   flex-wrap: wrap;
 }
 
+.topbar {
+  min-height: 121px;
+  background: #50DD5A1A;
+  border-bottom: 0;
+}
+
+.topbar .brand-title {
+  gap: 0;
+}
+
+.topbar .brand-title img {
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+}
+
+.profile-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.88rem;
+}
+
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.profile-button {
+  width: 80px;
+  height: 80px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+}
+
+.profile-signout {
+  position: absolute;
+  top: 88px;
+  right: 0;
+  min-width: 120px;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-main);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: 88px;
+  right: 0;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  z-index: 20;
+}
+
+.profile-dropdown button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-dropdown button:hover {
+  background: var(--bg-soft-green);
+}
+
+.page-back-link {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.hub-info-page h1,
+.booking-page h1,
+.my-vehicles-page h1,
+.charging-registration-card h1 {
+  margin: 0.25rem 0 1.25rem;
+  font-size: 32px;
+}
+
+.hub-service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+.hub-service-card {
+  min-height: 560px;
+  padding: 1.25rem;
+  border-radius: 20px;
+  background: rgba(80, 221, 90, 0.1);
+  box-shadow: 4px 4px 4px rgba(45, 52, 44, 0.25);
+  text-align: center;
+}
+
+.hub-service-card h2 {
+  font-size: 22px;
+}
+
+.hub-service-image {
+  height: 380px;
+  margin: 1rem 0;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.hub-service-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.hub-service-card button,
+.primary-action {
+  width: 100%;
+  min-height: 56px;
+  border: 0;
+  border-radius: 8px;
+  background: #34c759;
+  color: #000;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.booking-page {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.booking-form-card {
+  padding: 2rem;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.booking-form-card form,
+.booking-result {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.booking-form-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.booking-form-card input {
+  height: 52px;
+  border: 1px solid #bdc8bb;
+  border-radius: 8px;
+  padding: 0 1rem;
+  background: #fff;
+}
+
+.booking-location {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0.5rem;
+}
+
+.booking-time-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.booking-result span {
+  color: var(--text-muted);
+}
+
+.parking-booking-page {
+  min-height: calc(100vh - 121px);
+  padding: 1.5rem 0 3rem;
+  color: #202b20;
+  font-family: 'Hind Jalandhar', sans-serif;
+}
+
+.parking-booking-page .page-back-link {
+  margin-bottom: 0.4rem;
+  color: #556b5d;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.parking-booking-page > h1 {
+  margin: 0 0 1.25rem;
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.parking-form-card {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.75rem 2rem;
+  border: 0;
+  border-radius: 20px;
+  background: #e9f8df;
+  box-shadow: none;
+}
+
+.parking-form-card form {
+  gap: 1.1rem;
+}
+
+.parking-form-card .booking-location {
+  min-height: 54px;
+  gap: 0.35rem;
+  padding: 0 0 0.2rem;
+}
+
+.parking-form-card .booking-location span {
+  color: #556b5d;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.parking-form-card .booking-location strong {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.parking-form-card label {
+  gap: 0.4rem;
+  color: #263229;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.parking-form-card input {
+  height: 52px;
+  padding: 0 1rem;
+  border: 1px solid #d5ddd2;
+  border-radius: 10px;
+  background: #fcfcfa;
+  color: #263229;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.parking-form-card input:focus {
+  border-color: #34c759;
+  outline: 2px solid rgba(52, 199, 89, 0.18);
+}
+
+.parking-form-card .booking-time-grid {
+  gap: 1.25rem;
+}
+
+.parking-form-card .primary-action {
+  min-height: 56px;
+  margin-top: 0.1rem;
+  border-radius: 9px;
+  background: #34c759;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.parking-form-card .primary-action:hover:not(:disabled) {
+  background: #28b94c;
+}
+
+.parking-form-card .primary-action:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.booking-error {
+  max-width: 512px;
+  margin: 0.75rem auto;
+  color: #b42318;
+  font-size: 14px;
+}
+
+.parking-booking-results {
+  max-width: 720px;
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem auto 0;
+}
+
+.parking-result-card {
+  padding: 1.25rem;
+  border-radius: 14px;
+  background: #e9f8df;
+  box-shadow: 0 3px 8px rgba(24, 43, 32, 0.12);
+}
+
+.parking-result-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.parking-result-heading h2 {
+  margin: 0 0 0.75rem;
+  font-size: 20px;
+}
+
+.parking-result-heading > span {
+  color: #556b5d;
+  font-size: 12px;
+}
+
+.parking-result-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.25rem;
+}
+
+.parking-result-details > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.parking-result-details span {
+  color: #556b5d;
+  font-size: 12px;
+}
+
+.parking-result-details strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.parking-cancel-button {
+  margin-top: 1rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid #c93b3b;
+  border-radius: 7px;
+  background: #fff;
+  color: #a52e2e;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .parking-booking-page {
+    padding: 1rem 0 2rem;
+  }
+
+  .parking-form-card {
+    padding: 1.25rem 1rem;
+  }
+
+  .parking-result-details {
+    grid-template-columns: 1fr;
+  }
+}
+
+.my-vehicles-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 1.5rem;
+}
+
+.vehicle-owner-card,
+.availability-owner-card,
+.charging-status-card,
+.charging-registration-card {
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(24, 43, 32, 0.12);
+  padding: 1.25rem;
+}
+
+.vehicle-selector select,
+.vehicle-edit-modal input,
+.vehicle-edit-modal select,
+.vehicle-edit-modal select {
+  width: 100%;
+  height: 42px;
+  margin-bottom: 0.75rem;
+}
+
+.private-vehicle-image {
+  height: 230px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #f4f4ee;
+}
+
+.private-vehicle-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.battery-row {
+  margin: 0.75rem 0;
+}
+
+.battery-row div {
+  height: 10px;
+  margin-top: 0.35rem;
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+}
+
+.battery-row i {
+  display: block;
+  height: 100%;
+  background: #34c759;
+}
+
+.vehicle-detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.65rem;
+}
+
+.edit-vehicle-button,
+.floating-action {
+  width: 100%;
+  height: 56px;
+  margin-top: 1rem;
+  border: 0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 10px rgba(24, 43, 32, 0.18);
+  cursor: pointer;
+}
+
+.availability-owner-card > div {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+}
+
+.availability-owner-card {
+  margin-bottom: 1.5rem;
+}
+
+.charging-status-card {
+  margin-top: 1.5rem;
+}
+
+.charging-status-row {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.charging-status-row div {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+}
+
+.charging-status-row button {
+  margin-top: 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--danger);
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(24, 43, 32, 0.35);
+  z-index: 100;
+}
+
+.vehicle-edit-modal {
+  width: min(520px, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 2rem;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.vehicle-edit-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.secondary-action {
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.charging-registration-page {
+  position: relative;
+  left: 50%;
+  width: min(1324px, calc(100vw - 116px));
+  max-width: none;
+  margin: 0;
+  padding: 0 0 1.5rem;
+  transform: translateX(-50%);
+  color: #000;
+  font-family: 'Hind Jalandhar', sans-serif;
+}
+
+.charging-page-heading {
+  margin-bottom: 1rem;
+}
+
+.charging-page-heading h1 {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.charging-page-heading p {
+  margin: 0.25rem 0 0;
+  color: #555;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.charging-page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 530px;
+  align-items: start;
+  gap: 48px;
+}
+
+.charging-details-card,
+.charging-summary-card {
+  min-width: 0;
+  padding: 1.75rem;
+  border-radius: 20px;
+  background: rgba(80, 221, 90, 0.1);
+  box-shadow: 4px 4px 4px rgba(45, 52, 44, 0.25);
+}
+
+.charging-details-card h2,
+.charging-summary-card h2 {
+  margin: 0 0 0.75rem;
+  color: #000;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.charging-details-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.charging-fields-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+}
+
+.charging-details-card label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #000;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.charging-details-card input,
+.charging-details-card select {
+  width: 100%;
+  min-width: 0;
+  height: 56px;
+  padding: 0 18px;
+  border: 1px solid #222;
+  border-radius: 8px;
+  background-color: #fff;
+  color: #000;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.charging-details-card select:disabled {
+  color: #000;
+  opacity: 1;
+  cursor: default;
+}
+
+.charging-details-card.is-registered input:disabled,
+.charging-details-card.is-registered select:disabled {
+  border-color: #b8c2b5;
+  background-color: #e4e8e1;
+  color: #657064;
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.charging-form-note {
+  margin: 0;
+  color: #555;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.charging-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.charging-summary-card h2 {
+  margin-bottom: 0;
+}
+
+.charging-summary-image {
+  width: 100%;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.charging-summary-image img {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+}
+
+.charging-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  color: #000;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.charging-summary-row span {
+  color: #555;
+}
+
+.charging-summary-row strong {
+  text-align: right;
+  font-weight: 400;
+}
+
+.charging-summary-row strong.charging-summary-hub-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.charging-summary-row .charging-summary-hub-slot span {
+  color: #000;
+}
+
+.charging-register-button {
+  width: 100%;
+  min-height: 64px;
+  margin-top: 0.2rem;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  color: #000;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 400;
+  box-shadow: 5px 5px 8px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
+.charging-register-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.charging-cancel-button {
+  width: 100%;
+  min-height: 64px;
+  margin-top: 0.2rem;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  color: #b42318;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 400;
+  box-shadow: 5px 5px 8px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
+.charging-cancel-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.charging-feedback {
+  margin: 0;
+  font-size: 15px;
+}
+
+.charging-feedback-error {
+  color: #b42318;
+}
+
+.charging-feedback-success {
+  color: #1b7f4c;
+}
+
+@media (max-width: 900px) {
+  .hub-service-grid,
+  .my-vehicles-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-time-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .charging-registration-page {
+    width: 100%;
+    left: auto;
+    transform: none;
+  }
+
+  .charging-page-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .charging-summary-card {
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .charging-registration-page {
+    padding-bottom: 1rem;
+  }
+
+  .charging-page-heading h1 {
+    font-size: 30px;
+  }
+
+  .charging-page-heading p {
+    font-size: 17px;
+  }
+
+  .charging-details-card,
+  .charging-summary-card {
+    padding: 1.1rem;
+  }
+
+  .charging-details-card h2,
+  .charging-summary-card h2 {
+    font-size: 24px;
+  }
+
+  .charging-fields-row {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .charging-details-card label {
+    font-size: 17px;
+  }
+
+  .charging-details-card input,
+  .charging-details-card select {
+    height: 48px;
+    font-size: 16px;
+  }
+
+  .charging-form-note {
+    font-size: 16px;
+  }
+
+  .charging-summary-row {
+    font-size: 15px;
+  }
+
+  .charging-register-button {
+    min-height: 54px;
+    font-size: 20px;
+  }
+
+  .charging-cancel-button {
+    min-height: 54px;
+    font-size: 20px;
+  }
+}
+
+.vehicle-availability-page {
+  position: relative;
+  left: 50%;
+  width: min(1324px, calc(100vw - 116px));
+  margin: 0;
+  padding: 1.5rem 0 2rem;
+  transform: translateX(-50%);
+  color: #000;
+  font-family: 'Hind Jalandhar', sans-serif;
+}
+
+.vehicle-availability-heading {
+  margin-bottom: 1.25rem;
+}
+
+.vehicle-availability-heading h1 {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.vehicle-availability-heading p {
+  margin: 0.25rem 0 0;
+  color: #555;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.vehicle-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-bottom: 1.25rem;
+}
+
+.vehicle-filter-actions button {
+  min-width: 270px;
+  min-height: 64px;
+  padding: 0.35rem 1.5rem;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: #000;
+  font-family: inherit;
+  font-size: 22px;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+.vehicle-filter-actions button.active {
+  background: #c9f5d0;
+}
+
+.vehicle-filter-actions button span {
+  margin-left: 0.2rem;
+}
+
+.vehicle-availability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 38px;
+}
+
+.vehicle-availability-card {
+  min-width: 0;
+  min-height: 486px;
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+  border-radius: 20px;
+  background: rgba(80, 221, 90, 0.1);
+  box-shadow: 4px 4px 4px rgba(45, 52, 44, 0.25);
+}
+
+.vehicle-availability-card h2 {
+  min-height: 41px;
+  margin: 0 0 16px;
+  overflow: hidden;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vehicle-availability-image {
+  height: 170px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.vehicle-availability-image img {
+  width: 150px;
+  height: 150px;
+  object-fit: contain;
+}
+
+.vehicle-battery {
+  margin-top: 16px;
+}
+
+.vehicle-battery-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.vehicle-battery-label strong {
+  font-weight: 600;
+}
+
+.vehicle-battery-track {
+  height: 18px;
+  margin-top: 9px;
+  overflow: hidden;
+  border: 1px solid #838383;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.vehicle-battery-track span {
+  height: 100%;
+  display: block;
+  margin: 2px;
+  max-width: calc(100% - 4px);
+  border-radius: 2px;
+  background: #34c759;
+}
+
+.vehicle-range-label {
+  min-height: 32px;
+  margin: 12px 0 0;
+  font-size: 20px;
+}
+
+.vehicle-reserve-button {
+  width: 100%;
+  min-height: 64px;
+  margin-top: auto;
+  border: 0;
+  border-radius: 14px;
+  background: #fff;
+  color: #000;
+  font-family: inherit;
+  font-size: 22px;
+  box-shadow: 5px 5px 8px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
+.vehicle-reserve-button:disabled {
+  background: #ecefec;
+  color: #5f665f;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.vehicle-availability-error {
+  color: var(--danger);
+}
+
+.vehicle-availability-empty {
+  padding: 1rem;
+  color: #555;
+}
+
+.vehicle-availability-back {
+  display: inline-block;
+  margin-top: 1.25rem;
+  color: var(--primary);
+  font-size: 18px;
+}
+
+@media (max-width: 1050px) {
+  .vehicle-availability-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .vehicle-availability-page {
+    width: 100%;
+    left: auto;
+    transform: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .vehicle-availability-page {
+    padding-top: 0.5rem;
+  }
+
+  .vehicle-availability-heading h1 {
+    font-size: 30px;
+  }
+
+  .vehicle-availability-heading p {
+    font-size: 17px;
+  }
+
+  .vehicle-filter-actions {
+    gap: 0.75rem;
+  }
+
+  .vehicle-filter-actions button {
+    min-width: 100%;
+    min-height: 54px;
+    font-size: 19px;
+  }
+
+  .vehicle-availability-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .vehicle-availability-card {
+    min-height: 450px;
+    padding: 1.25rem;
+  }
+}
+
 .brand-title {
   font-weight: 700;
   font-size: 1.1rem;
@@ -118,11 +1168,14 @@ a {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  /* margin: auto; */
   padding: 0.55rem 1rem;
   border-radius: 8px;
   font-weight: 600;
   font-size: 0.92rem;
   border: 1px solid transparent;
+  font-size: 20px;
+  font-weight: 400;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -133,8 +1186,11 @@ a {
 }
 
 .btn-primary {
-  background: var(--primary);
-  color: #fff;
+  color: #000000;
+  background-color: #50DD5A47;
+  border-color: #50DD5A47;
+  max-width: 380px;
+  width: 100%;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -195,4 +1251,1084 @@ a {
   padding: 0.7rem 0.6rem;
   border-bottom: 1px solid var(--border-color);
   font-size: 0.92rem;
+}
+
+.find-hub-page {
+  width: 100%;
+  padding: 1rem 0 2rem;
+}
+
+.find-hub-heading h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.find-hub-heading p {
+  margin: 0.4rem 0 1.25rem;
+  color: var(--text-muted);
+}
+
+.hub-location-search {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #4d5a42;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.hub-location-search-icon {
+  padding-left: 1rem;
+  font-size: 28px;
+  color: var(--primary);
+}
+
+.hub-location-search input {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  padding: 0 0.75rem;
+  font-size: 16px;
+}
+
+.hub-location-search button {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  padding: 0 1rem;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.vehicle-type-filter {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+}
+
+.vehicle-type-filter > span {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.vehicle-type-filter > div {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.vehicle-type-filter button {
+  min-width: 184px;
+  height: 64px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #000;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.vehicle-type-filter button.active {
+  border: 1px solid #9ce3a4;
+  background: #c9f5d0;
+}
+
+.nearby-hubs-title {
+  margin: 1rem 0 0.75rem;
+  font-size: 20px;
+}
+
+.nearby-hub-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.nearby-hub-row {
+  min-height: 100px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(300px, 2fr) 180px;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  background-color: #50DD5A1A;
+  box-shadow: 0 6px 14px rgba(24, 43, 32, 0.14);
+}
+
+.nearby-hub-info h3 {
+  margin: 0 0 0.15rem;
+  font-size: 18px;
+}
+
+.nearby-hub-info p,
+.nearby-hub-availability {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 15px;
+}
+
+.view-vehicles-button {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #000;
+  font-size: 18px;
+  box-shadow: 0 4px 9px rgba(24, 43, 32, 0.18);
+}
+
+.find-hub-error {
+  margin-top: 0.75rem;
+  color: var(--danger);
+}
+
+.find-hub-empty {
+  text-align: center;
+  color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+  .vehicle-type-filter {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .nearby-hub-row {
+    grid-template-columns: 1fr;
+  }
+
+  .view-vehicles-button {
+    width: 100%;
+  }
+}
+
+.auth-page {
+  position: relative;
+  min-height: 90vh;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 12rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.auth-logo {
+  position: absolute;
+  left: 5rem;
+  bottom: 3rem;
+  width: 436px;
+  height: 436px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.auth-brand-title {
+  margin: 0;
+  color: #34c759;
+  text-align: center;
+  font-size: 58px;
+  font-weight: 600;
+  line-height: 2;
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 540px;
+  margin-top: 2rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.auth-card-prompt,
+.auth-card-title {
+  margin: 0 0 1.5rem;
+  color: #2b581c;
+  font-family: 'Arbutus', serif;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.auth-role-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.auth-role-button {
+  width: 100%;
+  max-width: 380px;
+  padding: 1rem;
+  border: 1px solid #50dd5a47;
+  border-radius: 8px;
+  background: #50dd5a47;
+  color: #000;
+  font-size: 20px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.auth-role-button:hover {
+  opacity: 70%;
+}
+
+.auth-role-button:disabled,
+.auth-google-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.auth-demo-note {
+  margin: 0.75rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.auth-login-card {
+  max-width: 520px;
+}
+
+.auth-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  text-align: left;
+}
+
+.auth-login-form label {
+  color: #000;
+  font-size: 16px;
+}
+
+.auth-login-input {
+  width: 100%;
+  height: 52px;
+  margin-bottom: 0.75rem;
+  padding: 0 1rem;
+  border: 1px solid #50dd5a47;
+  border-radius: 8px;
+  background: #50dd5a47;
+  color: #000;
+  font-size: 18px;
+}
+
+.auth-login-submit {
+  width: 56px;
+  height: 56px;
+  align-self: center;
+  margin-top: 0.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #50dd5a47;
+  color: #000;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.auth-error {
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.auth-google-button-wrap {
+  position: relative;
+  z-index: 1;
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.auth-google-button {
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: #fff;
+  color: #4285f4;
+  font-family: Arial, sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.auth-google-provider {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.auth-google-demo-link {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.reservation-flow-page {
+  width: min(1120px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 4rem;
+  color: #242a24;
+}
+
+.reservation-flow-heading {
+  margin: 0 0 1.8rem;
+}
+
+.reservation-flow-heading h1 {
+  margin: 0 0 0.35rem;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: clamp(2rem, 3.2vw, 2.8rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.reservation-flow-heading p {
+  margin: 0;
+  color: #5c665d;
+  font-size: 1.05rem;
+}
+
+.reservation-booking-grid,
+.reservation-step-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: stretch;
+  gap: 1.5rem;
+}
+
+.reservation-vehicle-card,
+.reservation-details-card,
+.reservation-step-card {
+  position: relative;
+  min-width: 0;
+  padding: 1.6rem;
+  border: 1px solid #dce9dc;
+  border-radius: 16px;
+  background: #50DD5A1A;
+  box-shadow: 0 5px 16px rgba(34, 62, 38, 0.08);
+}
+
+.reservation-vehicle-card h2,
+.reservation-details-card h2,
+.reservation-step-card h2 {
+  margin: 0 0 1rem;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 1.45rem;
+  font-weight: 600;
+}
+
+.reservation-vehicle-image {
+  display: grid;
+  min-height: 210px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.reservation-vehicle-image img {
+  width: 100%;
+  max-height: 250px;
+  object-fit: contain;
+}
+
+.reservation-vehicle-name {
+  margin: 1rem 0 0.75rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.reservation-battery-label,
+.reservation-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.reservation-battery-label {
+  color: #4a594b;
+  font-size: 0.92rem;
+}
+
+.reservation-battery-track {
+  height: 9px;
+  margin: 0.45rem 0 1rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #d3dfd1;
+}
+
+.reservation-battery-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #50c65b;
+}
+
+.reservation-vehicle-location {
+  margin: 0;
+  color: #39483b;
+  line-height: 1.8;
+}
+
+.reservation-details-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.reservation-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.reservation-field-grid label,
+.reservation-return-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: #26372a;
+  font-weight: 600;
+}
+
+.reservation-field-grid input,
+.reservation-field-grid select,
+.reservation-return-hub select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #c9d9c8;
+  border-radius: 8px;
+  background: #fff;
+  color: #202820;
+  font: inherit;
+}
+
+.reservation-details-card h3 {
+  margin: 0;
+  padding-top: 0.4rem;
+  font-size: 1.08rem;
+}
+
+.reservation-summary-row {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(64, 87, 66, 0.16);
+  color: #4e5b4f;
+}
+
+.reservation-summary-row strong {
+  color: #222b23;
+  text-align: right;
+}
+
+.reservation-primary-short-button,
+.reservation-primary-long-button, 
+.reservation-primary-button,
+.reservation-secondary-button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem 1.25rem;
+  border: 0;
+  border-radius: 9px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  background: #50c65b;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.reservation-primary-button,
+.reservation-secondary-button {
+  position: absolute;
+  width: 13.5rem;
+  bottom: 2rem;
+}
+
+.reservation-primary-button {
+  right: 3rem;
+  background: #50c65b;
+  color: #142a16;
+}
+
+.reservation-secondary-button {
+  left: 3rem;
+  border: 1px solid #d58a8a;
+  background: #fff;
+  color: #a42e2e;
+}
+
+.reservation-primary-short-button:hover:not(:disabled),
+.reservation-primary-long-button:hover:not(:disabled), 
+.reservation-primary-button:hover:not(:disabled) {
+  background: #39ae45;
+}
+
+.reservation-primary-short-button:disabled,
+.reservation-primary-long-button:disabled, 
+.reservation-primary-button:disabled,
+.reservation-secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.reservation-details-card form > .reservation-primary-button {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.reservation-back-link {
+  display: inline-flex;
+  margin-top: 1.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #216b38;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reservation-flow-error,
+.reservation-flow-warning {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+}
+
+.reservation-flow-error {
+  background: #fee7e7;
+  color: #9c2525;
+}
+
+.reservation-flow-warning {
+  background: #fff1d2;
+  color: #704b0c;
+}
+
+.reservation-static-qr {
+  display: grid;
+  width: min(220px, 100%);
+  aspect-ratio: 1;
+  place-items: center;
+  margin: 0 auto 0.75rem;
+  border: 14px solid #fff;
+  border-radius: 8px;
+  background-color: #fff;
+  background-image:
+    linear-gradient(90deg, #212821 12px, transparent 12px),
+    linear-gradient(#212821 12px, transparent 12px),
+    linear-gradient(90deg, transparent 36px, #212821 36px 48px, transparent 48px),
+    linear-gradient(transparent 36px, #212821 36px 48px, transparent 48px);
+  background-position: 0 0, 0 0, 12px 12px, 12px 12px;
+  background-size: 60px 60px;
+  color: transparent;
+}
+
+.reservation-static-qr span {
+  padding: 0.3rem;
+  background: #fff;
+  color: #222;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.reservation-static-note {
+  margin: 0 0 1rem;
+  color: #586459;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.reservation-instructions-card ol {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding-left: 1.35rem;
+  line-height: 1.65;
+}
+
+.reservation-button-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.reservation-button-row > button {
+  flex: 1;
+}
+
+.reservation-return-hub {
+  margin: 1.25rem 0 0.5rem;
+}
+
+.reservation-return-complete {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 8px;
+  background: #d9f3dc;
+  color: #216331;
+  font-weight: 600;
+}
+
+.reservation-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.reservation-list-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.reservation-list-card h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1.1rem;
+}
+
+.reservation-list-card p {
+  margin: 0 0 0.6rem;
+  color: var(--text-muted);
+}
+
+.reservation-status {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: #e7f2e8;
+  color: #28643a;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.reservation-status-cancelled {
+  background: #fae4e4;
+  color: #9c3030;
+}
+
+.reservation-status-completed {
+  background: #e8ebee;
+  color: #49545c;
+}
+
+.reservation-empty {
+  padding: 2rem;
+  border: 1px dashed #b7c8b9;
+  border-radius: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .reservation-flow-page {
+    width: min(100% - 2rem, 560px);
+    padding-top: 1.5rem;
+  }
+
+  .reservation-booking-grid,
+  .reservation-step-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation-list-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .reservation-button-row {
+    flex-direction: column-reverse;
+  }
+}
+
+.reservation-flow-page {
+  width: 100%;
+  margin: 0;
+  padding: 1.1rem 0 3rem;
+  color: #202b20;
+  font-family: 'Hind Jalandhar', sans-serif;
+}
+
+.reservation-flow-heading {
+  margin-bottom: 1.5rem;
+}
+
+.reservation-flow-heading h1 {
+  margin: 0 0 0.25rem;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.reservation-flow-heading p {
+  margin: 0;
+  color: #556b5d;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.reservation-booking-grid,
+.reservation-pickup-layout,
+.reservation-return-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 2rem;
+}
+
+.reservation-vehicle-card,
+.reservation-details-card,
+.reservation-step-card {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 0;
+  border-radius: 20px;
+  background: rgba(80, 221, 90, 0.1);
+  box-shadow: 4px 4px 4px rgba(45, 52, 44, 0.18);
+  font-family: 'Hind Jalandhar', sans-serif;
+}
+
+.reservation-vehicle-card h2,
+.reservation-details-card h2,
+.reservation-step-card h2 {
+  margin: 0 0 1rem;
+  color: #202b20;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.reservation-vehicle-image {
+  display: grid;
+  min-height: 215px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background: transparent;
+}
+
+.reservation-vehicle-image img {
+  width: 100%;
+  max-height: 250px;
+  object-fit: contain;
+}
+
+.reservation-vehicle-name {
+  margin: 0.6rem 0 0.7rem;
+  color: #202b20;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.reservation-vehicle-location,
+.reservation-vehicle-rate {
+  margin: 0.75rem 0 0;
+  color: #263229;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.reservation-vehicle-rate {
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+
+.reservation-field-grid {
+  gap: 1rem 1.25rem;
+}
+
+.reservation-field-grid label,
+.reservation-return-hub {
+  color: #263229;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 16px;
+  font-weight: 300;
+}
+
+.reservation-field-grid input,
+.reservation-field-grid select,
+.reservation-return-hub select {
+  min-height: 48px;
+  border: 1px solid #d5ddd2;
+  border-radius: 10px;
+  background: #fcfcfa;
+  color: #263229;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 16px;
+}
+
+.reservation-field-grid input:focus,
+.reservation-field-grid select:focus,
+.reservation-return-hub select:focus {
+  border-color: #34c759;
+  outline: 2px solid rgba(52, 199, 89, 0.18);
+}
+
+.reservation-details-card h3,
+.reservation-pickup-instructions h3 {
+  margin: 0;
+  color: #202b20;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.reservation-summary-row {
+  width: 100%;
+  padding: 0.65rem 0;
+  color: #556b5d;
+  font-size: 16px;
+}
+
+.reservation-summary-row > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+}
+
+.reservation-summary-row strong {
+  flex: 0 1 auto;
+  margin-left: auto;
+  color: #202b20;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.reservation-primary-button,
+.reservation-secondary-button {
+  min-height: 52px;
+  border-radius: 9px;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.reservation-primary-button {
+  background: #34c759;
+  color: #111;
+}
+
+.reservation-primary-button:hover:not(:disabled) {
+  background: #28b94c;
+}
+
+.reservation-details-card form > .reservation-primary-button {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.reservation-back-link {
+  margin-top: 1.2rem;
+  color: #216b38;
+  font-family: 'Hind Jalandhar', sans-serif;
+  font-size: 16px;
+}
+
+.reservation-pickup-vehicle,
+.reservation-pickup-code-card,
+.reservation-return-confirmation {
+  display: flex;
+  flex-direction: column;
+}
+
+.reservation-pickup-vehicle .reservation-vehicle-image,
+.reservation-return-vehicle .reservation-vehicle-image {
+  min-height: 240px;
+}
+
+.reservation-pickup-vehicle-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.9rem 0 0.5rem;
+  color: #556b5d;
+  font-size: 16px;
+}
+
+.reservation-pickup-vehicle-name strong {
+  color: #202b20;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.reservation-pickup-code-content {
+  display: flex;
+  min-height: 250px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 0.5rem;
+}
+
+.reservation-static-qr {
+  display: block;
+  width: min(236px, 100%);
+  aspect-ratio: auto;
+  margin: 0;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  background-image: none;
+  box-shadow: 0 2px 6px rgba(20, 32, 20, 0.12);
+}
+
+.reservation-qr-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  shape-rendering: crispEdges;
+}
+
+.reservation-pickup-code-content p {
+  margin: 0;
+  color: #556b5d;
+  font-size: 16px;
+  text-align: center;
+}
+
+.reservation-pickup-instructions {
+  margin-top: 0.7rem;
+}
+
+.reservation-pickup-instructions h3 {
+  margin-bottom: 0.45rem;
+}
+
+.reservation-pickup-instructions ol {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding-left: 1.35rem;
+  color: #263229;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.reservation-pickup-instructions li {
+  padding-left: 0.2rem;
+}
+
+.reservation-button-row > button {
+  flex: 1;
+}
+
+.reservation-return-copy {
+  margin: 0.2rem 0 1rem;
+  color: #39483b;
+  font-size: 17px;
+}
+
+.reservation-return-instructions {
+  margin-top: 0.75rem;
+  color: #263229;
+  font-size: 16px;
+}
+
+.reservation-return-availability {
+  margin: 0;
+  padding: 0.65rem 0;
+  line-height: 1.35;
+}
+
+.reservation-return-instructions ol {
+  gap: 0.25rem;
+  margin: 0;
+  list-style-position: inside;
+  line-height: 1.4;
+}
+
+.reservation-return-instructions li {
+  padding: 0.55rem 0;
+}
+
+.reservation-return-hub {
+  margin: 1rem 0 0.5rem;
+}
+
+.reservation-return-complete {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 1rem 0;
+  border-radius: 10px;
+  background: #d9f3dc;
+  color: #216331;
+  font-size: 16px;
+}
+
+.reservation-return-complete strong {
+  font-size: 20px;
+}
+
+@media (max-width: 760px) {
+  .reservation-flow-page {
+    padding-top: 0.4rem;
+  }
+
+  .reservation-booking-grid,
+  .reservation-pickup-layout,
+  .reservation-return-layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .reservation-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation-pickup-vehicle .reservation-vehicle-image,
+  .reservation-return-vehicle .reservation-vehicle-image {
+    min-height: 200px;
+  }
 }

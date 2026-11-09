@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { IS_MOCK_MODE } from '../../api';
+import logo from '../common/images/logo.jpg';
 
 export function OperatorLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -20,7 +22,10 @@ export function OperatorLayout() {
         </div>
       )}
       <header className="topbar">
-        <div className="brand-title">🛠️ Operator Control · Smart E-Mobility Hub</div>
+        <div className="brand-title">
+          <img src={logo} alt="" />
+          <span>Smart E-MOBILITY HUB</span>
+        </div>
         <nav className="nav-links">
           <NavLink to="/operator/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             Network Monitor
@@ -38,11 +43,23 @@ export function OperatorLayout() {
             Student View →
           </NavLink>
         </nav>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.88rem' }}>
-          <span>{user?.email}</span>
-          <button type="button" className="btn btn-outline" onClick={handleLogout}>
-            Sign out
-          </button>
+        <div className="profile-menu">
+          <div className="profile-details">
+            <span>{user?.fullName}</span>
+            <strong>{user?.role}</strong>
+          </div>
+          <button
+            type="button"
+            className="profile-button"
+            aria-label="Open profile menu"
+            aria-expanded={profileMenuOpen}
+            onClick={() => setProfileMenuOpen((open) => !open)}
+          />
+          {profileMenuOpen && (
+            <button type="button" className="profile-signout" onClick={handleLogout}>
+              Sign out
+            </button>
+          )}
         </div>
       </header>
 
