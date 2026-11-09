@@ -6,7 +6,7 @@
 import { INITIAL_MOCK_DB } from './mockData';
 import { buildOperatorDashboardBundle, normalizeIncident } from './operatorAdapter';
 
-const STORAGE_KEY = 'semh_mock_db_v3';
+const STORAGE_KEY = 'semh_mock_db_v4';
 
 function loadDb() {
   const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -240,7 +240,16 @@ export const mockServer = {
     await delay();
     const db = loadDb();
     const req = db.chargingRequests.find((c) => c.id === Number(requestId));
-    if (req) req.priority = priority;
+    if (req) {
+      req.priority = priority;
+      const rank = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
+      db.chargingRequests.sort(
+        (a, b) => (rank[a.priority] ?? 2) - (rank[b.priority] ?? 2)
+      );
+      db.chargingRequests.forEach((item, idx) => {
+        item.queuePosition = idx + 1;
+      });
+    }
     saveDb(db);
     return req;
   },
