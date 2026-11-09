@@ -81,7 +81,7 @@ export function HubUtilizationPage() {
         free: freeA,
         total: totalA,
         pct: pctA,
-        unit: 'spaces',
+        unit: freeA === 1 ? 'space' : 'spaces',
       },
       {
         code: 'B',
@@ -91,7 +91,7 @@ export function HubUtilizationPage() {
         free: freeB,
         total: totalB,
         pct: pctB,
-        unit: 'chargers',
+        unit: freeB === 1 ? 'charger' : 'chargers',
       },
       {
         code: 'C',
@@ -101,7 +101,7 @@ export function HubUtilizationPage() {
         free: freeC,
         total: totalC,
         pct: pctC,
-        unit: 'spaces',
+        unit: freeC === 1 ? 'space' : 'spaces',
       },
     ];
   };
@@ -137,7 +137,9 @@ export function HubUtilizationPage() {
                     : Math.round(Number(hub.utilizationPercentage ?? 0));
 
                 const nearFull =
-                  pct >= 80 || hub.hubStatus === 'NEAR_FULL' || hub.hubStatus === 'FULL';
+                  liveTotal > 0
+                    ? pct >= 80
+                    : pct >= 80 || hub.hubStatus === 'NEAR_FULL' || hub.hubStatus === 'FULL';
                 const isExpanded = expandedHubId === hub.id;
                 const zones = isExpanded ? buildZonesForHub(hub) : [];
 
@@ -226,7 +228,7 @@ export function HubUtilizationPage() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => navigate(`/operator/parking?hubId=${hub.id}`)}
+                            onClick={() => navigate(`/operator/manage-parking?hubId=${hub.id}`)}
                             style={{
                               background: '#ffffff',
                               border: '1px solid #cde8cc',
