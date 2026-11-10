@@ -87,6 +87,35 @@ export const mockServer = {
     return { ...hub, vehicles };
   },
 
+  async getParkingSlots(hubId) {
+    await delay();
+    const db = loadDb();
+    return db.vehicles
+      .filter((vehicle) => vehicle.currentHubId === Number(hubId) && vehicle.parkingSlotCode)
+      .map((vehicle) => ({
+        id: vehicle.parkingSlotId ?? vehicle.id,
+        hubId: Number(hubId),
+        slotCode: vehicle.parkingSlotCode,
+        status: vehicle.status === 'AVAILABLE' ? 'OCCUPIED' : vehicle.status,
+      }));
+  },
+
+  async getChargingPoints(hubId) {
+    await delay();
+    const hub = loadDb().hubs.find((item) => item.id === Number(hubId));
+    if (!hub) throw new Error('Hub not found');
+    return Array.from(
+      { length: Math.max(0, Number(hub.availableChargingPoints) || 0) },
+      (_, index) => ({
+        id: Number(hubId) * 100 + index + 1,
+        hubId: Number(hubId),
+        chargerCode: `C-${String(index + 1).padStart(2, '0')}`,
+        connectorType: 'UNIVERSAL_AC',
+        status: 'AVAILABLE',
+      }),
+    );
+  },
+
   async getVehicles({ hubId, type, minBattery = 0, status } = {}) {
     await delay();
     const db = loadDb();
