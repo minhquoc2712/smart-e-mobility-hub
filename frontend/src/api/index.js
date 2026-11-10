@@ -27,6 +27,14 @@ export const hubApi = {
   },
   getHubById: (hubId) =>
     IS_MOCK_MODE ? mockServer.getHubById(hubId) : httpRequest(`/hubs/${hubId}`),
+  getParkingSlots: (hubId) =>
+    IS_MOCK_MODE
+      ? mockServer.getParkingSlots(hubId)
+      : httpRequest(`/hubs/${hubId}/parking-slots`),
+  getChargingPoints: (hubId) =>
+    IS_MOCK_MODE
+      ? mockServer.getChargingPoints(hubId)
+      : httpRequest(`/hubs/${hubId}/charging-points`),
 };
 
 export const vehicleApi = {
