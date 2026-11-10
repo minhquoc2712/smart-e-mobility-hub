@@ -1,5 +1,5 @@
 /**
- * Unified Frontend API Client (Task 3.0 & Task 3.3a)
+ * Unified Frontend API Client (Task 3.0, 3.2a, 3.3a & 4.1a)
  * Automatically switches between Mock API (OpenAPI 2B.6) and Real Node.js Backend
  * via VITE_USE_MOCK_API environment flag — zero UI code changes required!
  */
@@ -72,6 +72,10 @@ export const reservationApi = {
     IS_MOCK_MODE
       ? mockServer.reserveVehicle(payload)
       : httpRequest('/reservations/vehicles', { method: 'POST', body: JSON.stringify(payload) }),
+  reserveParking: (payload) =>
+    IS_MOCK_MODE
+      ? mockServer.reserveParking(payload)
+      : httpRequest('/reservations/parking', { method: 'POST', body: JSON.stringify(payload) }),
   pickupReservation: (id) =>
     IS_MOCK_MODE
       ? mockServer.pickupReservation(id)
@@ -93,6 +97,10 @@ export const chargingApi = {
     IS_MOCK_MODE
       ? mockServer.createChargingRequest(payload)
       : httpRequest('/charging-requests', { method: 'POST', body: JSON.stringify(payload) }),
+  cancelChargingRequest: (id) =>
+    IS_MOCK_MODE
+      ? mockServer.cancelChargingRequest(id)
+      : httpRequest(`/charging-requests/${id}`, { method: 'DELETE' }),
   updatePriority: (id, priority) =>
     IS_MOCK_MODE
       ? mockServer.updateChargingPriority(id, priority)
