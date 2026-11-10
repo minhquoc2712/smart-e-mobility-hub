@@ -131,10 +131,10 @@ CREATE TABLE IF NOT EXISTS charging_requests (
   status ENUM('QUEUED', 'SCHEDULED', 'CHARGING', 'COMPLETED', 'CANCELLED', 'FAILED') NOT NULL DEFAULT 'SCHEDULED',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_chg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_chg_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
-  CONSTRAINT fk_chg_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
-  CONSTRAINT fk_chg_point FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL
+  CONSTRAINT fk_chgreq_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_chgreq_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
+  CONSTRAINT fk_chgreq_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
+  CONSTRAINT fk_chgreq_point FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- 8. Operational Incidents (UC11 & UC12)
@@ -153,10 +153,10 @@ CREATE TABLE IF NOT EXISTS incidents (
   resolution_notes TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   closed_at DATETIME NULL,
-  CONSTRAINT fk_inc_reporter FOREIGN KEY (reported_by) REFERENCES users(id),
-  CONSTRAINT fk_inc_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
-  CONSTRAINT fk_inc_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
-  CONSTRAINT fk_inc_charger FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL
+  CONSTRAINT fk_incidents_reporter FOREIGN KEY (reported_by) REFERENCES users(id),
+  CONSTRAINT fk_incidents_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
+  CONSTRAINT fk_incidents_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
+  CONSTRAINT fk_incidents_charger FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- 9. Vehicle Redistribution / Dispatch Orders (UC13)
@@ -171,9 +171,9 @@ CREATE TABLE IF NOT EXISTS dispatch_orders (
   status ENUM('PENDING', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME NULL,
-  CONSTRAINT fk_disp_operator FOREIGN KEY (operator_id) REFERENCES users(id),
-  CONSTRAINT fk_disp_src FOREIGN KEY (source_hub_id) REFERENCES hubs(id),
-  CONSTRAINT fk_disp_dst FOREIGN KEY (destination_hub_id) REFERENCES hubs(id)
+  CONSTRAINT fk_dispatch_orders_operator FOREIGN KEY (operator_id) REFERENCES users(id),
+  CONSTRAINT fk_dispatch_orders_src FOREIGN KEY (source_hub_id) REFERENCES hubs(id),
+  CONSTRAINT fk_dispatch_orders_dst FOREIGN KEY (destination_hub_id) REFERENCES hubs(id)
 ) ENGINE=InnoDB;
 
 -- 10. What-If Simulation Scenario Templates & Saved Runs (UC16, UC17, UC18)
