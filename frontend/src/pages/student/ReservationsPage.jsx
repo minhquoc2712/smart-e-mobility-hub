@@ -34,12 +34,9 @@ function normalizeReservation(reservation) {
     hubName: reservation.hubName ?? reservation.hub_name ?? '',
     vehicleId: Number(reservation.vehicleId ?? reservation.vehicle_id),
     vehicleCode: reservation.vehicleCode ?? reservation.vehicle_code ?? '',
-    reservationCode: reservation.reservationCode ?? reservation.reservation_code ?? '',
-    parkingSlotId: Number(reservation.parkingSlotId ?? reservation.parking_slot_id) || null,
     parkingSlotCode: reservation.parkingSlotCode
       ?? reservation.parking_slot_code
       ?? reservation.slotCode
-      ?? reservation.slot_code
       ?? reservation.rackPositionCode
       ?? '',
     startTime: reservation.startTime ?? reservation.start_time ?? '',
@@ -81,7 +78,7 @@ function getPositionCode(reservation, vehicle) {
     || vehicle?.positionCode
     || vehicle?.slotCode
     || vehicle?.rackPositionCode
-    || '';
+    || 'B-04';
 }
 
 function getVehicleKind(vehicle, vehicleCode) {
@@ -92,22 +89,11 @@ function getVehicleKind(vehicle, vehicleCode) {
 }
 
 function getPickupLocation(hubName, campusZone) {
-  if (!hubName) return '—';
-  const shortName = String(hubName).replace(/\s+Hub$/i, '');
-  return campusZone ? `${shortName} hub, ${campusZone}` : `${shortName} hub`;
-}
-
-async function resolvePositionCode(hubId, reservation, vehicle) {
-  const existingCode = getPositionCode(reservation, vehicle);
-  if (existingCode) return existingCode;
-
-  const slotId = Number(reservation.parkingSlotId ?? reservation.parking_slot_id
-    ?? vehicle?.parkingSlotId ?? vehicle?.parking_slot_id);
-  if (!hubId || !slotId) return '';
-
-  const slots = await hubApi.getParkingSlots(hubId);
-  const slot = slots.find((item) => Number(item.id) === slotId);
-  return slot?.slotCode ?? slot?.slot_code ?? '';
+  const shortName = String(hubName || 'HCMUT Main Gate').replace(/\s+Hub$/i, '');
+  const zone = /^HCMUT Main Gate$/i.test(shortName)
+    ? 'Campus main gate'
+    : campusZone || 'Campus main gate';
+  return `${shortName} hub, ${zone}`;
 }
 
 function StaticQrCode() {
@@ -202,12 +188,15 @@ export function ReservationsPage() {
       if (!vehicle && reservation.hubId && reservation.vehicleId) {
         const vehicles = await vehicleApi.getVehicles({ hubId: reservation.hubId });
         vehicle = vehicles.find((entry) => Number(entry.id) === reservation.vehicleId) || null;
+        reservation = {
+          ...reservation,
+          parkingSlotCode: reservation.parkingSlotCode || getPositionCode(reservation, vehicle),
+        };
       }
-      const parkingSlotCode = await resolvePositionCode(reservation.hubId, reservation, vehicle);
       setSelectedReservation({
         ...reservation,
         vehicle,
-        parkingSlotCode,
+        parkingSlotCode: reservation.parkingSlotCode || getPositionCode(reservation, vehicle),
       });
       setReturnHubId(String(reservation.hubId || hubs[0]?.id || ''));
       setStage(nextStage);
@@ -239,7 +228,6 @@ export function ReservationsPage() {
 
     try {
       setLoading(true);
-      const parkingSlotCode = await resolvePositionCode(currentPickupHub.id, {}, draftVehicle);
       const response = await reservationApi.reserveVehicle({
         userId: user?.id,
         hubId: Number(currentPickupHub.id),
@@ -255,7 +243,7 @@ export function ReservationsPage() {
         hubName: currentPickupHub.name,
         vehicleId: Number(draftVehicle.id),
         vehicleCode: draftVehicle.code,
-        parkingSlotCode,
+        parkingSlotCode: getPositionCode({}, draftVehicle),
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         status: response.status || 'CONFIRMED',
@@ -330,7 +318,7 @@ export function ReservationsPage() {
   const vehicleReservations = reservations.filter((reservation) =>
     reservation.reservationType === 'VEHICLE');
   const selectedReturnHub = hubs.find((hub) => String(hub.id) === String(returnHubId));
-  const positionCode = selectedReservation ? getPositionCode(selectedReservation, selectedReservation.vehicle) : '';
+  const positionCode = selectedReservation ? getPositionCode(selectedReservation, selectedReservation.vehicle) : 'B-04';
   const selectedDuration = selectedReservation ? reservationHours(selectedReservation) : duration;
   const selectedFee = selectedDuration * HOURLY_RATE;
   const selectedVehicleKind = selectedReservation
@@ -349,7 +337,7 @@ export function ReservationsPage() {
       <main className="reservation-flow-page reservation-flow-page--booking">
         <header className="reservation-flow-heading">
           <h1>Reserve your electric {draftVehicle.type === 'ELECTRIC_SCOOTER' ? 'scooter' : 'bike'}</h1>
-          <p>Choose your pickup time and check the booking details before confirming.</p>
+          <p>Choose your pickup time.</p>
         </header>
         {error && <p className="reservation-flow-error" role="alert">{error}</p>}
         <div className="reservation-booking-grid">
@@ -441,7 +429,7 @@ export function ReservationsPage() {
       <main className="reservation-flow-page reservation-flow-page--pickup">
         <header className="reservation-flow-heading">
           <h1>Pick up your electric {selectedVehicleKind}</h1>
-          <p>Your booking is confirmed. Follow the instructions below to start your ride.</p>
+          <p>Follow the instructions below to pick up your vehicle.</p>
         </header>
         {error && <p className="reservation-flow-error" role="alert">{error}</p>}
         <div className="reservation-pickup-layout">
@@ -466,7 +454,7 @@ export function ReservationsPage() {
               )}
               <div className="reservation-summary-row">
                 <span>Pickup hub</span>
-                <strong>{selectedReservation.hubName || '—'}</strong>
+                <strong>{selectedReservation.hubName || 'HCMUT Main Gate Hub'}</strong>
               </div>
               <div className="reservation-summary-row">
                 <span>Pickup time</span>
@@ -483,20 +471,15 @@ export function ReservationsPage() {
               <h3>Pickup instructions</h3>
               <ol>
                 <li>Go to {pickupLocation}.</li>
-                <li>Find {selectedVehicleKind} {selectedReservation.vehicleCode || '—'} at rack {positionCode || 'unavailable'}.</li>
+                <li>Find {selectedVehicleKind} {selectedReservation.vehicleCode || 'EB-024'} at rack {positionCode}.</li>
                 <li>Check the {selectedVehicleKind}, then scan its code.</li>
               </ol>
             </div>
-            <div className="reservation-pickup-code-content" style={{margin:'2rem 0'}}>
+            <div className="reservation-pickup-code-content">
               <div className="reservation-static-qr" aria-label="Static QR code shown as a placeholder">
                 <StaticQrCode />
               </div>
-              <div className="reservation-pickup-booking-info">
-                <h2>Vehicle ID: {selectedReservation.vehicleCode || '—'}</h2>
-                <p>{selectedReservation.hubName || '—'}</p>
-                <p>Rack {positionCode || 'unavailable'}</p>
-                <p><span>Booking:</span> <strong>{selectedReservation.reservationCode || '—'}</strong></p>
-              </div>
+              <p>Scan the code to unlock your vehicle.</p>
             </div>
             <div style={{color:'#556b5d'}}>Pickup starts your {selectedDuration}-hour rental. Check brakes, tyres and lights before leaving the hub.</div>
             <div className="reservation-button-row">
@@ -522,7 +505,7 @@ export function ReservationsPage() {
       <main className="reservation-flow-page reservation-flow-page--return">
         <header className="reservation-flow-heading">
           <h1>{completed ? 'Return confirmed' : 'Return your electric vehicle'}</h1>
-          <p>{completed ? 'Your vehicle has been returned.' : 'Choose your return hub and park the bike safely to finish your rental.'}</p>
+          <p>{completed ? 'Your vehicle has been returned.' : 'Confirm your return details.'}</p>
         </header>
         {error && <p className="reservation-flow-error" role="alert">{error}</p>}
         <div className="reservation-return-layout">

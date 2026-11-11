@@ -37,10 +37,6 @@ function getConnector(vehicle) {
   return 'Type 2 connector';
 }
 
-function getChargingPointCode(point) {
-  return point.chargerCode ?? point.charger_code ?? '';
-}
-
 function displayDate(date) {
   if (!date) return '—';
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
@@ -57,7 +53,6 @@ export function ChargingPage() {
   const [vehicles, setVehicles] = useState(DEFAULT_VEHICLES);
   const [hubId, setHubId] = useState('');
   const [vehicleId, setVehicleId] = useState(DEFAULT_VEHICLES[0].id);
-  const [chargingPoints, setChargingPoints] = useState([]);
   const [date, setDate] = useState(initialSchedule.date);
   const [startTime, setStartTime] = useState(initialSchedule.time);
   const [durationHours, setDurationHours] = useState(1);
@@ -79,6 +74,7 @@ export function ChargingPage() {
         setHubs(list);
         if (list[0]) {
           setHubId(String(list[0].id));
+          setSlotCode(list[0].availableChargingPoints > 0 ? 'C-01' : '');
         }
       })
       .catch((loadError) => setError(loadError.message || 'Unable to load charging hubs.'));
@@ -97,43 +93,12 @@ export function ChargingPage() {
       .catch((loadError) => setError(loadError.message || 'Unable to load charging registrations.'));
   }, [user?.id]);
 
-  useEffect(() => {
-    let active = true;
-    setChargingPoints([]);
-    setSlotCode('');
-    if (!hubId) {
-      return () => {
-        active = false;
-      };
-    }
-
-    hubApi.getChargingPoints(hubId)
-      .then((points) => {
-        if (!active) return;
-        const available = points.filter((point) => String(point.status).toUpperCase() === 'AVAILABLE');
-        setChargingPoints(available);
-        setSlotCode((current) => (
-          available.some((point) => getChargingPointCode(point) === current)
-            ? current
-            : getChargingPointCode(available[0] || {})
-        ));
-      })
-      .catch((loadError) => {
-        if (!active) return;
-        setChargingPoints([]);
-        setSlotCode('');
-        setError(loadError.message || 'Unable to load available charging points.');
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [hubId]);
-
   const selectedVehicle = vehicles.find((vehicle) => String(vehicle.id) === String(vehicleId)) || vehicles[0];
   const selectedHub = hubs.find((hub) => String(hub.id) === String(hubId));
-  const availableSlots = chargingPoints;
-  const selectedChargingPoint = availableSlots.find((point) => getChargingPointCode(point) === slotCode);
+  const availableSlots = Array.from(
+    { length: Math.max(0, Number(selectedHub?.availableChargingPoints) || 0) },
+    (_, index) => `C-${String(index + 1).padStart(2, '0')}`,
+  );
   const duration = Number(durationHours);
   const endTime = useMemo(() => {
     if (!startTime) return '';
@@ -154,7 +119,7 @@ export function ChargingPage() {
       setError('Complete all charging details before registering.');
       return;
     }
-    if (!slotCode || !selectedChargingPoint) {
+    if (!slotCode || !availableSlots.includes(slotCode)) {
       setError('Choose an available charging slot.');
       return;
     }
@@ -177,7 +142,6 @@ export function ChargingPage() {
         hubId: Number(hubId),
         ownershipType: 'PRIVATE',
         vehicleId: null,
-        chargingPointId: selectedChargingPoint.id,
         slotCode,
         privateVehicleLabel: `${selectedVehicle.name} · ${selectedVehicle.id}`,
         currentBatteryLevel: Number(selectedVehicle.battery) || 0,
@@ -216,8 +180,10 @@ export function ChargingPage() {
 
   const handleHubChange = (event) => {
     const nextHubId = event.target.value;
+    const nextHub = hubs.find((hub) => String(hub.id) === String(nextHubId));
     setHubId(nextHubId);
-    setSlotCode('');
+    const slotCount = Math.max(0, Number(nextHub?.availableChargingPoints) || 0);
+    setSlotCode(slotCount > 0 ? 'C-01' : '');
   };
 
   return (
@@ -278,12 +244,9 @@ export function ChargingPage() {
                   required
                 >
                   {availableSlots.length === 0 && <option value="">No slots available</option>}
-                  {availableSlots.map((point) => {
-                    const code = getChargingPointCode(point);
-                    return (
-                      <option key={point.id} value={code}>{code} · Available</option>
-                    );
-                  })}
+                  {availableSlots.map((slot) => (
+                    <option key={slot} value={slot}>{slot} · Available</option>
+                  ))}
                 </select>
               </label>
               <label>
