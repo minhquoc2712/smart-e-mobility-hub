@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-
-import logo from '../../components/common/images/logo.jpg';
 
 function ScooterChargerIllustration() {
   return (
@@ -62,7 +60,6 @@ function ScooterChargerIllustration() {
 export function LoginPage() {
   const { loginWithGoogleCredential, loginDemo } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const googleButtonRef = useRef(null);
 
   const [selectedRole, setSelectedRole] = useState(null); // null -> Welcome, 'CUSTOMER' | 'STAFF' -> Sign in
@@ -70,21 +67,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('••••••••');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  const selectedRole = location.state?.role === 'operator' ? 'operator' : 'customer';
-  const demoUsername = selectedRole === 'operator'
-    ? 'operator@hcmut.edu.vn'
-    : 'student@hcmut.edu.vn';
-
-  useEffect(() => {
-    if (!googleClientId) {
-      setUsername(demoUsername);
-      setPassword('demo123');
-    }
-  }, [demoUsername, googleClientId]);
 
   useEffect(() => {
     if (!googleClientId || !selectedRole) return;
@@ -154,90 +138,265 @@ export function LoginPage() {
     }
   };
 
-  const handleCredentialLogin = async (event) => {
-    event.preventDefault();
-    const normalizedUsername = username.trim().toLowerCase();
-    const role = normalizedUsername.includes('operator') || normalizedUsername.includes('staff')
-      ? 'operator'
-      : location.state?.role || 'customer';
-    await handleQuickDemoLogin(role === 'operator' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn');
-  };
-
-  const handleGoogleButtonClick = () => {
-    const googleButton = googleButtonRef.current?.querySelector('[role="button"]');
-    if (googleButton) {
-      googleButton.click();
-      return;
-    }
-    window.google?.accounts?.id?.prompt();
-  };
-
   return (
-    <div className="auth-page">
-      <img className="auth-logo" src={logo} alt="Smart E-MOBILITY HUB logo" />
-      <h2 className="auth-brand-title">Hello {selectedRole === 'operator' ? 'staff' : 'customer'}!!!</h2>
-      <div className="card auth-card auth-login-card">
-        <h3 className="auth-card-title">Log In</h3>
-        {error && (
-          <div className="auth-error">
-            {error}
-          </div>
-        )}
-        <form id="credential-login-form" className="auth-login-form" onSubmit={handleCredentialLogin}>
-          <label htmlFor="username" style = {{fontFamily: 'Arbutus'}}>User name:</label>
-          <input
-            id="username"
-            className="auth-login-input"
-            type="text"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            disabled={loading}
-          />
-          <label htmlFor="password" style = {{fontFamily: 'Arbutus'}}>Password:</label>
-          <input
-            id="password"
-            className="auth-login-input"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={loading}
-          />
-        </form>
-      </div>
-      <div className="auth-google-button-wrap">
-        <button
-          type="button"
-          className="auth-google-button"
-          onClick={handleGoogleButtonClick}
-          disabled={loading}
-          aria-label="Log in with Google"
+    <div
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#fbfcea',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '32px 20px',
+        position: 'relative',
+      }}
+    >
+      <ScooterChargerIllustration />
+
+      {!selectedRole ? (
+        /* ================= FIGMA SCREEN 1: WELCOME ================= */
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 28,
+            zIndex: 2,
+          }}
         >
-          G
-        </button>
-        {googleClientId && (
-          <div className="auth-google-provider" ref={googleButtonRef} aria-hidden="true" />
-        )}
-        {!googleClientId && (
-          <button
-            type="button"
-            className="auth-google-demo-link"
-            disabled={loading}
-            onClick={() => handleQuickDemoLogin('student@hcmut.edu.vn')}
+          <div style={{ textAlign: 'center' }}>
+            <h1
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-heading)',
+                fontSize: 44,
+                fontWeight: 600,
+                color: '#34c759',
+                lineHeight: 1.25,
+              }}
+            >
+              Welcome to
+              <br />
+              Smart E-MOBILITY HUB
+            </h1>
+          </div>
+
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 20,
+              padding: '32px 44px',
+              boxShadow: '0 4px 20px rgba(38, 57, 35, 0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 18,
+              minWidth: 360,
+            }}
           >
-            Demo Google sign-in
-          </button>
-        )}
-      </div>
-      <button
-        className="auth-login-submit"
-        style={{ position: 'absolute', right: '24rem', top: '29rem' }}
-        type="submit"
-        form="credential-login-form"
-        disabled={loading}
-        aria-label="Confirm login"
-      >
-        &rarr;
-      </button>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#263923',
+                marginBottom: 4,
+              }}
+            >
+              To continue, please select your role
+            </div>
+
+            <button
+              type="button"
+              onClick={() => chooseRole('CUSTOMER')}
+              style={{
+                width: 248,
+                height: 50,
+                borderRadius: 12,
+                border: 'none',
+                background: '#cdf4cf',
+                color: '#182b20',
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Customer
+            </button>
+
+            <button
+              type="button"
+              onClick={() => chooseRole('STAFF')}
+              style={{
+                width: 248,
+                height: 50,
+                borderRadius: 12,
+                border: 'none',
+                background: '#cdf4cf',
+                color: '#182b20',
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Staff
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* ================= FIGMA SCREEN 2: SIGN IN ================= */
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 22,
+            zIndex: 2,
+            width: '100%',
+            maxWidth: 460,
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-heading)',
+              fontSize: 32,
+              fontWeight: 600,
+              color: '#34c759',
+            }}
+          >
+            {selectedRole === 'STAFF' ? 'Hello Staff!!!' : 'Hello Customer!!!'}
+          </h1>
+
+          <form
+            onSubmit={performSignIn}
+            style={{
+              width: '100%',
+              background: '#ffffff',
+              borderRadius: 20,
+              padding: '28px 36px 32px',
+              boxShadow: '0 4px 20px rgba(38, 57, 35, 0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
+          >
+            <div
+              style={{
+                textAlign: 'center',
+                fontSize: 18,
+                fontWeight: 700,
+                color: '#263923',
+                marginBottom: 4,
+              }}
+            >
+              Log In
+            </div>
+
+            {error && (
+              <div
+                style={{
+                  background: '#fee2e2',
+                  color: '#991b1b',
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  fontSize: 14,
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>User name:</label>
+              <input
+                className="staff-field-green"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder={selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn'}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>Password:</label>
+              <input
+                type="password"
+                className="staff-field-green"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+              <button
+                type="button"
+                onClick={() => setSelectedRole(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#697663',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                ← Back
+              </button>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="staff-pill-btn"
+                style={{ minHeight: 42, padding: '8px 24px', fontSize: 15 }}
+              >
+                {loading ? 'Signing in...' : 'Continue'}
+              </button>
+            </div>
+          </form>
+
+          {/* Circular Google Sign-In Button below card matching Figma */}
+          {googleClientId ? (
+            <div ref={googleButtonRef} />
+          ) : (
+            <button
+              type="button"
+              onClick={performSignIn}
+              disabled={loading}
+              title="Sign in with Google"
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: '50%',
+                border: '1px solid #d1d5db',
+                background: '#ffffff',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 48 48">
+                <path
+                  fill="#EA4335"
+                  d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                />
+                <path
+                  fill="#4285F4"
+                  d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

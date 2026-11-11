@@ -8,6 +8,10 @@ import { mockServer } from './mockServer';
 import { buildOperatorDashboardBundle, normalizeIncident } from './operatorAdapter';
 
 export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API !== 'false';
+
+// Tracks local IN_PROGRESS staff assignments when backend /incidents only stores OPEN -> CLOSED
+const assignedIncidentIds = new Set();
+
 export const authApi = {
   loginWithGoogle: (credential) =>
     IS_MOCK_MODE
@@ -28,14 +32,6 @@ export const hubApi = {
   },
   getHubById: (hubId) =>
     IS_MOCK_MODE ? mockServer.getHubById(hubId) : httpRequest(`/hubs/${hubId}`),
-  getParkingSlots: (hubId) =>
-    IS_MOCK_MODE
-      ? mockServer.getParkingSlots(hubId)
-      : httpRequest(`/hubs/${hubId}/parking-slots`),
-  getChargingPoints: (hubId) =>
-    IS_MOCK_MODE
-      ? mockServer.getChargingPoints(hubId)
-      : httpRequest(`/hubs/${hubId}/charging-points`),
 };
 
 export const vehicleApi = {

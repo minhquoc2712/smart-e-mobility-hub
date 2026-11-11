@@ -14,8 +14,6 @@ import { HubDetailPage } from '../pages/student/HubDetailPage';
 import { ParkingBookingPage } from '../pages/student/ParkingBookingPage';
 import { ReservationsPage } from '../pages/student/ReservationsPage';
 import { ChargingPage } from '../pages/student/ChargingPage';
-import { HubInfoPage } from '../pages/student/HubInfoPage';
-import { ParkingBookingPage } from '../pages/student/ParkingBookingPage';
 import { MyVehiclesPage } from '../pages/student/MyVehiclesPage';
 
 import { OperatorDashboardPage } from '../pages/operator/OperatorDashboardPage';
@@ -40,6 +38,7 @@ export function AppRouter() {
         <Route path="/student" element={<StudentLayout />}>
           <Route index element={<Navigate to="hubs" replace />} />
           <Route path="hubs" element={<HubListPage />} />
+          <Route path="hubs/:hubId" element={<HubInfoPage />} />
           <Route path="hubs/:hubId/info" element={<HubInfoPage />} />
           <Route path="hubs/:hubId/vehicles" element={<HubDetailPage />} />
           <Route path="hubs/:hubId/parking" element={<ParkingBookingPage />} />

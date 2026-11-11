@@ -1,13 +1,21 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { IS_MOCK_MODE } from '../../api';
-import logo from '../common/images/logo.jpg';
+
+const STAFF_NAV_ITEMS = [
+  { to: '/operator/dashboard', label: 'Overview' },
+  { to: '/operator/hub-utilization', label: 'Hub utilization' },
+  { to: '/operator/manage-parking', label: 'Manage parking' },
+  { to: '/operator/vehicles-charging', label: 'Vehicle & charging' },
+  { to: '/operator/incidents', label: 'Incidents' },
+  { to: '/operator/dispatch', label: 'Dispatch' },
+  { to: '/operator/simulation', label: 'What-if' },
+  { to: '/operator/profile', label: 'Personal information' },
+];
 
 export function OperatorLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const savedProfile = (() => {
     try {
@@ -28,51 +36,27 @@ export function OperatorLayout() {
   };
 
   return (
-    <div className="app-shell">
-      {IS_MOCK_MODE && (
-        <div className="mock-banner">
-          Operator Console · OpenAPI Mock Mode (Task 3.0)
-        </div>
-      )}
-      <header className="topbar">
-        <div className="brand-title">
-          <img src={logo} alt="" />
-          <span>Smart E-MOBILITY HUB</span>
-        </div>
-        <nav className="nav-links">
-          <NavLink to="/operator/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            Network Monitor
-          </NavLink>
-          <NavLink to="/operator/incidents" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            Incidents
-          </NavLink>
-          <NavLink to="/operator/dispatch" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            Charging Queue & Dispatch
-          </NavLink>
-          <NavLink to="/operator/simulation" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            What-if Simulation
-          </NavLink>
-          <NavLink to="/student/hubs" className="nav-link">
-            Student View →
-          </NavLink>
-        </nav>
-        <div className="profile-menu">
-          <div className="profile-details">
-            <span>{user?.fullName}</span>
-            <strong>{user?.role}</strong>
-          </div>
+    <div className="staff-shell">
+      <header className="staff-header">
+        <NavLink to="/operator/dashboard" className="staff-brand">
+          Smart E-MOBILITY HUB
+        </NavLink>
+
+        <div className="staff-account-bar">
           <button
             type="button"
-            className="profile-button"
-            aria-label="Open profile menu"
-            aria-expanded={profileMenuOpen}
-            onClick={() => setProfileMenuOpen((open) => !open)}
-          />
-          {profileMenuOpen && (
-            <button type="button" className="profile-signout" onClick={handleLogout}>
-              Sign out
-            </button>
-          )}
+            onClick={handleLogout}
+            title="Click to sign out / switch role"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+            }}
+            className="staff-account-name"
+          >
+            {displayName} · {staffCode}
+          </button>
         </div>
       </header>
 

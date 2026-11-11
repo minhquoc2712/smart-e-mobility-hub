@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { chargingApi, hubApi } from '../../api';
+import { chargingApi } from '../../api';
 import vehicleImage from '../../components/common/images/vehicle.jpg';
 
 const VEHICLES_KEY = 'semh_private_vehicles';
@@ -18,8 +18,6 @@ export function MyVehiclesPage() {
   const [name, setName] = useState(initialVehicles[0].name);
   const [type, setType] = useState(initialVehicles[0].type);
   const [requests, setRequests] = useState([]);
-  const [hubs, setHubs] = useState([]);
-  const [availabilityError, setAvailabilityError] = useState('');
 
   useEffect(() => {
     const savedVehicles = JSON.parse(sessionStorage.getItem(VEHICLES_KEY) || 'null');
@@ -31,9 +29,6 @@ export function MyVehiclesPage() {
     chargingApi.getChargingRequests().then((items) => {
       setRequests(items.filter((item) => !cancelled.includes(item.id)));
     });
-    hubApi.getHubs()
-      .then(setHubs)
-      .catch((error) => setAvailabilityError(error.message || 'Unable to load charging availability.'));
   }, []);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId) || vehicles[0];
@@ -91,14 +86,9 @@ export function MyVehiclesPage() {
         <div>
           <section className="availability-owner-card">
             <h2>Nearby charging availability</h2>
-            {availabilityError && <p role="alert">{availabilityError}</p>}
-            {hubs.map((hub) => (
-              <div key={hub.id}>
-                <span>{hub.name} · {hub.campusZone}</span>
-                <strong>{hub.availableChargingPoints} slots available</strong>
-              </div>
-            ))}
-            {!availabilityError && !hubs.length && <p>Loading charging availability...</p>}
+            <div><span>HCMUT Main Gate hub · 0.3 km</span><strong>2 slots available</strong></div>
+            <div><span>Central hub · 0.8 km</span><strong>1 slot available</strong></div>
+            <div><span>IU Main gate</span><strong>No slots available</strong></div>
             <button className="floating-action" type="button" onClick={() => navigate('/student/charging')}>
               Register for charging
             </button>
