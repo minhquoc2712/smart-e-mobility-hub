@@ -47,8 +47,16 @@ async function reserveVehicle(user,body){
   if(v.battery_level<MIN_BATTERY_TO_RESERVE)fail(422,'BATTERY_TOO_LOW','Battery is too low.');
   if(!v.current_hub_id)fail(409,'VEHICLE_NOT_AT_HUB','Vehicle is not located at a Hub.');
   await liveHub(c,v.current_hub_id);
-  const [existing]=await c.execute(`SELECT id FROM reservations WHERE user_id=? AND reservation_type='VEHICLE' AND status IN ('CONFIRMED','ACTIVE') LIMIT 1`,[uid]);
-  if(existing.length)fail(409,'ACTIVE_RESERVATION_EXISTS','User already has a reservation or rental.');
+  const [existing]=await c.execute(`SELECT id, vehicle_id, status FROM reservations WHERE user_id=? AND reservation_type='VEHICLE' AND status IN ('CONFIRMED','ACTIVE')`,[uid]);
+  for (const prev of existing) {
+    if (prev.status === 'ACTIVE') {
+      fail(409,'ACTIVE_RESERVATION_EXISTS','User already has an active rental. Please return it first.');
+    }
+    await c.execute("UPDATE reservations SET status='CANCELLED' WHERE id=?",[prev.id]);
+    if (prev.vehicle_id && Number(prev.vehicle_id) !== Number(vid)) {
+      await c.execute("UPDATE vehicles SET status='AVAILABLE' WHERE id=? AND status='RESERVED'",[prev.vehicle_id]);
+    }
+  }
   const start=new Date(), end=new Date(start.getTime()+15*60000);
   assertTransition('vehicle',v.status,'RESERVED');
   await c.execute("UPDATE vehicles SET status='RESERVED' WHERE id=?",[vid]);
@@ -72,14 +80,13 @@ async function reserveParking(user,body){
   const slot=slots.find(s=>s.status==='FREE');
   if(!slot)fail(409,'HUB_PARKING_FULL','No compatible parking slot available in requested window.');
   const reservationCode=code('RES-P');
-  // windowOf() serializes UTC values as MySQL DATETIME without a timezone suffix.
-  if(new Date(`${start.replace(' ', 'T')}Z`).getTime()<=now+60000){
+  if(slot.status==='FREE'){
     assertTransition('parkingSlot',slot.status,'RESERVED');
     await c.execute("UPDATE parking_slots SET status='RESERVED' WHERE id=?",[slot.id]);
   }
   const [result]=await c.execute(`INSERT INTO reservations (reservation_code,user_id,reservation_type,hub_id,parking_slot_id,start_time,end_time,status)
   VALUES (?,?,'PARKING',?,?,?,?,'CONFIRMED')`,[reservationCode,uid,hubId,slot.id,start,end]);
-  return {id:result.insertId,reservationCode,parkingSlotId:slot.id,slotCode:slot.slot_code,status:'CONFIRMED'};
+  return {id:result.insertId,reservationCode,parkingSlotId:slot.id,slotCode:slot.slot_code,parkingSlotCode:slot.slot_code,status:'CONFIRMED'};
  });
 }
 async function cancel(user,id){

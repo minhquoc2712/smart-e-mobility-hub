@@ -32,7 +32,7 @@ export function OperatorLayout() {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/login', { state: { role: 'operator' } });
   };
 
   return (

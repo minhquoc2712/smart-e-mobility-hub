@@ -118,9 +118,13 @@ export const mockServer = {
       .map((v) => attachVehicleSlotCode(v, db.parkingSlots));
   },
 
-  async getParkingSlots({ hubId, status, slotType } = {}) {
+  async getParkingSlots(filtersOrHubId = {}) {
     await delay();
     const db = loadDb();
+    const { hubId, status, slotType } =
+      typeof filtersOrHubId === 'object' && filtersOrHubId !== null
+        ? filtersOrHubId
+        : { hubId: filtersOrHubId };
     return db.parkingSlots.filter((s) => {
       if (hubId && s.hubId !== Number(hubId)) return false;
       if (status && s.status !== status) return false;
@@ -129,9 +133,13 @@ export const mockServer = {
     });
   },
 
-  async getChargingPoints({ hubId, status } = {}) {
+  async getChargingPoints(filtersOrHubId = {}) {
     await delay();
     const db = loadDb();
+    const { hubId, status } =
+      typeof filtersOrHubId === 'object' && filtersOrHubId !== null
+        ? filtersOrHubId
+        : { hubId: filtersOrHubId };
     return db.chargingPoints.filter((c) => {
       if (hubId && c.hubId !== Number(hubId)) return false;
       if (status && c.status !== status) return false;

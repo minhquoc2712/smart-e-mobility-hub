@@ -39,7 +39,7 @@ export function MyVehiclesPage() {
     setEditing(true);
   };
 
-  const saveVehicle = (event) => {
+  const saveVehicle = async (event) => {
     event.preventDefault();
     const updated = vehicles.map((vehicle) => vehicle.id === selectedVehicle.id
       ? { ...vehicle, name, type }
@@ -47,12 +47,25 @@ export function MyVehiclesPage() {
     sessionStorage.setItem(VEHICLES_KEY, JSON.stringify(updated));
     setVehicles(updated);
     setEditing(false);
+    try {
+      await authApi.updatePrivateVehicle({
+        privateVehiclePlate: selectedVehicle.id,
+        privateVehicleModel: `${name} (${type})`,
+      });
+    } catch {
+      // Keep sessionStorage update if offline
+    }
   };
 
-  const cancelCharging = (id) => {
+  const cancelCharging = async (id) => {
     const cancelled = JSON.parse(sessionStorage.getItem(CANCELLED_CHARGING_KEY) || '[]');
     sessionStorage.setItem(CANCELLED_CHARGING_KEY, JSON.stringify([...cancelled, id]));
     setRequests((items) => items.filter((item) => item.id !== id));
+    try {
+      await chargingApi.cancelChargingRequest(id);
+    } catch {
+      // Keep local cancellation if request was already cancelled
+    }
   };
 
   return (

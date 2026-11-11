@@ -12,11 +12,15 @@ const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 function resolveRoleByEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
   const operatorList = (process.env.OPERATOR_EMAILS || '')
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
-  return operatorList.includes(email.toLowerCase()) ? 'OPERATOR' : 'USER';
+  if (operatorList.includes(normalized) || normalized.includes('operator') || normalized.includes('staff')) {
+    return 'OPERATOR';
+  }
+  return 'USER';
 }
 
 function signSessionToken(user) {
@@ -75,7 +79,6 @@ router.post('/google', async (req, res, next) => {
   }
 });
 
-
 router.post('/dev-login', async (req, res, next) => {
   try {
     if (process.env.NODE_ENV === 'production') {
@@ -88,38 +91,11 @@ router.post('/dev-login', async (req, res, next) => {
       });
     }
 
-    const email = String(req.body?.email || '').trim().toLowerCase();
+    const email = String(req.body?.email || 'student@hcmut.edu.vn').trim().toLowerCase();
+    const role = resolveRoleByEmail(email);
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Email is required.',
-        },
-      });
-    }
-
-    // Only allow known development seed accounts.
-    const allowedEmails = [
-      'student@hcmut.edu.vn',
-      'ev.owner@hcmut.edu.vn',
-      'operator@hcmut.edu.vn',
-    ];
-
-    if (!allowedEmails.includes(email)) {
-      return res.status(403).json({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Not an allowed development account.',
-        },
-      });
-    }
-
-    // Retrieve the actual MySQL user ID and role.
-    const [rows] = await pool.execute(
-      `SELECT id, email, full_name, role
+    let [rows] = await pool.execute(
+      `SELECT id, email, full_name, role, private_vehicle_plate, private_vehicle_model
        FROM users
        WHERE email = ?
        LIMIT 1`,
@@ -127,13 +103,19 @@ router.post('/dev-login', async (req, res, next) => {
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'USER_NOT_FOUND',
-          message: 'Development user not found.',
-        },
-      });
+      const defaultName = role === 'OPERATOR' ? 'Lê Điều Phối Viên' : email.split('@')[0];
+      await pool.execute(
+        `INSERT INTO users (email, full_name, role, private_vehicle_plate, private_vehicle_model)
+         VALUES (?, ?, ?, ?, ?)`,
+        [email, defaultName, role, role === 'USER' ? 'PV-018' : null, role === 'USER' ? 'My e-bike (Private electric bike)' : null]
+      );
+      [rows] = await pool.execute(
+        `SELECT id, email, full_name, role, private_vehicle_plate, private_vehicle_model
+         FROM users
+         WHERE email = ?
+         LIMIT 1`,
+        [email]
+      );
     }
 
     const user = rows[0];
@@ -148,6 +130,8 @@ router.post('/dev-login', async (req, res, next) => {
           email: user.email,
           fullName: user.full_name,
           role: user.role,
+          privateVehiclePlate: user.private_vehicle_plate,
+          privateVehicleModel: user.private_vehicle_model,
         },
       },
     });
@@ -156,33 +140,38 @@ router.post('/dev-login', async (req, res, next) => {
   }
 });
 
-
-
-/**
-
-// Safe Dev-Login endpoint (ONLY active when NODE_ENV=development)
-router.post('/dev-login', async (req, res, next) => {
+router.patch('/private-vehicle', authenticateToken, async (req, res, next) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Dev login is disabled in production.' },
-      });
-    }
-    const { email = 'student@hcmut.edu.vn', fullName = 'Demo User' } = req.body;
-    const role = resolveRoleByEmail(email);
-
-    const demoUser = { id: role === 'OPERATOR' ? 3 : 1, email, fullName, role };
-    const token = signSessionToken(demoUser);
-    return res.json({ success: true, data: { token, user: demoUser } });
+    const plate = String(req.body?.privateVehiclePlate || req.body?.id || 'PV-018').trim();
+    const model = String(req.body?.privateVehicleModel || req.body?.name || 'Private electric bike').trim();
+    await pool.execute(
+      `UPDATE users SET private_vehicle_plate = ?, private_vehicle_model = ? WHERE id = ?`,
+      [plate, model, req.user.id]
+    );
+    return res.json({
+      success: true,
+      data: {
+        userId: req.user.id,
+        privateVehiclePlate: plate,
+        privateVehicleModel: model,
+      },
+    });
   } catch (err) {
     return next(err);
   }
 });
-**/
 
-router.get('/me', authenticateToken, (req, res) => {
-  res.json({ success: true, data: { user: req.user } });
+router.get('/me', authenticateToken, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, email, full_name AS fullName, role, private_vehicle_plate AS privateVehiclePlate, private_vehicle_model AS privateVehicleModel
+       FROM users WHERE id = ? LIMIT 1`,
+      [req.user.id]
+    );
+    res.json({ success: true, data: { user: rows[0] || req.user } });
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

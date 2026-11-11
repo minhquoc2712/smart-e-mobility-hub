@@ -1,7 +1,7 @@
 /**
  * Unified Frontend API Client (Task 3.0, 3.2a, 3.3a & 4.1a)
- * Automatically switches between Mock API (OpenAPI 2B.6) and Real Node.js Backend
- * via VITE_USE_MOCK_API environment flag — zero UI code changes required!
+ * Defaults to Real Node.js Backend + MySQL (`IS_MOCK_MODE = false`).
+ * Set `VITE_USE_MOCK_API=true` in `.env` only when running offline without Backend.
  */
 import { httpRequest } from './httpClient';
 import { mockServer } from './mockServer';
@@ -22,6 +22,11 @@ export const authApi = {
     IS_MOCK_MODE
       ? mockServer.demoLogin(email)
       : httpRequest('/auth/dev-login', { method: 'POST', body: JSON.stringify({ email }) }),
+
+  updatePrivateVehicle: (payload) =>
+    IS_MOCK_MODE
+      ? Promise.resolve(payload)
+      : httpRequest('/auth/private-vehicle', { method: 'PATCH', body: JSON.stringify(payload) }),
 };
 
 export const hubApi = {
@@ -53,7 +58,7 @@ export const parkingSlotApi = {
       ? mockServer.updateParkingSlotStatus(slotId, status, extra)
       : httpRequest(`/parking-slots/${slotId}/status`, {
           method: 'PATCH',
-          body: JSON.stringify({ status }),
+          body: JSON.stringify({ status, ...extra }),
         }),
 };
 
@@ -129,7 +134,7 @@ export const operatorApi = {
     ) {
       return buildOperatorDashboardBundle({ rawDashboard });
     }
-    // Fallback when running against `main` (Task 3.1 APIs) before Task 3.3b is merged
+    // Synthesize full bundle from real MySQL endpoints (/hubs, /vehicles, /parking-slots, /charging-points)
     const [hubs, vehicles, parkingSlots, chargingPoints] = await Promise.all([
       httpRequest('/hubs'),
       httpRequest('/vehicles'),
@@ -181,6 +186,14 @@ export const operatorApi = {
     IS_MOCK_MODE
       ? mockServer.redistributeVehicles(payload)
       : httpRequest('/dispatch/redistribute', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateVehicleChargingPriority: (vehicleId, priority) =>
+    IS_MOCK_MODE
+      ? mockServer.updateVehicleChargingPriority(vehicleId, priority)
+      : httpRequest(`/operator/vehicles/${vehicleId}/charging-priority`, {
+          method: 'PATCH',
+          body: JSON.stringify({ priority }),
+        }),
 };
 
 export const simulationApi = {

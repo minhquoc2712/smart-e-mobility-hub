@@ -259,7 +259,7 @@ export function VehicleChargingStatusPage() {
     }));
   }, [vehicles, chargingPoints, chargingRequests, requestByVehicleId, manualOverrides, hubFilter]);
 
-  const handleSetPriority = async ({ key, label, requestId, nextValue }) => {
+  const handleSetPriority = async ({ key, label, vehicleId, requestId, nextValue }) => {
     setQueueNotice('');
     const isResetToAuto = nextValue === 'AUTO';
 
@@ -274,19 +274,21 @@ export function VehicleChargingStatusPage() {
       return next;
     });
 
-    if (requestId && !isResetToAuto) {
-      try {
+    try {
+      if (vehicleId) {
+        await operatorApi.updateVehicleChargingPriority(vehicleId, nextValue);
+      } else if (requestId && !isResetToAuto) {
         await chargingApi.updatePriority(requestId, nextValue);
-        await loadStatus();
-      } catch {
-        // Keep local Staff override active even if backend request is not in QUEUED/SCHEDULED state
       }
+      await loadStatus();
+    } catch {
+      // Keep local Staff override active even if backend request is not in QUEUED/SCHEDULED state
     }
 
     setQueueNotice(
       isResetToAuto
         ? `Reverted ${label} back to Auto priority (by battery %).`
-        : `Staff manual intervention: set ${label} priority → ${nextValue}. Queue re-ordered!`
+        : `Staff manual intervention: set ${label} priority → ${nextValue}. Queue & MySQL updated!`
     );
   };
 
@@ -405,6 +407,7 @@ export function VehicleChargingStatusPage() {
                         handleSetPriority({
                           key: v.overrideKey,
                           label: v.code,
+                          vehicleId: v.id,
                           requestId: v.linkedRequestId,
                           nextValue: e.target.value,
                         })
@@ -427,6 +430,7 @@ export function VehicleChargingStatusPage() {
                           handleSetPriority({
                             key: v.overrideKey,
                             label: v.code,
+                            vehicleId: v.id,
                             requestId: v.linkedRequestId,
                             nextValue: 'AUTO',
                           })
@@ -692,6 +696,7 @@ export function VehicleChargingStatusPage() {
                             handleSetPriority({
                               key: item.key,
                               label: item.code,
+                              vehicleId: item.vehicleId,
                               requestId: item.requestId,
                               nextValue: e.target.value,
                             })
@@ -716,6 +721,7 @@ export function VehicleChargingStatusPage() {
                               handleSetPriority({
                                 key: item.key,
                                 label: item.code,
+                                vehicleId: item.vehicleId,
                                 requestId: item.requestId,
                                 nextValue: 'AUTO',
                               })
