@@ -9,6 +9,19 @@ export function OperatorLayout() {
   const navigate = useNavigate();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
+  const savedProfile = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('semh_staff_profile') || 'null');
+    } catch {
+      return null;
+    }
+  })();
+
+  const displayName =
+    savedProfile?.name ||
+    (user?.fullName && user.fullName !== 'Lê Điều Phối Viên' ? user.fullName : 'A. Lee');
+  const staffCode = savedProfile?.staffCode || user?.staffCode || 'ST-014';
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -63,7 +76,19 @@ export function OperatorLayout() {
         </div>
       </header>
 
-      <main className="container">
+      <nav className="staff-nav" aria-label="Staff navigation">
+        {STAFF_NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) => `staff-nav-item ${isActive ? 'active' : ''}`}
+          >
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <main className="staff-workspace">
         <Outlet />
       </main>
     </div>

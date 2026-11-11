@@ -68,6 +68,8 @@ a {
 .profile-menu {
   position: relative;
   display: flex;
+  min-height: 250px;
+  flex-direction: column;
   align-items: center;
   gap: 0.75rem;
   font-size: 0.88rem;
@@ -2347,5 +2349,23 @@ a {
   .reservation-pickup-code-content {
     grid-template-columns: minmax(0, 160px) minmax(0, 1fr);
     gap: 1rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  .staff-header,
+  .staff-nav,
+  .staff-workspace {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .staff-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .staff-zone-grid {
+    grid-template-columns: 1fr;
+  }
+  .staff-panel {
+    padding: 24px;
   }
 }

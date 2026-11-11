@@ -4,7 +4,6 @@
 --   Vehicle: AVAILABLE -> RESERVED -> IN_USE -> CHARGING -> OUT_OF_SERVICE
 --   ChargingPoint: AVAILABLE -> RESERVED -> CHARGING -> OUT_OF_SERVICE
 -- ============================================================================
-
 CREATE DATABASE IF NOT EXISTS smart_emobility_hub
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
@@ -146,6 +145,7 @@ CREATE TABLE IF NOT EXISTS incidents (
   target_type ENUM('VEHICLE', 'CHARGING_POINT', 'PARKING_SLOT', 'HUB') NOT NULL,
   vehicle_id INT NULL,
   charging_point_id INT NULL,
+  parking_slot_id INT NULL,
   severity ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL') NOT NULL DEFAULT 'MEDIUM',
   title VARCHAR(160) NOT NULL,
   description TEXT NOT NULL,
@@ -156,7 +156,8 @@ CREATE TABLE IF NOT EXISTS incidents (
   CONSTRAINT fk_incidents_reporter FOREIGN KEY (reported_by) REFERENCES users(id),
   CONSTRAINT fk_incidents_hub FOREIGN KEY (hub_id) REFERENCES hubs(id),
   CONSTRAINT fk_incidents_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
-  CONSTRAINT fk_incidents_charger FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL
+  CONSTRAINT fk_incidents_charger FOREIGN KEY (charging_point_id) REFERENCES charging_points(id) ON DELETE SET NULL,
+  CONSTRAINT fk_incidents_parking FOREIGN KEY (parking_slot_id) REFERENCES parking_slots(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- 9. Vehicle Redistribution / Dispatch Orders (UC13)
