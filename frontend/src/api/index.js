@@ -1,12 +1,16 @@
 /**
- * Unified Frontend API Client (Task 3.0)
+ * Unified Frontend API Client (Task 3.0 & Task 3.3a)
  * Automatically switches between Mock API (OpenAPI 2B.6) and Real Node.js Backend
  * via VITE_USE_MOCK_API environment flag — zero UI code changes required!
  */
 import { httpRequest } from './httpClient';
 import { mockServer } from './mockServer';
+import { buildOperatorDashboardBundle, normalizeIncident } from './operatorAdapter';
 
 export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API !== 'false';
+
+// Tracks local IN_PROGRESS staff assignments when backend /incidents only stores OPEN -> CLOSED
+const assignedIncidentIds = new Set();
 
 export const authApi = {
   loginWithGoogle: (credential) =>
@@ -35,6 +39,29 @@ export const vehicleApi = {
     if (IS_MOCK_MODE) return mockServer.getVehicles(filters);
     const qs = new URLSearchParams(filters).toString();
     return httpRequest(`/vehicles${qs ? `?${qs}` : ''}`);
+  },
+};
+
+export const parkingSlotApi = {
+  getParkingSlots: (filters = {}) => {
+    if (IS_MOCK_MODE) return mockServer.getParkingSlots(filters);
+    const qs = new URLSearchParams(filters).toString();
+    return httpRequest(`/parking-slots${qs ? `?${qs}` : ''}`);
+  },
+  updateStatus: (slotId, status, extra = {}) =>
+    IS_MOCK_MODE
+      ? mockServer.updateParkingSlotStatus(slotId, status, extra)
+      : httpRequest(`/parking-slots/${slotId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        }),
+};
+
+export const chargingPointApi = {
+  getChargingPoints: (filters = {}) => {
+    if (IS_MOCK_MODE) return mockServer.getChargingPoints(filters);
+    const qs = new URLSearchParams(filters).toString();
+    return httpRequest(`/charging-points${qs ? `?${qs}` : ''}`);
   },
 };
 
@@ -78,19 +105,74 @@ export const chargingApi = {
 export const operatorApi = {
   getDashboard: () =>
     IS_MOCK_MODE ? mockServer.getOperatorDashboard() : httpRequest('/operator/dashboard'),
-  getIncidents: () =>
-    IS_MOCK_MODE ? mockServer.getIncidents() : httpRequest('/incidents'),
+
+  async getDashboardBundle() {
+    if (IS_MOCK_MODE) {
+      const data = await mockServer.getOperatorDashboard();
+      return buildOperatorDashboardBundle({ rawDashboard: data });
+    }
+    const rawDashboard = await httpRequest('/operator/dashboard');
+    if (
+      rawDashboard &&
+      rawDashboard.overview &&
+      rawDashboard.hubUtilization &&
+      rawDashboard.manageParking &&
+      rawDashboard.vehicleCharging
+    ) {
+      return buildOperatorDashboardBundle({ rawDashboard });
+    }
+    // Fallback when running against `main` (Task 3.1 APIs) before Task 3.3b is merged
+    const [hubs, vehicles, parkingSlots, chargingPoints] = await Promise.all([
+      httpRequest('/hubs'),
+      httpRequest('/vehicles'),
+      httpRequest('/parking-slots'),
+      httpRequest('/charging-points'),
+    ]);
+    return buildOperatorDashboardBundle({
+      rawDashboard,
+      hubs,
+      vehicles,
+      parkingSlots,
+      chargingPoints,
+    });
+  },
+
+  async getIncidents() {
+    if (IS_MOCK_MODE) return mockServer.getIncidents();
+    const rows = await httpRequest('/incidents');
+    return (rows || []).map((raw) => {
+      const normalized = normalizeIncident(raw);
+      if (normalized.status === 'OPEN' && assignedIncidentIds.has(normalized.id)) {
+        return { ...normalized, status: 'IN_PROGRESS' };
+      }
+      return normalized;
+    });
+  },
+
   createIncident: (payload) =>
     IS_MOCK_MODE
       ? mockServer.createIncident(payload)
       : httpRequest('/incidents', { method: 'POST', body: JSON.stringify(payload) }),
-  closeIncident: (id, resolutionNotes) =>
+
+  async assignIncident(id) {
+    if (IS_MOCK_MODE) return mockServer.assignIncident(id);
+    assignedIncidentIds.add(Number(id));
+    return { id: Number(id), status: 'IN_PROGRESS' };
+  },
+
+  async closeIncident(id, resolutionNotes = 'Repaired and verified by maintenance staff.') {
+    assignedIncidentIds.delete(Number(id));
+    if (IS_MOCK_MODE) return mockServer.closeIncident(id, resolutionNotes);
+    return httpRequest(`/incidents/${id}/close`, {
+      method: 'PATCH',
+      body: JSON.stringify({ resolutionNotes }),
+    });
+  },
+
+  redistributeVehicles: (payload) =>
     IS_MOCK_MODE
-      ? mockServer.closeIncident(id)
-      : httpRequest(`/incidents/${id}/close`, {
-          method: 'PATCH',
-          body: JSON.stringify({ resolutionNotes }),
-        }),
+      ? mockServer.redistributeVehicles(payload)
+      : httpRequest('/dispatch/redistribute', { method: 'POST', body: JSON.stringify(payload) }),
 };
 
 export const simulationApi = {
