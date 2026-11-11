@@ -22,7 +22,11 @@ const getOne = asyncHandler(async (req, res) => {
 const changeStatus = asyncHandler(async (req, res) => {
   const slotId = parseId(req.params.slotId, 'slotId');
   const status = parseStatus('parkingSlot', req.body && req.body.status);
-  res.json({ success: true, data: await service.changeParkingSlotStatus(slotId, status) });
+  const extra = {
+    vehiclePlate: req.body?.vehiclePlate || req.body?.vehicleCode || null,
+    vehicleType: req.body?.vehicleType || null,
+  };
+  res.json({ success: true, data: await service.changeParkingSlotStatus(slotId, status, null, extra) });
 });
 
 module.exports = { list, getOne, changeStatus };

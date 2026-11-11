@@ -748,6 +748,75 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
 );
 
 
+// UC15: Staff manual charging priority override for Fleet Vehicles
+router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
+  try {
+    const vehicleId = Number(req.params.vehicleId);
+    const rawPriority = String(req.body?.priority || 'NORMAL').toUpperCase();
+    const [vehicles] = await pool.execute('SELECT * FROM vehicles WHERE id = ? LIMIT 1', [vehicleId]);
+    if (!vehicles.length) {
+      return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+    }
+    const veh = vehicles[0];
+    const autoPriority =
+      veh.battery_level < 20
+        ? 'URGENT'
+        : veh.battery_level < 50
+        ? 'HIGH'
+        : veh.battery_level < 80
+        ? 'NORMAL'
+        : 'LOW';
+    const effectivePriority = ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(rawPriority)
+      ? rawPriority
+      : autoPriority;
+
+    // 1. Update charging_points.priority_level if vehicle is plugged into a charger
+    await pool.execute('UPDATE charging_points SET priority_level = ? WHERE current_vehicle_id = ?', [
+      effectivePriority,
+      vehicleId,
+    ]);
+
+    // 2. Update or create an active row in charging_requests so MySQL tracks the Staff priority override
+    const [existingReqs] = await pool.execute(
+      `SELECT id FROM charging_requests WHERE vehicle_id = ? AND status IN ('QUEUED', 'SCHEDULED', 'CHARGING') ORDER BY id DESC LIMIT 1`,
+      [vehicleId]
+    );
+    if (existingReqs.length > 0) {
+      await pool.execute('UPDATE charging_requests SET priority = ? WHERE id = ?', [
+        effectivePriority,
+        existingReqs[0].id,
+      ]);
+    } else if (veh.current_hub_id) {
+      const reqCode = `CHG-V${vehicleId}-${String(Date.now()).slice(-4)}`;
+      await pool.execute(
+        `INSERT INTO charging_requests
+          (request_code, user_id, ownership_type, vehicle_id, hub_id, current_battery_level, target_battery_level, priority, scheduled_start, scheduled_end, status)
+         VALUES (?, ?, 'RENTAL', ?, ?, ?, 95, ?, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), ?)`,
+        [
+          reqCode,
+          req.user.id,
+          vehicleId,
+          veh.current_hub_id,
+          veh.battery_level,
+          effectivePriority,
+          veh.status === 'CHARGING' ? 'CHARGING' : 'QUEUED',
+        ]
+      );
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        vehicleId,
+        priority: effectivePriority,
+        mode: rawPriority === 'AUTO' ? 'AUTO' : 'MANUAL',
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 // UC14: A3 IoT Sensor / Data Simulator Telemetry Ingestion (Task 3.1b — Owner: Nils)
 router.post('/telemetry/ingest', async (req, res, next) => {
   try {

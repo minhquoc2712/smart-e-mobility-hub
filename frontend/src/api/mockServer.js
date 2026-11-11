@@ -32,11 +32,23 @@ function isValidFutureRange(startTime, endTime) {
   if (typeof startTime !== 'string' || typeof endTime !== 'string') return false;
   const start = new Date(startTime).getTime();
   const end = new Date(endTime).getTime();
-  return Number.isFinite(start)
-    && Number.isFinite(end)
-    && start >= Date.now()
-    && end >= Date.now()
-    && end > start;
+  return (
+    Number.isFinite(start) &&
+    Number.isFinite(end) &&
+    start >= Date.now() - 60000 &&
+    end >= Date.now() &&
+    end > start
+  );
+}
+
+function attachVehicleSlotCode(vehicle, parkingSlots = []) {
+  const slot = vehicle.parkingSlotId
+    ? parkingSlots.find((s) => s.id === Number(vehicle.parkingSlotId))
+    : null;
+  return {
+    ...vehicle,
+    parkingSlotCode: slot?.slotCode || vehicle.parkingSlotCode || null,
+  };
 }
 
 export const mockServer = {
@@ -92,35 +104,6 @@ export const mockServer = {
     return { ...hub, vehicles };
   },
 
-  async getParkingSlots(hubId) {
-    await delay();
-    const db = loadDb();
-    return db.vehicles
-      .filter((vehicle) => vehicle.currentHubId === Number(hubId) && vehicle.parkingSlotCode)
-      .map((vehicle) => ({
-        id: vehicle.parkingSlotId ?? vehicle.id,
-        hubId: Number(hubId),
-        slotCode: vehicle.parkingSlotCode,
-        status: vehicle.status === 'AVAILABLE' ? 'OCCUPIED' : vehicle.status,
-      }));
-  },
-
-  async getChargingPoints(hubId) {
-    await delay();
-    const hub = loadDb().hubs.find((item) => item.id === Number(hubId));
-    if (!hub) throw new Error('Hub not found');
-    return Array.from(
-      { length: Math.max(0, Number(hub.availableChargingPoints) || 0) },
-      (_, index) => ({
-        id: Number(hubId) * 100 + index + 1,
-        hubId: Number(hubId),
-        chargerCode: `C-${String(index + 1).padStart(2, '0')}`,
-        connectorType: 'UNIVERSAL_AC',
-        status: 'AVAILABLE',
-      }),
-    );
-  },
-
   async getVehicles({ hubId, type, minBattery = 0, status } = {}) {
     await delay();
     const db = loadDb();
@@ -135,9 +118,13 @@ export const mockServer = {
       .map((v) => attachVehicleSlotCode(v, db.parkingSlots));
   },
 
-  async getParkingSlots({ hubId, status, slotType } = {}) {
+  async getParkingSlots(filtersOrHubId = {}) {
     await delay();
     const db = loadDb();
+    const { hubId, status, slotType } =
+      typeof filtersOrHubId === 'object' && filtersOrHubId !== null
+        ? filtersOrHubId
+        : { hubId: filtersOrHubId };
     return db.parkingSlots.filter((s) => {
       if (hubId && s.hubId !== Number(hubId)) return false;
       if (status && s.status !== status) return false;
@@ -146,9 +133,13 @@ export const mockServer = {
     });
   },
 
-  async getChargingPoints({ hubId, status } = {}) {
+  async getChargingPoints(filtersOrHubId = {}) {
     await delay();
     const db = loadDb();
+    const { hubId, status } =
+      typeof filtersOrHubId === 'object' && filtersOrHubId !== null
+        ? filtersOrHubId
+        : { hubId: filtersOrHubId };
     return db.chargingPoints.filter((c) => {
       if (hubId && c.hubId !== Number(hubId)) return false;
       if (status && c.status !== status) return false;
@@ -188,7 +179,9 @@ export const mockServer = {
   async reserveVehicle({ userId, hubId, vehicleId, startTime, endTime }) {
     await delay();
     if (!isValidFutureRange(startTime, endTime)) {
-      throw new Error('Reservation start and end times must be valid future times, and end must be after start.');
+      throw new Error(
+        'Reservation start and end times must be valid future times, and end must be after start.'
+      );
     }
     const db = loadDb();
     const vehicle = db.vehicles.find((v) => v.id === Number(vehicleId));
@@ -209,7 +202,7 @@ export const mockServer = {
       hubName: hub?.name || 'Campus Hub',
       vehicleId: vehicle.id,
       vehicleCode: vehicle.code,
-      parkingSlotCode: vehicle.parkingSlotCode || null,
+      parkingSlotCode: slot?.slotCode || vehicle.parkingSlotCode || null,
       startTime,
       endTime,
       status: 'CONFIRMED',
@@ -222,7 +215,9 @@ export const mockServer = {
   async reserveParking({ userId, hubId, startTime, endTime, licensePlate }) {
     await delay();
     if (!isValidFutureRange(startTime, endTime)) {
-      throw new Error('Parking start and end times must be valid future times, and departure must be after arrival.');
+      throw new Error(
+        'Parking start and end times must be valid future times, and departure must be after arrival.'
+      );
     }
     const db = loadDb();
     const hub = db.hubs.find((item) => item.id === Number(hubId));
@@ -304,7 +299,9 @@ export const mockServer = {
   async createChargingRequest(payload) {
     await delay();
     if (!isValidFutureRange(payload.scheduledStart, payload.scheduledEnd)) {
-      throw new Error('Charging start and end times must be valid future times, and end must be after start.');
+      throw new Error(
+        'Charging start and end times must be valid future times, and end must be after start.'
+      );
     }
     const db = loadDb();
     const hub = db.hubs.find((h) => h.id === Number(payload.hubId));
@@ -317,7 +314,6 @@ export const mockServer = {
       queuePosition: db.chargingRequests.length + 1,
       status: 'SCHEDULED',
     };
-
     db.chargingRequests.push(item);
     saveDb(db);
     return item;
@@ -326,7 +322,9 @@ export const mockServer = {
   async cancelChargingRequest(requestId) {
     await delay();
     const db = loadDb();
-    const requestIndex = db.chargingRequests.findIndex((request) => request.id === Number(requestId));
+    const requestIndex = db.chargingRequests.findIndex(
+      (request) => request.id === Number(requestId)
+    );
     if (requestIndex < 0) throw new Error('Charging registration not found.');
     const [request] = db.chargingRequests.splice(requestIndex, 1);
     saveDb(db);

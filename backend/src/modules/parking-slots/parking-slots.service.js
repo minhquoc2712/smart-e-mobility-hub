@@ -18,22 +18,33 @@ async function getParkingSlot(id) {
  * Đổi trạng thái slot qua state machine, trong một transaction:
  *  - khóa dòng slot, kiểm tra transition hợp lệ
  *  - hub đang bảo trì thì không cho RESERVED / OCCUPIED
- *  - về FREE thì gỡ liên kết xe
+ *  - về FREE thì gỡ liên kết xe; sang OCCUPIED có kèm biển số/mã xe thì gắn/tạo xe vào MySQL
  *  - tính lại trạng thái Hub (ACTIVE / NEAR_FULL / FULL)
- * `conn` tùy chọn: module khác (reservations...) truyền connection để chung transaction.
  */
-async function changeParkingSlotStatus(slotId, toStatus, conn = null) {
+async function changeParkingSlotStatus(slotId, toStatus, conn = null, extra = {}) {
   const work = async (c) => {
     const slot = await repo.lockById(c, slotId);
     if (!slot) throw new AppError(404, 'PARKING_SLOT_NOT_FOUND', 'Parking slot not found.');
 
-    assertTransition('parkingSlot', slot.status, toStatus);
+    if (slot.status !== toStatus) {
+      assertTransition('parkingSlot', slot.status, toStatus);
+    }
     if (toStatus === 'RESERVED' || toStatus === 'OCCUPIED') {
       await hubsService.assertHubOperational(c, slot.hub_id);
     }
 
     await repo.updateStatus(c, slotId, toStatus);
-    if (toStatus === 'FREE') await repo.detachVehicles(c, slotId);
+    if (toStatus === 'FREE' || toStatus === 'OUT_OF_SERVICE') {
+      await repo.detachVehicles(c, slotId);
+    } else if (toStatus === 'OCCUPIED' && (extra.vehiclePlate || extra.vehicleCode)) {
+      await repo.attachOrCreateVehicle(c, {
+        slotId,
+        hubId: slot.hub_id,
+        slotType: slot.slot_type,
+        vehiclePlate: extra.vehiclePlate || extra.vehicleCode,
+        vehicleType: extra.vehicleType,
+      });
+    }
     await hubsService.syncHubStatus(c, slot.hub_id);
   };
 

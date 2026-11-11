@@ -178,7 +178,7 @@ export function ManageParkingPage() {
     });
   }, [parkingRecords, zoneFilter, searchText]);
 
-  const freeCustomerSlots = customerSlots.filter((s) => s.status === 'FREE');
+  const freeCustomerSlots = hubSlots.filter((s) => s.status === 'FREE');
 
   const handleHubChange = (e) => {
     const nextId = Number(e.target.value);
