@@ -68,6 +68,8 @@ a {
 .profile-menu {
   position: relative;
   display: flex;
+  min-height: 250px;
+  flex-direction: column;
   align-items: center;
   gap: 0.75rem;
   font-size: 0.88rem;
@@ -436,7 +438,7 @@ a {
 .charging-status-card,
 .charging-registration-card {
   border-radius: 14px;
-  background: #fff;
+  background: #50DD5A1A;
   box-shadow: 0 4px 14px rgba(24, 43, 32, 0.12);
   padding: 1.25rem;
 }
@@ -1919,7 +1921,7 @@ a {
   padding: 1.25rem;
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  background: #fff;
+  background: #50DD5A1A;
   box-shadow: var(--shadow-sm);
 }
 
@@ -2201,19 +2203,18 @@ a {
 }
 
 .reservation-pickup-code-content {
-  display: flex;
-  min-height: 250px;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  gap: 0.7rem;
-  padding: 0.5rem;
+  justify-items: start;
+  gap: 1.25rem;
+  padding: 0;
 }
 
 .reservation-static-qr {
   display: block;
-  width: min(236px, 100%);
-  aspect-ratio: auto;
+  width: min(220px, 100%);
+  aspect-ratio: 1;
   margin: 0;
   padding: 12px;
   border: 0;
@@ -2226,15 +2227,28 @@ a {
 .reservation-qr-svg {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   shape-rendering: crispEdges;
 }
 
-.reservation-pickup-code-content p {
-  margin: 0;
-  color: #556b5d;
+.reservation-pickup-booking-info {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+  color: #263229;
   font-size: 16px;
-  text-align: center;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.reservation-pickup-booking-info p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.reservation-pickup-booking-info strong {
+  color: #202b20;
+  font-weight: 600;
 }
 
 .reservation-pickup-instructions {
@@ -2331,349 +2345,11 @@ a {
   .reservation-return-vehicle .reservation-vehicle-image {
     min-height: 200px;
   }
-}
 
-/* ==========================================================================
-   Task 3.3a â€” Operator / Staff Console Design System (Figma 2A.2 by ThÃ¹y Trang)
-   ========================================================================== */
-:root {
-  --staff-bg: #fbfcea;
-  --staff-card: #ffffff;
-  --staff-brand: #34c759;
-  --staff-forest: #2b581c;
-  --staff-ink: #263923;
-  --staff-muted: #697663;
-  --staff-olive: #5c6e54;
-  --staff-pill: #eff9eb;
-  --staff-pill-active: #cdf4cf;
-  --staff-divider: #e4ebdd;
-  --staff-shadow: 0px 3px 16px rgba(38, 57, 35, 0.04);
-  --font-heading: 'Hind', 'Inter', system-ui, sans-serif;
-}
-
-.staff-shell {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--staff-bg);
-  color: var(--staff-ink);
-}
-
-.staff-header {
-  min-height: 88px;
-  padding: 16px 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.staff-brand {
-  font-family: var(--font-heading);
-  font-size: 30px;
-  font-weight: 600;
-  color: var(--staff-brand);
-  letter-spacing: -0.01em;
-  line-height: 1.1;
-}
-
-.staff-account-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.staff-account-name {
-  font-size: 17px;
-  font-weight: 400;
-  color: var(--staff-forest);
-}
-
-.staff-mini-link {
-  background: var(--staff-pill);
-  color: var(--staff-forest);
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 6px 12px;
-  font-size: 13.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.staff-mini-link:hover {
-  background: var(--staff-pill-active);
-}
-
-.staff-nav {
-  padding: 0 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.staff-nav-item {
-  height: 50px;
-  padding: 0 16px;
-  border-radius: 14px;
-  background: var(--staff-pill);
-  color: var(--staff-forest);
-  font-size: 16px;
-  font-weight: 400;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-  transition: background 0.15s ease, font-weight 0.15s ease;
-}
-
-.staff-nav-item:hover {
-  background: #e2f5df;
-}
-
-.staff-nav-item.active {
-  background: var(--staff-pill-active);
-  font-weight: 600;
-}
-
-.staff-workspace {
-  width: 100%;
-  max-width: 1320px;
-  margin: 0 auto;
-  padding: 40px 48px 60px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 28px;
-  flex: 1;
-}
-
-.staff-workspace > div:not([class]) {
-  width: 100%;
-  max-width: 1000px;
-}
-
-.staff-page-title {
-  margin: 0;
-  font-family: var(--font-heading);
-  font-size: 36px;
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--staff-brand);
-  text-align: center;
-}
-
-.staff-panel {
-  width: 100%;
-  max-width: 1000px;
-  background: var(--staff-card);
-  border-radius: 20px;
-  padding: 36px;
-  box-shadow: var(--staff-shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.staff-panel--narrow {
-  max-width: 760px;
-}
-
-.staff-panel--wide {
-  max-width: 1100px;
-}
-
-.staff-panel--full {
-  max-width: 1240px;
-}
-
-.staff-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(140px, 1fr));
-  gap: 24px;
-  padding-bottom: 12px;
-}
-
-.staff-kpi-value {
-  font-family: var(--font-heading);
-  font-size: 36px;
-  font-weight: 600;
-  line-height: 1.1;
-  color: var(--staff-forest);
-  margin: 0 0 8px 0;
-}
-
-.staff-kpi-label {
-  font-size: 18px;
-  color: var(--staff-ink);
-  margin: 0;
-}
-
-.staff-section-heading {
-  font-family: var(--font-heading);
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--staff-forest);
-  margin: 0;
-}
-
-.staff-list-head {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  color: var(--staff-muted);
-  font-size: 18px;
-  padding-bottom: 4px;
-}
-
-.staff-list-row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  min-height: 74px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--staff-divider);
-  font-size: 19px;
-  color: var(--staff-ink);
-}
-
-.staff-pill-btn {
-  background: var(--staff-pill-active);
-  color: var(--staff-forest);
-  border: none;
-  border-radius: 14px;
-  min-height: 48px;
-  padding: 10px 22px;
-  font-size: 17px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: filter 0.15s ease, transform 0.08s ease;
-}
-
-.staff-pill-btn:hover:not(:disabled) {
-  filter: brightness(0.96);
-}
-
-.staff-pill-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.staff-pill-btn--soft {
-  background: var(--staff-pill);
-  font-weight: 500;
-}
-
-.staff-pill-select,
-.staff-pill-input {
-  background: var(--staff-pill);
-  color: var(--staff-forest);
-  border: 1px solid transparent;
-  border-radius: 12px;
-  padding: 11px 18px;
-  font-size: 16px;
-  font-family: inherit;
-  outline: none;
-}
-
-.staff-pill-select:focus,
-.staff-pill-input:focus {
-  border-color: #9ddba3;
-}
-
-.staff-field-green {
-  background: var(--staff-pill-active);
-  color: var(--staff-ink);
-  border: 1px solid transparent;
-  border-radius: 14px;
-  height: 56px;
-  padding: 0 20px;
-  font-size: 18px;
-  font-family: inherit;
-  width: 100%;
-  outline: none;
-}
-
-.staff-field-green::placeholder {
-  color: var(--staff-muted);
-}
-
-.staff-zone-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(260px, 1fr));
-  gap: 20px;
-  width: 100%;
-}
-
-.staff-zone-card {
-  background: var(--staff-card);
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow: var(--staff-shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.staff-zone-badge {
-  background: var(--staff-pill-active);
-  color: var(--staff-forest);
-  font-weight: 600;
-  font-size: 17px;
-  border-radius: 8px;
-  padding: 4px 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.staff-progress-track {
-  width: 100%;
-  height: 6px;
-  background: var(--staff-pill);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.staff-progress-fill {
-  height: 100%;
-  background: var(--staff-pill-active);
-  border-radius: 999px;
-  transition: width 0.25s ease;
-}
-
-.staff-status-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.staff-status-tag--warn {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.staff-status-tag--danger {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.staff-status-tag--ok {
-  background: #eff9eb;
-  color: #2b581c;
+  .reservation-pickup-code-content {
+    grid-template-columns: minmax(0, 160px) minmax(0, 1fr);
+    gap: 1rem;
+  }
 }
 
 @media (max-width: 1024px) {
