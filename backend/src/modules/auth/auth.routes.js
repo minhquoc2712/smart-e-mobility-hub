@@ -6,10 +6,12 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const { pool } = require('../../config/db');
+const authConfig = require('../../config/auth');
+const AppError = require('../../utils/appError');
 const { authenticateToken } = require('../../middlewares/auth.middleware');
 
 const router = express.Router();
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const googleClient = new OAuth2Client(authConfig.googleClientId);
 
 function resolveRoleByEmail(email) {
   const normalized = String(email || '').trim().toLowerCase();
@@ -17,7 +19,11 @@ function resolveRoleByEmail(email) {
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
-  if (operatorList.includes(normalized) || normalized.includes('operator') || normalized.includes('staff')) {
+  if (
+    operatorList.includes(normalized) ||
+    normalized.includes('operator') ||
+    normalized.includes('staff')
+  ) {
     return 'OPERATOR';
   }
   return 'USER';
@@ -26,36 +32,65 @@ function resolveRoleByEmail(email) {
 function signSessionToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, fullName: user.full_name || user.fullName, role: user.role },
-    process.env.JWT_SECRET || 'dev-only-fallback-secret',
-    { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+    authConfig.jwtSecret,
+    { expiresIn: authConfig.jwtExpiresIn }
   );
+}
+
+async function verifyGoogleCredential(credential) {
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: authConfig.googleClientId,
+    });
+    payload = ticket.getPayload();
+  } catch {
+    throw new AppError(401, 'INVALID_GOOGLE_TOKEN', 'Google token is invalid or expired.');
+  }
+  if (!payload || !payload.email || payload.email_verified !== true) {
+    throw new AppError(401, 'EMAIL_NOT_VERIFIED', 'Google account email is not verified.');
+  }
+  return payload;
 }
 
 router.post('/google', async (req, res, next) => {
   try {
-    const { credential } = req.body;
-    if (!credential) {
+    const { credential } = req.body || {};
+    if (!credential || typeof credential !== 'string') {
       return res.status(400).json({
         success: false,
         error: { code: 'VALIDATION_ERROR', message: 'Google credential token is required.' },
       });
     }
 
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    const payload = ticket.getPayload();
-    const role = resolveRoleByEmail(payload.email);
+    const payload = await verifyGoogleCredential(credential);
+    const email = payload.email.toLowerCase();
+    const role = resolveRoleByEmail(email);
+
+    const [existing] = await pool.execute('SELECT google_sub FROM users WHERE email = ? LIMIT 1', [
+      email,
+    ]);
+    if (existing[0]?.google_sub && existing[0].google_sub !== payload.sub) {
+      throw new AppError(
+        403,
+        'ACCOUNT_MISMATCH',
+        'This email is linked to a different Google account.'
+      );
+    }
 
     await pool.execute(
       `INSERT INTO users (email, full_name, google_sub, avatar_url, role)
        VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), avatar_url = VALUES(avatar_url), role = VALUES(role)`,
-      [payload.email, payload.name || payload.email, payload.sub, payload.picture || null, role]
+       ON DUPLICATE KEY UPDATE
+         full_name  = VALUES(full_name),
+         avatar_url = VALUES(avatar_url),
+         role       = VALUES(role),
+         google_sub = COALESCE(google_sub, VALUES(google_sub))`,
+      [email, payload.name || email, payload.sub, payload.picture || null, role]
     );
 
-    const [rows] = await pool.execute('SELECT * FROM users WHERE email = ? LIMIT 1', [payload.email]);
+    const [rows] = await pool.execute('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
     const user = rows[0];
     const token = signSessionToken(user);
 
@@ -81,13 +116,10 @@ router.post('/google', async (req, res, next) => {
 
 router.post('/dev-login', async (req, res, next) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({
+    if (process.env.NODE_ENV !== 'development') {
+      return res.status(404).json({
         success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Dev login is disabled in production.',
-        },
+        error: { code: 'NOT_FOUND', message: 'Endpoint does not exist.' },
       });
     }
 
@@ -107,7 +139,13 @@ router.post('/dev-login', async (req, res, next) => {
       await pool.execute(
         `INSERT INTO users (email, full_name, role, private_vehicle_plate, private_vehicle_model)
          VALUES (?, ?, ?, ?, ?)`,
-        [email, defaultName, role, role === 'USER' ? 'PV-018' : null, role === 'USER' ? 'My e-bike (Private electric bike)' : null]
+        [
+          email,
+          defaultName,
+          role,
+          role === 'USER' ? 'PV-018' : null,
+          role === 'USER' ? 'My e-bike (Private electric bike)' : null,
+        ]
       );
       [rows] = await pool.execute(
         `SELECT id, email, full_name, role, private_vehicle_plate, private_vehicle_model
@@ -136,14 +174,16 @@ router.post('/dev-login', async (req, res, next) => {
       },
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 });
 
 router.patch('/private-vehicle', authenticateToken, async (req, res, next) => {
   try {
     const plate = String(req.body?.privateVehiclePlate || req.body?.id || 'PV-018').trim();
-    const model = String(req.body?.privateVehicleModel || req.body?.name || 'Private electric bike').trim();
+    const model = String(
+      req.body?.privateVehicleModel || req.body?.name || 'Private electric bike'
+    ).trim();
     await pool.execute(
       `UPDATE users SET private_vehicle_plate = ?, private_vehicle_model = ? WHERE id = ?`,
       [plate, model, req.user.id]
