@@ -1,95 +1,58 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { operatorApi, chargingApi } from '../../api';
-
-const HUMAN_STATUS = {
-  AVAILABLE: 'Available',
-  RESERVED: 'Reserved',
-  IN_USE: 'In use',
-  CHARGING: 'Charging',
-  OUT_OF_SERVICE: 'Maintenance',
-};
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { chargingApi, operatorApi } from '../../api';
 
 const PRIORITIES = ['URGENT', 'HIGH', 'NORMAL', 'LOW'];
 const PRIORITY_RANK = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
-const MANUAL_PRIORITY_STORAGE_KEY = 'semh_staff_manual_charging_priority_v1';
 
-/**
- * Smart Charging Auto-Priority Rule (Task 4.1a / 4.1b — businessRules):
- *  - Battery < 20%   -> URGENT
- *  - Battery 20–49%  -> HIGH
- *  - Battery 50–79%  -> NORMAL
- *  - Battery >= 80%  -> LOW
- */
 function getAutoPriorityByBattery(batteryLevel) {
-  const soc = Number(batteryLevel ?? 0);
-  if (soc < 20) return 'URGENT';
-  if (soc < 50) return 'HIGH';
-  if (soc < 80) return 'NORMAL';
+  const b = Number(batteryLevel ?? 100);
+  if (b < 20) return 'URGENT';
+  if (b < 50) return 'HIGH';
+  if (b < 80) return 'NORMAL';
   return 'LOW';
 }
 
 function getPriorityBadgeStyle(priority, isManual) {
-  if (priority === 'URGENT') {
-    return {
-      background: '#fee2e2',
-      color: '#991b1b',
-      border: isManual ? '1.5px solid #dc2626' : '1px solid #fecaca',
-    };
-  }
-  if (priority === 'HIGH') {
-    return {
-      background: '#fff7db',
-      color: '#854d0e',
-      border: isManual ? '1.5px solid #d97706' : '1px solid #fde68a',
-    };
-  }
-  if (priority === 'NORMAL') {
-    return {
-      background: '#eff9eb',
-      color: '#2b581c',
-      border: isManual ? '1.5px solid #34c759' : '1px solid #cde8cc',
-    };
-  }
+  const base = {
+    URGENT: { bg: '#fee2e2', color: '#991b1b', border: '#fca5a5' },
+    HIGH: { bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
+    NORMAL: { bg: '#eff9eb', color: '#2b581c', border: '#bbf7d0' },
+    LOW: { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb' },
+  }[priority] || { bg: '#eff9eb', color: '#2b581c', border: '#bbf7d0' };
+
   return {
-    background: '#f3f5ef',
-    color: '#5a6e58',
-    border: isManual ? '1.5px solid #5a6e58' : '1px solid #dce5d8',
+    background: base.bg,
+    color: base.color,
+    border: `1.5px solid ${isManual ? '#2b581c' : base.border}`,
   };
 }
 
-function loadManualOverrides() {
-  try {
-    const raw = sessionStorage.getItem(MANUAL_PRIORITY_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveManualOverrides(map) {
-  try {
-    sessionStorage.setItem(MANUAL_PRIORITY_STORAGE_KEY, JSON.stringify(map));
-  } catch {
-    // ignore storage errors
-  }
+function formatWindow(start, end) {
+  if (!start || !end) return '';
+  const s = new Date(start);
+  const e = new Date(end);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return '';
+  const fmt = (d) =>
+    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${fmt(s)}–${fmt(e)}`;
 }
 
 /**
- * Staff / Vehicle & charging status (Task 3.3a — Figma node 32:2293 & Task 4.1a UC15)
- * Supports:
- *  1. Fleet status table with live Auto Priority (by battery %) + Manual Staff Override per vehicle
- *  2. Expandable Charging Points telemetry bar
- *  3. Auto Charging Queue (ordered automatically by priority & battery %) where Staff can intervene
- *     manually ("Set priority bằng tay") or reset back to Auto mode.
+ * Staff / Vehicle & charging status (Task 3.3a & Task 4.1a — UC10 & UC15)
+ * 100% Real-Time MySQL Sync:
+ *   1. Confirmed Time-Slot Bookings (status = SCHEDULED / CHARGING on a specific charger)
+ *      lock their booked interval [start, end) and CANNOT be preempted.
+ *   2. Waitlist (status = QUEUED) & Fleet vehicles waiting for charging are ranked by:
+ *      Staff Manual Priority (persisted in MySQL) -> Auto Battery SoC -> Booking Time (FIFO).
  */
 export function VehicleChargingStatusPage() {
   const [bundle, setBundle] = useState(null);
   const [chargingRequests, setChargingRequests] = useState([]);
-  const [manualOverrides, setManualOverrides] = useState(loadManualOverrides);
   const [hubFilter, setHubFilter] = useState('ALL');
   const [showChargers, setShowChargers] = useState(false);
   const [showQueue, setShowQueue] = useState(true);
   const [queueNotice, setQueueNotice] = useState('');
+  const [savingKey, setSavingKey] = useState(null);
 
   const loadStatus = useCallback(async () => {
     const [data, requests] = await Promise.all([
@@ -102,7 +65,7 @@ export function VehicleChargingStatusPage() {
 
   useEffect(() => {
     loadStatus();
-    const timer = setInterval(loadStatus, 15000);
+    const timer = setInterval(loadStatus, 10000);
     return () => clearInterval(timer);
   }, [loadStatus]);
 
@@ -113,19 +76,20 @@ export function VehicleChargingStatusPage() {
     bundle?.vehicleCharging?.vehicleStats?.CHARGING ??
     vehicles.filter((v) => v.status === 'CHARGING').length;
 
-  // Map active charging_requests by vehicleId so fleet vehicles & DB requests stay linked
+  // Map active MySQL charging_requests by vehicleId
   const requestByVehicleId = useMemo(() => {
     const map = new Map();
     chargingRequests.forEach((req) => {
       const vid = req.vehicleId ?? req.vehicle_id;
-      if (vid != null) {
+      const st = String(req.status || '').toUpperCase();
+      if (vid != null && st !== 'CANCELLED' && st !== 'COMPLETED') {
         map.set(Number(vid), req);
       }
     });
     return map;
   }, [chargingRequests]);
 
-  // Enrich fleet vehicles with charger info + Auto vs Manual priority
+  // Enrich fleet vehicles directly from MySQL state (charging_requests + charging_points)
   const enrichedVehicles = useMemo(() => {
     return vehicles
       .filter((v) => hubFilter === 'ALL' || Number(v.currentHubId) === Number(hubFilter))
@@ -136,8 +100,16 @@ export function VehicleChargingStatusPage() {
           (cp) => Number(cp.currentVehicleId) === Number(v.id)
         );
         const autoPriority = getAutoPriorityByBattery(v.batteryLevel);
-        const manualPriority = manualOverrides[key] || null;
-        const effectivePriority = manualPriority || autoPriority;
+        const dbPriority =
+          linkedReq?.priority ||
+          (charger?.priorityLevel && charger.priorityLevel !== autoPriority
+            ? charger.priorityLevel
+            : null);
+        const reqCode = String(linkedReq?.requestCode || linkedReq?.request_code || '');
+        const isManual =
+          reqCode.startsWith('CHG-STAFF-') ||
+          Boolean(dbPriority && dbPriority !== autoPriority);
+        const effectivePriority = dbPriority || charger?.priorityLevel || autoPriority;
 
         return {
           ...v,
@@ -145,19 +117,19 @@ export function VehicleChargingStatusPage() {
           linkedRequestId: linkedReq?.id || null,
           chargerCode: charger?.chargerCode || null,
           autoPriority,
-          manualPriority,
+          manualPriority: isManual ? effectivePriority : null,
           effectivePriority,
-          isManual: Boolean(manualPriority),
+          isManual,
         };
       });
-  }, [vehicles, chargingPoints, requestByVehicleId, manualOverrides, hubFilter]);
+  }, [vehicles, chargingPoints, requestByVehicleId, hubFilter]);
 
-  // Build Unified Smart Charging Queue (Auto-ranked by priority + battery %, with Staff manual override)
+  // Build Unified Smart Charging Queue (1. Locked Time-Slot Bookings first, 2. Priority Waitlist & Fleet Queue)
   const smartQueue = useMemo(() => {
     const items = [];
     const seenRequestIds = new Set();
 
-    // 1. Fleet vehicles that are CHARGING, need charging (< 80% battery), have a linked request, or have a manual override
+    // Part 1: Fleet vehicles that are CHARGING, need charging (< 80% battery), or have an active MySQL request
     vehicles.forEach((v) => {
       if (hubFilter !== 'ALL' && Number(v.currentHubId) !== Number(hubFilter)) return;
 
@@ -169,16 +141,25 @@ export function VehicleChargingStatusPage() {
         (cp) => Number(cp.currentVehicleId) === Number(v.id)
       );
       const autoPriority = getAutoPriorityByBattery(v.batteryLevel);
-      const manualPriority = manualOverrides[key] || null;
-      const effectivePriority = manualPriority || autoPriority;
+      const dbPriority =
+        linkedReq?.priority ||
+        (charger?.priorityLevel && charger.priorityLevel !== autoPriority
+          ? charger.priorityLevel
+          : null);
+      const reqCode = String(linkedReq?.requestCode || linkedReq?.request_code || '');
+      const isManual =
+        reqCode.startsWith('CHG-STAFF-') ||
+        Boolean(dbPriority && dbPriority !== autoPriority);
+      const effectivePriority = dbPriority || charger?.priorityLevel || autoPriority;
 
       const shouldIncludeInQueue =
         v.status === 'CHARGING' ||
         Number(v.batteryLevel) < 80 ||
-        Boolean(linkedReq) ||
-        Boolean(manualPriority);
+        Boolean(linkedReq);
 
       if (!shouldIncludeInQueue) return;
+
+      const isPluggedIn = v.status === 'CHARGING' && Boolean(charger);
 
       items.push({
         key,
@@ -191,32 +172,42 @@ export function VehicleChargingStatusPage() {
         hubId: v.currentHubId,
         hubName: v.currentHubName || 'Campus Hub',
         currentBattery: Number(v.batteryLevel ?? 0),
-        targetBattery: Number(linkedReq?.targetBatteryLevel ?? linkedReq?.target_battery_level ?? 95),
-        queueStatus:
-          v.status === 'CHARGING'
-            ? `Charging at ${charger?.chargerCode || 'charger'}`
-            : linkedReq?.status === 'SCHEDULED'
-            ? 'Scheduled in queue'
-            : 'Queued (waiting charger)',
+        targetBattery: Number(
+          linkedReq?.targetBatteryLevel ?? linkedReq?.target_battery_level ?? 95
+        ),
+        isSlotLocked: isPluggedIn,
+        slotBadge: isPluggedIn
+          ? `🔒 Active on ${charger.chargerCode}`
+          : '⏳ Fleet Queue (Waiting Charger)',
+        createdAtMs: linkedReq?.created_at ? new Date(linkedReq.created_at).getTime() : 0,
         autoPriority,
-        manualPriority,
+        manualPriority: isManual ? effectivePriority : null,
         effectivePriority,
-        isManual: Boolean(manualPriority),
+        isManual,
       });
     });
 
-    // 2. Private EV / standalone charging_requests from students
+    // Part 2: Student Private EV / Scheduled charging_requests in MySQL
     chargingRequests.forEach((req) => {
       if (seenRequestIds.has(Number(req.id))) return;
+      const status = String(req.status || '').toUpperCase();
+      if (status === 'CANCELLED' || status === 'COMPLETED') return;
+
       const reqHubId = req.hubId ?? req.hub_id;
       if (hubFilter !== 'ALL' && Number(reqHubId) !== Number(hubFilter)) return;
 
       const key = `req-${req.id}`;
-      const curBatt = Number(req.currentBatteryLevel ?? req.current_battery_level ?? 28);
+      const curBatt = Number(req.currentBatteryLevel ?? req.current_battery_level ?? 35);
       const tgtBatt = Number(req.targetBatteryLevel ?? req.target_battery_level ?? 85);
       const autoPriority = getAutoPriorityByBattery(curBatt);
-      const manualPriority = manualOverrides[key] || null;
-      const effectivePriority = manualPriority || req.priority || autoPriority;
+      const effectivePriority = req.priority || autoPriority;
+      const isManual = effectivePriority !== autoPriority;
+
+      const startVal = req.scheduledStart ?? req.scheduled_start;
+      const endVal = req.scheduledEnd ?? req.scheduled_end;
+      const windowLabel = formatWindow(startVal, endVal);
+      const chargerCode = req.chargerCode || req.charger_code || null;
+      const hasLockedSlot = status === 'SCHEDULED' || status === 'CHARGING';
 
       items.push({
         key,
@@ -230,81 +221,95 @@ export function VehicleChargingStatusPage() {
           req.requestCode ||
           req.request_code ||
           `CHG-${req.id}`,
-        subLabel: `${req.requestCode || req.request_code || `CHG-${req.id}`} · Private Student EV`,
+        subLabel: `${req.requestCode || req.request_code || `CHG-${req.id}`} · Student Booking`,
         ownershipType: req.ownershipType || req.ownership_type || 'PRIVATE',
         hubId: reqHubId,
         hubName: req.hubName || req.hub_name || 'Campus Hub',
         currentBattery: curBatt,
         targetBattery: tgtBatt,
-        queueStatus: req.status || 'SCHEDULED',
+        isSlotLocked: hasLockedSlot,
+        slotBadge: hasLockedSlot
+          ? `🔒 Locked ${chargerCode || 'Charger'}${windowLabel ? ` (${windowLabel})` : ''}`
+          : `⏳ Waitlist Queue${windowLabel ? ` (${windowLabel})` : ''}`,
+        createdAtMs: req.created_at ? new Date(req.created_at).getTime() : Date.now(),
         autoPriority,
-        manualPriority,
+        manualPriority: isManual ? effectivePriority : null,
         effectivePriority,
-        isManual: Boolean(manualPriority),
+        isManual,
       });
     });
 
-    // Sort queue: 1) Effective Priority (URGENT -> HIGH -> NORMAL -> LOW), 2) Lowest battery % first
+    // Sort Rule:
+    //   Tier 1: Locked / Active Charger Slots first (protected from preemption!)
+    //   Tier 2: Waitlist & Unassigned Fleet Queue ranked by Effective Priority -> Lowest Battery % -> Earlier Booking Time (FIFO)
     items.sort((a, b) => {
+      if (a.isSlotLocked !== b.isSlotLocked) {
+        return a.isSlotLocked ? -1 : 1;
+      }
       const rankDiff =
         (PRIORITY_RANK[a.effectivePriority] ?? 2) -
         (PRIORITY_RANK[b.effectivePriority] ?? 2);
       if (rankDiff !== 0) return rankDiff;
-      return a.currentBattery - b.currentBattery;
+      if (a.currentBattery !== b.currentBattery) {
+        return a.currentBattery - b.currentBattery;
+      }
+      return a.createdAtMs - b.createdAtMs;
     });
 
     return items.map((item, idx) => ({
       ...item,
       queuePosition: idx + 1,
     }));
-  }, [vehicles, chargingPoints, chargingRequests, requestByVehicleId, manualOverrides, hubFilter]);
+  }, [vehicles, chargingPoints, chargingRequests, requestByVehicleId, hubFilter]);
 
-  const handleSetPriority = async ({ key, label, vehicleId, requestId, nextValue }) => {
+  const handleSetPriority = async ({ key, label, vehicleId, requestId, autoPriority, nextValue }) => {
     setQueueNotice('');
+    setSavingKey(key);
     const isResetToAuto = nextValue === 'AUTO';
-
-    setManualOverrides((prev) => {
-      const next = { ...prev };
-      if (isResetToAuto) {
-        delete next[key];
-      } else {
-        next[key] = nextValue;
-      }
-      saveManualOverrides(next);
-      return next;
-    });
 
     try {
       if (vehicleId) {
         await operatorApi.updateVehicleChargingPriority(vehicleId, nextValue);
-      } else if (requestId && !isResetToAuto) {
-        await chargingApi.updatePriority(requestId, nextValue);
+      } else if (requestId) {
+        const targetPrio = isResetToAuto ? autoPriority || 'NORMAL' : nextValue;
+        await chargingApi.updatePriority(requestId, targetPrio);
       }
       await loadStatus();
-    } catch {
-      // Keep local Staff override active even if backend request is not in QUEUED/SCHEDULED state
+      setQueueNotice(
+        isResetToAuto
+          ? `Synced to MySQL: reverted ${label} back to Auto priority (${autoPriority}).`
+          : `Synced to MySQL: set ${label} priority → ${nextValue}. Queue updated!`
+      );
+    } catch (err) {
+      setQueueNotice(err.message || 'Failed to update priority in MySQL.');
+    } finally {
+      setSavingKey(null);
     }
-
-    setQueueNotice(
-      isResetToAuto
-        ? `Reverted ${label} back to Auto priority (by battery %).`
-        : `Staff manual intervention: set ${label} priority → ${nextValue}. Queue & MySQL updated!`
-    );
   };
 
-  const handleResetAllToAuto = () => {
-    setManualOverrides({});
-    saveManualOverrides({});
-    setQueueNotice('All charging priorities reset to Automatic (sorted by battery SoC).');
+  const handleResetAllToAuto = async () => {
+    try {
+      await operatorApi.resetAllChargingPriorities();
+      await loadStatus();
+      setQueueNotice('All fleet charging priorities reset to Automatic in MySQL.');
+    } catch (err) {
+      setQueueNotice(err.message || 'Could not reset priorities.');
+    }
   };
 
-  const manualOverrideCount = Object.keys(manualOverrides).length;
+  const manualOverrideCount = enrichedVehicles.filter((v) => v.isManual).length;
 
   return (
     <>
-      <h1 className="staff-page-title">Vehicle &amp; charging status</h1>
+      <div style={{ textAlign: 'center' }}>
+        <h1 className="staff-page-title">Vehicle &amp; charging status</h1>
+        <p style={{ margin: '6px 0 0', color: 'var(--staff-olive)', fontSize: 15.5 }}>
+          Confirmed time-slot bookings lock their charger first · Waitlist &amp; fleet queue rank by
+          Priority &amp; Battery % (100% synced with MySQL)
+        </p>
+      </div>
 
-      <div className="staff-panel staff-panel--full" style={{ maxWidth: 1120 }}>
+      <div className="staff-panel staff-panel--full" style={{ maxWidth: 1140 }}>
         {/* Filter bar */}
         <div
           style={{
@@ -325,7 +330,7 @@ export function VehicleChargingStatusPage() {
               value={hubFilter}
               onChange={(e) => setHubFilter(e.target.value)}
             >
-              <option value="ALL">All hubs ({vehicles.length} vehicles)</option>
+              <option value="ALL">All campus hubs ({vehicles.length} vehicles)</option>
               {hubs.map((h) => (
                 <option key={h.id} value={h.id}>
                   {h.name}
@@ -334,58 +339,113 @@ export function VehicleChargingStatusPage() {
             </select>
           </div>
 
-          <div style={{ fontSize: 14, color: 'var(--staff-olive)' }}>
-            Auto rule: <strong>&lt;20% URGENT</strong> · <strong>20–49% HIGH</strong> ·{' '}
-            <strong>50–79% NORMAL</strong> · <strong>≥80% LOW</strong>
+          <div style={{ fontSize: 13.5, color: 'var(--staff-olive)' }}>
+            Auto rule: <strong>&lt;20%</strong> Urgent · <strong>20–49%</strong> High ·{' '}
+            <strong>50–79%</strong> Normal · <strong>&ge;80%</strong> Low
           </div>
         </div>
 
-        {/* Fleet Vehicle Table with Auto / Manual Charging Priority */}
-        <div style={{ overflowX: 'auto' }}>
-          <div className="staff-list-head" style={{ minWidth: 680 }}>
-            <span style={{ flex: 0.9 }}>Vehicle</span>
-            <span style={{ flex: 1.4 }}>Hub &amp; Space</span>
-            <span style={{ flex: 0.7 }}>Battery</span>
-            <span style={{ flex: 0.9 }}>Status</span>
-            <span style={{ flex: 1.3 }}>Charging priority (Auto / Staff)</span>
+        {/* Fleet Table */}
+        <div>
+          <div
+            className="staff-list-head"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '0.9fr 1.4fr 1.1fr 0.9fr 1.4fr',
+              gap: 14,
+            }}
+          >
+            <span>Vehicle</span>
+            <span>Hub</span>
+            <span>Battery</span>
+            <span>Status</span>
+            <span>Set priority (MySQL)</span>
           </div>
 
           {!bundle ? (
-            <p style={{ color: 'var(--staff-muted)', marginTop: 16 }}>Loading fleet status...</p>
+            <p style={{ color: 'var(--staff-muted)', padding: '16px 0' }}>
+              Loading fleet telemetry from MySQL...
+            </p>
           ) : (
             enrichedVehicles.map((v) => {
+              const statusLabel =
+                v.status === 'AVAILABLE'
+                  ? 'Available'
+                  : v.status === 'CHARGING'
+                  ? 'Charging'
+                  : v.status === 'IN_USE'
+                  ? 'In use'
+                  : v.status === 'RESERVED'
+                  ? 'Reserved'
+                  : 'Out of service';
+
               const badgeStyle = getPriorityBadgeStyle(v.effectivePriority, v.isManual);
+
               return (
-                <div key={v.id} className="staff-list-row" style={{ minWidth: 680 }}>
-                  <span style={{ flex: 0.9, fontWeight: 600 }}>{v.code}</span>
-                  <span style={{ flex: 1.4 }}>
-                    {v.currentHubName || 'In transit'}
-                    {v.chargerCode ? (
-                      <span style={{ color: '#2b7a38', fontSize: 14, fontWeight: 600 }}>
-                        {' '}
-                        · ⚡ {v.chargerCode}
-                      </span>
-                    ) : v.parkingSlotCode ? (
-                      <span style={{ color: 'var(--staff-muted)', fontSize: 14 }}>
-                        {' '}
-                        · {v.parkingSlotCode}
-                      </span>
-                    ) : null}
+                <div
+                  key={v.id}
+                  className="staff-list-row"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '0.9fr 1.4fr 1.1fr 0.9fr 1.4fr',
+                    gap: 14,
+                    fontSize: 16.5,
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>
+                    {v.code}
+                    {v.chargerCode && (
+                      <div style={{ fontSize: 12, color: 'var(--staff-olive)', fontWeight: 500 }}>
+                        ⚡ {v.chargerCode}
+                      </div>
+                    )}
                   </span>
-                  <span
-                    style={{
-                      flex: 0.7,
-                      fontWeight: 600,
-                      color: v.batteryLevel < 20 ? '#991b1b' : 'var(--staff-ink)',
-                    }}
-                  >
-                    {v.batteryLevel}%
+
+                  <span>{v.currentHubName || 'In transit'}</span>
+
+                  <span>
+                    <div style={{ fontWeight: 600 }}>{v.batteryLevel}%</div>
+                    <div
+                      style={{
+                        width: 96,
+                        height: 6,
+                        background: '#e5efe3',
+                        borderRadius: 999,
+                        overflow: 'hidden',
+                        marginTop: 4,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.min(100, Math.max(0, v.batteryLevel))}%`,
+                          height: '100%',
+                          background:
+                            v.batteryLevel < 20
+                              ? '#ef4444'
+                              : v.batteryLevel < 50
+                              ? '#f59e0b'
+                              : '#22c55e',
+                        }}
+                      />
+                    </div>
                   </span>
-                  <span style={{ flex: 0.9 }}>{HUMAN_STATUS[v.status] || v.status}</span>
 
                   <span
                     style={{
-                      flex: 1.3,
+                      color:
+                        v.status === 'OUT_OF_SERVICE'
+                          ? '#b91c1c'
+                          : v.status === 'CHARGING'
+                          ? '#2b581c'
+                          : 'var(--staff-ink)',
+                      fontWeight: v.status === 'CHARGING' ? 600 : 400,
+                    }}
+                  >
+                    {statusLabel}
+                  </span>
+
+                  <span
+                    style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
@@ -394,6 +454,7 @@ export function VehicleChargingStatusPage() {
                   >
                     <select
                       className="staff-pill-select"
+                      disabled={savingKey === v.overrideKey}
                       aria-label={`Charging priority for ${v.code}`}
                       style={{
                         padding: '5px 10px',
@@ -409,6 +470,7 @@ export function VehicleChargingStatusPage() {
                           label: v.code,
                           vehicleId: v.id,
                           requestId: v.linkedRequestId,
+                          autoPriority: v.autoPriority,
                           nextValue: e.target.value,
                         })
                       }
@@ -432,6 +494,7 @@ export function VehicleChargingStatusPage() {
                             label: v.code,
                             vehicleId: v.id,
                             requestId: v.linkedRequestId,
+                            autoPriority: v.autoPriority,
                             nextValue: 'AUTO',
                           })
                         }
@@ -471,7 +534,7 @@ export function VehicleChargingStatusPage() {
             cursor: 'pointer',
           }}
         >
-          <span>{chargingVehiclesCount} vehicles charging</span>
+          <span>{chargingVehiclesCount} vehicles actively charging</span>
           <span style={{ fontSize: 14.5, color: 'var(--staff-olive)' }}>
             {showChargers ? 'Hide chargers ▲' : `View ${chargingPoints.length} chargers ▼`}
           </span>
@@ -481,7 +544,7 @@ export function VehicleChargingStatusPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
               gap: 12,
             }}
           >
@@ -500,16 +563,17 @@ export function VehicleChargingStatusPage() {
                 <div style={{ fontSize: 13.5, color: 'var(--staff-olive)', marginTop: 2 }}>
                   {cp.hubName}
                 </div>
-                <div style={{ fontSize: 13.5, marginTop: 4, fontWeight: 500 }}>
+                <div style={{ fontSize: 13.5, marginTop: 4, fontWeight: 600 }}>
                   {cp.status}
-                  {cp.currentVehicleCode ? ` (${cp.currentVehicleCode})` : ''}
+                  {cp.currentVehicleCode ? ` (${cp.currentVehicleCode})` : ''} · Priority:{' '}
+                  {cp.priorityLevel}
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Task 4.1a (UC15): Smart Charging Queue (Auto by Battery + Staff Manual Override) */}
+        {/* Smart Charging Queue (Locked Time-Slots + Priority Waitlist) */}
         <div
           style={{
             background: 'var(--staff-pill)',
@@ -535,10 +599,11 @@ export function VehicleChargingStatusPage() {
               style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2 }}
             >
               <div style={{ fontSize: 18.5, fontWeight: 600, color: 'var(--staff-forest)' }}>
-                Smart charging queue ({smartQueue.length}) · Auto queue with Staff manual override
+                Smart charging schedule &amp; waitlist ({smartQueue.length})
               </div>
               <div style={{ fontSize: 13.5, color: 'var(--staff-olive)' }}>
-                Automatically ranked by battery level — Staff can manually set priority to jump queue order
+                🔒 Confirmed time-slots are locked first · ⏳ Waitlist &amp; unassigned fleet rank by
+                Staff Priority &rarr; Battery % &rarr; Booking Time
               </div>
             </div>
 
@@ -590,7 +655,8 @@ export function VehicleChargingStatusPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {smartQueue.length === 0 ? (
                 <p style={{ color: 'var(--staff-muted)', margin: 0 }}>
-                  All vehicles are above 80% battery. Set a vehicle&apos;s priority manually above to queue it.
+                  All vehicles are above 80% battery. Set a vehicle&apos;s priority manually above
+                  to queue it.
                 </p>
               ) : (
                 smartQueue.map((item) => {
@@ -661,29 +727,43 @@ export function VehicleChargingStatusPage() {
                                 fontWeight: 600,
                                 padding: '2px 8px',
                                 borderRadius: 6,
+                                background: item.isSlotLocked ? '#e0f2fe' : '#fef3c7',
+                                color: item.isSlotLocked ? '#075985' : '#92400e',
+                              }}
+                            >
+                              {item.slotBadge}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                borderRadius: 6,
                                 background: item.isManual ? '#cdf4cf' : '#f3f5ef',
                                 color: item.isManual ? '#182b20' : 'var(--staff-olive)',
                               }}
                             >
                               {item.isManual
-                                ? 'MANUAL (Staff override)'
-                                : `AUTO (Battery ${item.currentBattery}%)`}
+                                ? `MANUAL (${item.effectivePriority})`
+                                : `AUTO (${item.effectivePriority} · ${item.currentBattery}%)`}
                             </span>
                           </div>
                           <div style={{ fontSize: 13, color: 'var(--staff-muted)', marginTop: 2 }}>
                             {item.hubName} · {item.subLabel} · Battery{' '}
-                            <strong>{item.currentBattery}%</strong> → {item.targetBattery}% ·{' '}
-                            {item.queueStatus}
+                            <strong>{item.currentBattery}%</strong> &rarr; {item.targetBattery}%
                           </div>
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+                      >
                         <span style={{ fontSize: 13.5, color: 'var(--staff-olive)' }}>
-                          Set priority:
+                          Priority:
                         </span>
                         <select
                           className="staff-pill-select"
+                          disabled={savingKey === item.key}
                           style={{
                             padding: '6px 12px',
                             fontSize: 13.5,
@@ -698,38 +778,18 @@ export function VehicleChargingStatusPage() {
                               label: item.code,
                               vehicleId: item.vehicleId,
                               requestId: item.requestId,
+                              autoPriority: item.autoPriority,
                               nextValue: e.target.value,
                             })
                           }
                         >
-                          <option value="AUTO">
-                            Auto ({item.autoPriority})
-                          </option>
+                          <option value="AUTO">Auto ({item.autoPriority})</option>
                           {PRIORITIES.map((p) => (
                             <option key={p} value={p}>
                               Manual: {p}
                             </option>
                           ))}
                         </select>
-
-                        {item.isManual && (
-                          <button
-                            type="button"
-                            className="staff-mini-link"
-                            style={{ background: '#eff9eb', fontWeight: 600 }}
-                            onClick={() =>
-                              handleSetPriority({
-                                key: item.key,
-                                label: item.code,
-                                vehicleId: item.vehicleId,
-                                requestId: item.requestId,
-                                nextValue: 'AUTO',
-                              })
-                            }
-                          >
-                            Auto
-                          </button>
-                        )}
                       </div>
                     </div>
                   );

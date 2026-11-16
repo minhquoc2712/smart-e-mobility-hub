@@ -2,6 +2,60 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
+const GOOGLE_DEMO_ACCOUNTS = [
+  {
+    name: 'Nguyễn Văn Sinh Viên',
+    email: 'student@hcmut.edu.vn',
+    badge: 'Student · Rental & Parking',
+    role: 'CUSTOMER',
+    color: '#22c55e',
+  },
+  {
+    name: 'Trần Thị Chủ Xe Điện',
+    email: 'ev.owner@hcmut.edu.vn',
+    badge: 'Private EV Owner · 59-MĐ1 123.45',
+    role: 'CUSTOMER',
+    color: '#0ea5e9',
+  },
+  {
+    name: 'Mã Trần Minh Quốc',
+    email: 'matranminhquoc000@gmail.com',
+    badge: 'Hub Operator · Staff Console',
+    role: 'STAFF',
+    color: '#2b581c',
+  },
+  {
+    name: 'Lê Điều Phối Viên',
+    email: 'operator@hcmut.edu.vn',
+    badge: 'Hub Operator · Staff ST-014',
+    role: 'STAFF',
+    color: '#7c3aed',
+  },
+];
+
+function GoogleLogoSvg({ size = 24 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
+  );
+}
+
 function ScooterChargerIllustration() {
   return (
     <svg
@@ -55,7 +109,7 @@ function ScooterChargerIllustration() {
 }
 
 /**
- * Figma Welcome & Sign in Screens (Nodes: Welcome & Sign in by Thùy Trang)
+ * Figma Welcome & Sign in Screens (with Interactive Google Account Chooser)
  */
 export function LoginPage() {
   const { loginWithGoogleCredential, loginDemo } = useAuth();
@@ -68,15 +122,21 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  // Google Account Picker modal when VITE_GOOGLE_CLIENT_ID is not configured
+  const [googleModalOpen, setGoogleModalOpen] = useState(false);
+  const [customGoogleEmail, setCustomGoogleEmail] = useState('');
+
+  const rawClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const hasRealGoogleClientId =
+    Boolean(rawClientId) && !rawClientId.startsWith('your-google-oauth-client-id');
 
   useEffect(() => {
-    if (!googleClientId || !selectedRole) return;
+    if (!hasRealGoogleClientId || !selectedRole) return;
     const scriptId = 'google-gsi-client';
     const initializeGsi = () => {
       if (window.google?.accounts?.id && googleButtonRef.current) {
         window.google.accounts.id.initialize({
-          client_id: googleClientId,
+          client_id: rawClientId,
           callback: async (response) => {
             try {
               setLoading(true);
@@ -109,7 +169,7 @@ export function LoginPage() {
     } else {
       initializeGsi();
     }
-  }, [googleClientId, selectedRole, loginWithGoogleCredential, navigate]);
+  }, [hasRealGoogleClientId, rawClientId, selectedRole, loginWithGoogleCredential, navigate]);
 
   const chooseRole = (role) => {
     setSelectedRole(role);
@@ -117,16 +177,13 @@ export function LoginPage() {
     setUsername(role === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn');
   };
 
-  const performSignIn = async (e) => {
-    if (e) e.preventDefault();
-    const fallbackEmail =
-      selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn';
-    const email = username.trim().includes('@') ? username.trim() : fallbackEmail;
+  const signInWithEmail = async (emailToUse) => {
     try {
       setError('');
       setLoading(true);
-      const user = await loginDemo(email);
-      if (selectedRole === 'STAFF' || user.role === 'OPERATOR') {
+      const user = await loginDemo(emailToUse);
+      setGoogleModalOpen(false);
+      if (user.role === 'OPERATOR') {
         navigate('/operator/dashboard');
       } else {
         navigate('/student/hubs');
@@ -138,11 +195,19 @@ export function LoginPage() {
     }
   };
 
+  const performSignIn = async (e) => {
+    if (e) e.preventDefault();
+    const fallbackEmail =
+      selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn';
+    const email = username.trim().includes('@') ? username.trim() : fallbackEmail;
+    await signInWithEmail(email);
+  };
+
   return (
     <div
       style={{
         minHeight: '100vh',
-        backgroundColor: '#fbfcea',
+        background: '#fbfcea',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -153,8 +218,8 @@ export function LoginPage() {
     >
       <ScooterChargerIllustration />
 
+      {/* STEP 1: FIGMA WELCOME SCREEN */}
       {!selectedRole ? (
-        /* ================= FIGMA SCREEN 1: WELCOME ================= */
         <div
           style={{
             display: 'flex',
@@ -162,6 +227,8 @@ export function LoginPage() {
             alignItems: 'center',
             gap: 28,
             zIndex: 2,
+            maxWidth: 520,
+            width: '100%',
           }}
         >
           <div style={{ textAlign: 'center' }}>
@@ -169,81 +236,87 @@ export function LoginPage() {
               style={{
                 margin: 0,
                 fontFamily: 'var(--font-heading)',
-                fontSize: 44,
+                fontSize: 34,
                 fontWeight: 600,
-                color: '#34c759',
                 lineHeight: 1.25,
+                color: '#34c759',
               }}
             >
               Welcome to
               <br />
               Smart E-MOBILITY HUB
             </h1>
+            <p style={{ margin: '8px 0 0', fontSize: 15, color: '#5c6e54' }}>
+              VNU-HCM Campus Electric Bike, Scooter, Parking &amp; Smart Charging Network
+            </p>
           </div>
 
           <div
             style={{
+              width: '100%',
               background: '#ffffff',
               borderRadius: 20,
-              padding: '32px 44px',
+              padding: '36px 40px',
               boxShadow: '0 4px 20px rgba(38, 57, 35, 0.06)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 18,
-              minWidth: 360,
+              gap: 22,
             }}
           >
-            <div
+            <p
               style={{
-                fontSize: 16,
-                fontWeight: 700,
+                margin: 0,
+                fontSize: 17,
+                fontWeight: 600,
                 color: '#263923',
-                marginBottom: 4,
+                textAlign: 'center',
               }}
             >
               To continue, please select your role
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => chooseRole('CUSTOMER')}
+                className="staff-pill-btn"
+                style={{
+                  flexDirection: 'column',
+                  padding: '18px 16px',
+                  minHeight: 92,
+                  borderRadius: 16,
+                  gap: 4,
+                }}
+              >
+                <span style={{ fontSize: 18, fontWeight: 700 }}>🚲 Customer</span>
+                <span style={{ fontSize: 12.5, fontWeight: 400, color: '#2b581c' }}>
+                  Rent EV · Parking · Charger
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => chooseRole('STAFF')}
+                className="staff-pill-btn"
+                style={{
+                  flexDirection: 'column',
+                  padding: '18px 16px',
+                  minHeight: 92,
+                  borderRadius: 16,
+                  gap: 4,
+                }}
+              >
+                <span style={{ fontSize: 18, fontWeight: 700 }}>🛠️ Staff</span>
+                <span style={{ fontSize: 12.5, fontWeight: 400, color: '#2b581c' }}>
+                  Monitor · Queue · Dispatch
+                </span>
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => chooseRole('CUSTOMER')}
-              style={{
-                width: 248,
-                height: 50,
-                borderRadius: 12,
-                border: 'none',
-                background: '#cdf4cf',
-                color: '#182b20',
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Customer
-            </button>
-
-            <button
-              type="button"
-              onClick={() => chooseRole('STAFF')}
-              style={{
-                width: 248,
-                height: 50,
-                borderRadius: 12,
-                border: 'none',
-                background: '#cdf4cf',
-                color: '#182b20',
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Staff
-            </button>
           </div>
         </div>
       ) : (
-        /* ================= FIGMA SCREEN 2: SIGN IN ================= */
+        /* STEP 2: FIGMA SIGN IN SCREEN */
         <div
           style={{
             display: 'flex',
@@ -251,8 +324,8 @@ export function LoginPage() {
             alignItems: 'center',
             gap: 22,
             zIndex: 2,
+            maxWidth: 420,
             width: '100%',
-            maxWidth: 460,
           }}
         >
           <h1
@@ -312,7 +385,9 @@ export function LoginPage() {
                 className="staff-field-green"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn'}
+                placeholder={
+                  selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn'
+                }
               />
             </div>
 
@@ -326,7 +401,14 @@ export function LoginPage() {
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 6,
+              }}
+            >
               <button
                 type="button"
                 onClick={() => setSelectedRole(null)}
@@ -354,47 +436,188 @@ export function LoginPage() {
           </form>
 
           {/* Circular Google Sign-In Button below card matching Figma */}
-          {googleClientId ? (
+          {hasRealGoogleClientId ? (
             <div ref={googleButtonRef} />
           ) : (
-            <button
-              type="button"
-              onClick={performSignIn}
-              disabled={loading}
-              title="Sign in with Google"
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setGoogleModalOpen(true)}
+                disabled={loading}
+                title="Sign in with Google Account"
+                style={{
+                  width: 54,
+                  height: 54,
+                  borderRadius: '50%',
+                  border: '1px solid #d1d5db',
+                  background: '#ffffff',
+                  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.09)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <GoogleLogoSvg size={24} />
+              </button>
+              <span style={{ fontSize: 12.5, color: '#5c6e54' }}>Sign in with Google</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* GOOGLE ACCOUNT CHOOSER MODAL */}
+      {googleModalOpen && (
+        <div
+          onClick={() => setGoogleModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(17, 24, 39, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            zIndex: 200,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 420,
+              background: '#ffffff',
+              borderRadius: 20,
+              padding: '24px 26px',
+              boxShadow: '0 20px 44px rgba(0,0,0,0.22)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <GoogleLogoSvg size={22} />
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#4b5563' }}>
+                Sign in with Google
+              </span>
+            </div>
+
+            <div>
+              <h3 style={{ margin: 0, fontSize: 21, fontWeight: 600, color: '#111827' }}>
+                Choose an account
+              </h3>
+              <p style={{ margin: '4px 0 0', fontSize: 13.5, color: '#6b7280' }}>
+                to continue to <strong style={{ color: '#2b581c' }}>Smart E-Mobility Hub</strong>
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {GOOGLE_DEMO_ACCOUNTS.map((acc) => (
+                <button
+                  key={acc.email}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => signInWithEmail(acc.email)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    width: '100%',
+                    textAlign: 'left',
+                    background:
+                      (selectedRole === 'STAFF' && acc.role === 'STAFF') ||
+                      (selectedRole === 'CUSTOMER' && acc.role === 'CUSTOMER')
+                        ? '#f5fbf5'
+                        : '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 12,
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: '50%',
+                      background: acc.color,
+                      color: '#ffffff',
+                      fontWeight: 700,
+                      fontSize: 15,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {acc.name.charAt(0)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>
+                      {acc.name}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: '#4b5563' }}>{acc.email}</div>
+                    <div style={{ fontSize: 11.5, color: '#2b581c', fontWeight: 600 }}>
+                      {acc.badge}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (customGoogleEmail.trim()) {
+                  signInWithEmail(customGoogleEmail.trim());
+                }
+              }}
               style={{
-                width: 54,
-                height: 54,
-                borderRadius: '50%',
-                border: '1px solid #d1d5db',
-                background: '#ffffff',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
+                gap: 8,
+                paddingTop: 8,
+                borderTop: '1px solid #f3f4f6',
               }}
             >
-              <svg width="24" height="24" viewBox="0 0 48 48">
-                <path
-                  fill="#EA4335"
-                  d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-                />
-                <path
-                  fill="#4285F4"
-                  d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-                />
-              </svg>
-            </button>
-          )}
+              <input
+                type="email"
+                placeholder="Or enter another Google email..."
+                value={customGoogleEmail}
+                onChange={(e) => setCustomGoogleEmail(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  border: '1px solid #d1d5db',
+                  fontSize: 13.5,
+                  fontFamily: 'inherit',
+                }}
+              />
+              <button
+                type="submit"
+                className="staff-pill-btn"
+                style={{ minHeight: 36, padding: '6px 14px', fontSize: 13.5 }}
+              >
+                Sign in
+              </button>
+            </form>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setGoogleModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#6b7280',
+                  fontSize: 13.5,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

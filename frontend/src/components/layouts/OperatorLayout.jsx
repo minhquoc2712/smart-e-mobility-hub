@@ -1,21 +1,22 @@
 import React from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { UserAvatarMenu } from '../common/UserAvatarMenu';
+import logo from '../common/images/logo.png';
 
 const STAFF_NAV_ITEMS = [
-  { to: '/operator/dashboard', label: 'Overview' },
-  { to: '/operator/hub-utilization', label: 'Hub utilization' },
-  { to: '/operator/manage-parking', label: 'Manage parking' },
-  { to: '/operator/vehicles-charging', label: 'Vehicle & charging' },
-  { to: '/operator/incidents', label: 'Incidents' },
-  { to: '/operator/dispatch', label: 'Dispatch' },
-  { to: '/operator/simulation', label: 'What-if' },
-  { to: '/operator/profile', label: 'Personal information' },
+  { to: '/operator/dashboard', label: '📊 Overview' },
+  { to: '/operator/hub-utilization', label: '🏢 Hub utilization' },
+  { to: '/operator/manage-parking', label: '🅿️ Manage parking' },
+  { to: '/operator/vehicles-charging', label: '⚡ Vehicle & charging' },
+  { to: '/operator/incidents', label: '⚠️ Incidents' },
+  { to: '/operator/dispatch', label: '🚚 Dispatch' },
+  { to: '/operator/simulation', label: '🧪 What-if' },
+  { to: '/operator/profile', label: '👤 Personal info' },
 ];
 
 export function OperatorLayout() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const savedProfile = (() => {
     try {
@@ -30,33 +31,24 @@ export function OperatorLayout() {
     (user?.fullName && user.fullName !== 'Lê Điều Phối Viên' ? user.fullName : 'A. Lee');
   const staffCode = savedProfile?.staffCode || user?.staffCode || 'ST-014';
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login', { state: { role: 'operator' } });
-  };
-
   return (
     <div className="staff-shell">
       <header className="staff-header">
-        <NavLink to="/operator/dashboard" className="staff-brand">
-          Smart E-MOBILITY HUB
+        <NavLink
+          to="/operator/dashboard"
+          className="staff-brand"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}
+        >
+          <img src={logo} alt="" style={{ height: 38, width: 'auto' }} />
+          <span>Smart E-MOBILITY HUB</span>
         </NavLink>
 
         <div className="staff-account-bar">
-          <button
-            type="button"
-            onClick={handleLogout}
-            title="Click to sign out / switch role"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-            }}
-            className="staff-account-name"
-          >
-            {displayName} · {staffCode}
-          </button>
+          <UserAvatarMenu
+            variant="operator"
+            displayNameOverride={displayName}
+            subtitleOverride={`STAFF · ${staffCode}`}
+          />
         </div>
       </header>
 

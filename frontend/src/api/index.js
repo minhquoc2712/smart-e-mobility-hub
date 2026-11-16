@@ -202,6 +202,11 @@ export const operatorApi = {
           method: 'PATCH',
           body: JSON.stringify({ priority }),
         }),
+
+  resetAllChargingPriorities: () =>
+    IS_MOCK_MODE
+      ? Promise.resolve({ reset: true })
+      : httpRequest('/operator/charging-priority/reset-all', { method: 'POST' }),
 };
 
 export const simulationApi = {

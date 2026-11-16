@@ -748,7 +748,7 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
 );
 
 
-// UC15: Staff manual charging priority override for Fleet Vehicles
+// UC15: Staff manual charging priority override for Fleet Vehicles (persisted in MySQL)
 router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
   try {
     const vehicleId = Number(req.params.vehicleId);
@@ -766,6 +766,26 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
         : veh.battery_level < 80
         ? 'NORMAL'
         : 'LOW';
+
+    if (rawPriority === 'AUTO') {
+      await pool.execute('UPDATE charging_points SET priority_level = ? WHERE current_vehicle_id = ?', [
+        autoPriority,
+        vehicleId,
+      ]);
+      await pool.execute(
+        `DELETE FROM charging_requests WHERE vehicle_id = ? AND request_code LIKE 'CHG-STAFF-%'`,
+        [vehicleId]
+      );
+      await pool.execute(
+        `UPDATE charging_requests SET priority = ? WHERE vehicle_id = ? AND status IN ('QUEUED', 'SCHEDULED', 'CHARGING')`,
+        [autoPriority, vehicleId]
+      );
+      return res.json({
+        success: true,
+        data: { vehicleId, priority: autoPriority, mode: 'AUTO' },
+      });
+    }
+
     const effectivePriority = ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(rawPriority)
       ? rawPriority
       : autoPriority;
@@ -776,7 +796,7 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
       vehicleId,
     ]);
 
-    // 2. Update or create an active row in charging_requests so MySQL tracks the Staff priority override
+    // 2. Update or create an active row in charging_requests so MySQL persists Staff priority override
     const [existingReqs] = await pool.execute(
       `SELECT id FROM charging_requests WHERE vehicle_id = ? AND status IN ('QUEUED', 'SCHEDULED', 'CHARGING') ORDER BY id DESC LIMIT 1`,
       [vehicleId]
@@ -787,7 +807,7 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
         existingReqs[0].id,
       ]);
     } else if (veh.current_hub_id) {
-      const reqCode = `CHG-V${vehicleId}-${String(Date.now()).slice(-4)}`;
+      const reqCode = `CHG-STAFF-V${vehicleId}-${String(Date.now()).slice(-4)}`;
       await pool.execute(
         `INSERT INTO charging_requests
           (request_code, user_id, ownership_type, vehicle_id, hub_id, current_battery_level, target_battery_level, priority, scheduled_start, scheduled_end, status)
@@ -809,9 +829,29 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
       data: {
         vehicleId,
         priority: effectivePriority,
-        mode: rawPriority === 'AUTO' ? 'AUTO' : 'MANUAL',
+        mode: 'MANUAL',
       },
     });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/operator/charging-priority/reset-all', authenticateToken, requireRole('OPERATOR'), async (_req, res, next) => {
+  try {
+    await pool.execute(`DELETE FROM charging_requests WHERE request_code LIKE 'CHG-STAFF-%'`);
+    await pool.execute(`
+      UPDATE charging_points cp
+      LEFT JOIN vehicles v ON v.id = cp.current_vehicle_id
+      SET cp.priority_level = CASE
+        WHEN v.id IS NULL THEN 'NORMAL'
+        WHEN v.battery_level < 20 THEN 'URGENT'
+        WHEN v.battery_level < 50 THEN 'HIGH'
+        WHEN v.battery_level < 80 THEN 'NORMAL'
+        ELSE 'LOW'
+      END
+    `);
+    return res.json({ success: true, data: { reset: true } });
   } catch (err) {
     return next(err);
   }

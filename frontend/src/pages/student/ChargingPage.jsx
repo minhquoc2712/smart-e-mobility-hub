@@ -37,6 +37,10 @@ function getConnector(vehicle) {
   return 'Type 2 connector';
 }
 
+function getChargingPointCode(point) {
+  return point?.chargerCode ?? point?.charger_code ?? '';
+}
+
 function displayDate(date) {
   if (!date) return '—';
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
@@ -53,6 +57,7 @@ export function ChargingPage() {
   const [vehicles, setVehicles] = useState(DEFAULT_VEHICLES);
   const [hubId, setHubId] = useState('');
   const [vehicleId, setVehicleId] = useState(DEFAULT_VEHICLES[0].id);
+  const [chargingPoints, setChargingPoints] = useState([]);
   const [date, setDate] = useState(initialSchedule.date);
   const [startTime, setStartTime] = useState(initialSchedule.time);
   const [durationHours, setDurationHours] = useState(1);
@@ -67,37 +72,91 @@ export function ChargingPage() {
     if (Array.isArray(savedVehicles) && savedVehicles.length > 0) {
       setVehicles(savedVehicles);
       setVehicleId(savedVehicles[0].id);
+    } else if (user?.privateVehiclePlate) {
+      const fromDb = [
+        {
+          id: user.privateVehiclePlate,
+          name: user.privateVehicleModel || 'My e-bike',
+          type: 'Private electric bike',
+          battery: 38,
+        },
+      ];
+      setVehicles(fromDb);
+      setVehicleId(fromDb[0].id);
     }
 
-    hubApi.getHubs()
+    hubApi
+      .getHubs()
       .then((list) => {
         setHubs(list);
         if (list[0]) {
           setHubId(String(list[0].id));
-          setSlotCode(list[0].availableChargingPoints > 0 ? 'C-01' : '');
         }
       })
       .catch((loadError) => setError(loadError.message || 'Unable to load charging hubs.'));
 
-    chargingApi.getChargingRequests()
+    chargingApi
+      .getChargingRequests()
       .then((requests) => {
         if (user?.id == null) return;
         const now = Date.now();
-        const existingRegistration = requests.find((request) =>
-          String(request.userId ?? request.user_id) === String(user?.id)
-          && request.ownershipType === 'PRIVATE'
-          && ['SCHEDULED', 'QUEUED'].includes(request.status)
-          && new Date(request.scheduledEnd ?? request.scheduled_end).getTime() > now);
+        const existingRegistration = requests.find(
+          (request) =>
+            String(request.userId ?? request.user_id) === String(user?.id) &&
+            (request.ownershipType ?? request.ownership_type) === 'PRIVATE' &&
+            ['SCHEDULED', 'QUEUED'].includes(String(request.status || '').toUpperCase()) &&
+            new Date(request.scheduledEnd ?? request.scheduled_end).getTime() > now
+        );
         if (existingRegistration) setRegistration(existingRegistration);
       })
-      .catch((loadError) => setError(loadError.message || 'Unable to load charging registrations.'));
-  }, [user?.id]);
+      .catch((loadError) =>
+        setError(loadError.message || 'Unable to load charging registrations.')
+      );
+  }, [user?.id, user?.privateVehiclePlate, user?.privateVehicleModel]);
 
-  const selectedVehicle = vehicles.find((vehicle) => String(vehicle.id) === String(vehicleId)) || vehicles[0];
+  useEffect(() => {
+    let active = true;
+    setChargingPoints([]);
+    setSlotCode('');
+    if (!hubId) {
+      return () => {
+        active = false;
+      };
+    }
+
+    hubApi
+      .getChargingPoints(hubId)
+      .then((points) => {
+        if (!active) return;
+        const operational = (points || []).filter(
+          (point) => String(point.status).toUpperCase() !== 'OUT_OF_SERVICE'
+        );
+        setChargingPoints(operational);
+        const firstAvail = operational.find(
+          (point) => String(point.status).toUpperCase() === 'AVAILABLE'
+        );
+        setSlotCode(firstAvail ? getChargingPointCode(firstAvail) : 'WAITLIST');
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        setChargingPoints([]);
+        setSlotCode('');
+        setError(loadError.message || 'Unable to load charging points.');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [hubId]);
+
+  const selectedVehicle =
+    vehicles.find((vehicle) => String(vehicle.id) === String(vehicleId)) || vehicles[0];
   const selectedHub = hubs.find((hub) => String(hub.id) === String(hubId));
-  const availableSlots = Array.from(
-    { length: Math.max(0, Number(selectedHub?.availableChargingPoints) || 0) },
-    (_, index) => `C-${String(index + 1).padStart(2, '0')}`,
+  const availablePoints = chargingPoints.filter(
+    (p) => String(p.status).toUpperCase() === 'AVAILABLE'
+  );
+  const selectedChargingPoint = availablePoints.find(
+    (point) => getChargingPointCode(point) === slotCode
   );
   const duration = Number(durationHours);
   const endTime = useMemo(() => {
@@ -108,7 +167,9 @@ export function ChargingPage() {
   }, [startTime, duration]);
   const total = (duration * RATE_PER_HOUR).toFixed(2);
   const today = getLocalDate(new Date());
-  const currentTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
+  const currentTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(
+    new Date().getMinutes()
+  ).padStart(2, '0')}`;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -119,10 +180,6 @@ export function ChargingPage() {
       setError('Complete all charging details before registering.');
       return;
     }
-    if (!slotCode || !availableSlots.includes(slotCode)) {
-      setError('Choose an available charging slot.');
-      return;
-    }
 
     const scheduledStart = new Date(`${date}T${startTime}`);
     const scheduledEnd = new Date(scheduledStart.getTime() + duration * 60 * 60 * 1000);
@@ -130,7 +187,7 @@ export function ChargingPage() {
       setError('Enter a valid charging date and time.');
       return;
     }
-    if (scheduledStart.getTime() < Date.now()) {
+    if (scheduledStart.getTime() < Date.now() - 60000) {
       setError('Charging date and start time cannot be in the past.');
       return;
     }
@@ -142,16 +199,30 @@ export function ChargingPage() {
         hubId: Number(hubId),
         ownershipType: 'PRIVATE',
         vehicleId: null,
+        chargingPointId: selectedChargingPoint?.id || null,
         slotCode,
         privateVehicleLabel: `${selectedVehicle.name} · ${selectedVehicle.id}`,
-        currentBatteryLevel: Number(selectedVehicle.battery) || 0,
+        currentBatteryLevel: Number(selectedVehicle.battery) || 38,
         targetBatteryLevel: 85,
         scheduledStart: scheduledStart.toISOString(),
         scheduledEnd: scheduledEnd.toISOString(),
       };
       const created = await chargingApi.createChargingRequest(payload);
-      setRegistration({ ...payload, ...created, hubName: selectedHub?.name });
-      setSuccess('Your charging registration was verified.');
+      setRegistration({
+        ...payload,
+        ...created,
+        hubName: selectedHub?.name,
+        slotCode: created.chargerCode || slotCode,
+      });
+      if (created.status === 'QUEUED') {
+        setSuccess(
+          `All chargers in ${startTime}–${endTime} are locked by earlier bookings. You joined the Priority Waitlist (#${created.queuePosition || 1})!`
+        );
+      } else {
+        setSuccess(
+          `Time-slot ${startTime}–${endTime} on ${created.chargerCode || slotCode} is now LOCKED for your vehicle!`
+        );
+      }
     } catch (requestError) {
       setError(requestError.message || 'Unable to register for charging.');
     } finally {
@@ -170,7 +241,7 @@ export function ChargingPage() {
       setError('');
       await chargingApi.cancelChargingRequest(registration.id);
       setRegistration(null);
-      setSuccess('');
+      setSuccess('Charging registration cancelled and slot released in MySQL.');
     } catch (requestError) {
       setError(requestError.message || 'Unable to cancel charging registration.');
     } finally {
@@ -179,18 +250,19 @@ export function ChargingPage() {
   };
 
   const handleHubChange = (event) => {
-    const nextHubId = event.target.value;
-    const nextHub = hubs.find((hub) => String(hub.id) === String(nextHubId));
-    setHubId(nextHubId);
-    const slotCount = Math.max(0, Number(nextHub?.availableChargingPoints) || 0);
-    setSlotCode(slotCount > 0 ? 'C-01' : '');
+    setHubId(event.target.value);
+    setSlotCode('');
   };
 
   return (
     <div className="charging-registration-page">
       <header className="charging-page-heading">
         <h1>Register for charging</h1>
-        <p>Reserve a charging slot for your private vehicle at a nearby hub.</p>
+        <p>
+          Reserve a charging slot for your private vehicle — confirmed time windows are{' '}
+          <strong>locked first</strong>; if full, requests join the{' '}
+          <strong>Battery Priority Waitlist</strong>.
+        </p>
       </header>
 
       <div className="charging-page-grid">
@@ -206,13 +278,20 @@ export function ChargingPage() {
                   disabled={Boolean(registration)}
                 >
                   {vehicles.map((vehicle) => (
-                    <option key={vehicle.id} value={vehicle.id}>{vehicle.name} · {vehicle.id}</option>
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.name} · {vehicle.id} ({vehicle.battery}%)
+                    </option>
                   ))}
                 </select>
               </label>
               <label>
                 Connector
-                <select value={getConnector(selectedVehicle)} onChange={() => {}} aria-label="Connector type" disabled>
+                <select
+                  value={getConnector(selectedVehicle)}
+                  onChange={() => {}}
+                  aria-label="Connector type"
+                  disabled
+                >
                   <option>{getConnector(selectedVehicle)}</option>
                 </select>
               </label>
@@ -236,17 +315,24 @@ export function ChargingPage() {
 
             <div className="charging-fields-row">
               <label>
-                Available slot
+                Charger / Waitlist
                 <select
                   value={slotCode}
                   onChange={(event) => setSlotCode(event.target.value)}
-                  disabled={Boolean(registration) || availableSlots.length === 0}
+                  disabled={Boolean(registration)}
                   required
                 >
-                  {availableSlots.length === 0 && <option value="">No slots available</option>}
-                  {availableSlots.map((slot) => (
-                    <option key={slot} value={slot}>{slot} · Available</option>
-                  ))}
+                  {availablePoints.map((point) => {
+                    const code = getChargingPointCode(point);
+                    return (
+                      <option key={point.id} value={code}>
+                        {code} · Available (Locks time slot)
+                      </option>
+                    );
+                  })}
+                  <option value="WAITLIST">
+                    ⏳ Join Priority Waitlist (if chosen window is full)
+                  </option>
                 </select>
               </label>
               <label>
@@ -288,7 +374,10 @@ export function ChargingPage() {
                 </select>
               </label>
             </div>
-            <p className="charging-form-note">Bring your own compatible charger. Your slot is held for the selected charging period.</p>
+            <p className="charging-form-note">
+              🔒 Booking rule: Once confirmed, your time window ({startTime}–{endTime}) is locked
+              exclusively for you and cannot be overridden by later bookings.
+            </p>
           </form>
         </section>
 
@@ -299,13 +388,19 @@ export function ChargingPage() {
           </div>
           <div className="charging-summary-row">
             <span>Vehicle / battery</span>
-            <strong>{selectedVehicle?.id || '—'} · {selectedVehicle?.battery ?? 0}%</strong>
+            <strong>
+              {selectedVehicle?.id || '—'} · {selectedVehicle?.battery ?? 38}%
+            </strong>
           </div>
           <div className="charging-summary-row">
             <span>Hub / slot</span>
             <strong className="charging-summary-hub-slot">
               <span>{selectedHub?.name?.replace(/\s+Hub$/i, '') || 'Select a hub'} ·</span>
-              <span>{slotCode || 'No slot selected'}</span>
+              <span>
+                {registration?.chargerCode ||
+                  registration?.slotCode ||
+                  (slotCode === 'WAITLIST' ? 'Priority Waitlist' : slotCode || 'Auto-assign')}
+              </span>
             </strong>
           </div>
           <div className="charging-summary-row">
@@ -314,14 +409,26 @@ export function ChargingPage() {
           </div>
           <div className="charging-summary-row">
             <span>Charging time</span>
-            <strong>{startTime || '—'} – {endTime || '—'}</strong>
+            <strong>
+              {startTime || '—'} – {endTime || '—'}
+            </strong>
           </div>
           <div className="charging-summary-row">
-            <span>Total · {duration} {duration === 1 ? 'hour' : 'hours'}</span>
+            <span>
+              Total · {duration} {duration === 1 ? 'hour' : 'hours'}
+            </span>
             <strong>${total}</strong>
           </div>
-          {error && <p className="charging-feedback charging-feedback-error" role="alert">{error}</p>}
-          {success && <p className="charging-feedback charging-feedback-success" role="status">{success}</p>}
+          {error && (
+            <p className="charging-feedback charging-feedback-error" role="alert">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="charging-feedback charging-feedback-success" role="status">
+              {success}
+            </p>
+          )}
           {registration ? (
             <button
               type="button"
@@ -336,7 +443,7 @@ export function ChargingPage() {
               type="submit"
               form="charging-registration-form"
               className="charging-register-button"
-              disabled={submitting || !hubId || availableSlots.length === 0}
+              disabled={submitting || !hubId}
             >
               {submitting ? 'Registering...' : 'Register charging'}
             </button>
