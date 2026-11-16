@@ -14,12 +14,101 @@ const HUB_SELECT = `
   FROM hubs h`;
 
 function toHub(row) {
-  return row && { ...row, latitude: Number(row.latitude), longitude: Number(row.longitude) };
+  return (
+    row && {
+      ...row,
+      latitude: Number(row.latitude),
+      longitude: Number(row.longitude),
+      freeParkingSlots: Number(row.freeParkingSlots ?? 0),
+      availableChargingPoints: Number(row.availableChargingPoints ?? 0),
+      availableBikes: Number(row.availableBikes ?? 0),
+      availableScooters: Number(row.availableScooters ?? 0),
+    }
+  );
 }
 
-async function findAll() {
-  const [rows] = await pool.execute(`${HUB_SELECT} ORDER BY h.id ASC`);
+async function findAll({ search = '', vehicleType = '' } = {}) {
+  const conditions = [];
+  const params = [];
+
+  if (search) {
+    const like = `%${search}%`;
+    conditions.push(
+      `(h.name LIKE ? OR h.campus_zone LIKE ? OR h.address LIKE ? OR h.code LIKE ?
+        OR EXISTS (SELECT 1 FROM vehicles v WHERE v.current_hub_id = h.id AND (v.code LIKE ? OR v.model LIKE ?)))`
+    );
+    params.push(like, like, like, like, like, like);
+  }
+
+  if (vehicleType === 'ELECTRIC_BIKE' || vehicleType === 'ELECTRIC_SCOOTER') {
+    conditions.push(
+      `EXISTS (SELECT 1 FROM vehicles v WHERE v.current_hub_id = h.id AND v.type = ? AND v.status = 'AVAILABLE')`
+    );
+    params.push(vehicleType);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const [rows] = await pool.execute(`${HUB_SELECT} ${where} ORDER BY h.id ASC`, params);
   return rows.map(toHub);
+}
+
+async function findSuggestions(query = '') {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const like = `%${q}%`;
+
+  const [hubRows] = await pool.execute(
+    `${HUB_SELECT}
+     WHERE h.name LIKE ? OR h.campus_zone LIKE ? OR h.address LIKE ? OR h.code LIKE ?
+     ORDER BY h.id ASC`,
+    [like, like, like, like]
+  );
+  const hubs = hubRows.map(toHub);
+
+  const [vehicles] = await pool.execute(
+    `SELECT v.id, v.code, v.type, v.model, v.battery_level AS batteryLevel,
+            v.current_hub_id AS hubId, h.name AS hubName
+     FROM vehicles v
+     JOIN hubs h ON h.id = v.current_hub_id
+     WHERE v.status = 'AVAILABLE'
+       AND (v.code LIKE ? OR v.model LIKE ?)
+     ORDER BY v.battery_level DESC
+     LIMIT 6`,
+    [like, like]
+  );
+
+  const items = [];
+
+  hubs.forEach((h) => {
+    items.push({
+      kind: 'HUB',
+      id: `hub-${h.id}`,
+      hubId: h.id,
+      title: h.name,
+      subtitle: `${h.campusZone} · ${h.address}`,
+      status: h.status,
+      meta: `🚲 ${h.availableBikes} · 🛴 ${h.availableScooters} · 🅿️ ${h.freeParkingSlots} free`,
+      searchValue: h.name,
+    });
+  });
+
+  vehicles.forEach((v) => {
+    items.push({
+      kind: 'VEHICLE',
+      id: `veh-${v.id}`,
+      hubId: v.hubId,
+      vehicleId: v.id,
+      vehicleCode: v.code,
+      vehicleType: v.type,
+      title: `${v.code} (${v.model})`,
+      subtitle: `Parked at ${v.hubName}`,
+      status: 'AVAILABLE',
+      meta: `🔋 ${v.batteryLevel}% battery`,
+      searchValue: v.code,
+    });
+  });
+
+  return items.slice(0, 8);
 }
 
 async function findById(id) {
@@ -54,4 +143,4 @@ async function updateStatus(conn, id, status) {
   await conn.execute('UPDATE hubs SET status = ? WHERE id = ?', [status, id]);
 }
 
-module.exports = { findAll, findById, lockById, getStatus, getSlotUsage, updateStatus };
+module.exports = { findAll, findSuggestions, findById, lockById, getStatus, getSlotUsage, updateStatus };

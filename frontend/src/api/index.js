@@ -30,10 +30,29 @@ export const authApi = {
 };
 
 export const hubApi = {
-  getHubs: (filters = {}) => {
+  getHubs: (filters = {}, options = {}) => {
     if (IS_MOCK_MODE) return mockServer.getHubs(filters);
-    const qs = new URLSearchParams(filters).toString();
-    return httpRequest(`/hubs${qs ? `?${qs}` : ''}`);
+    const clean = Object.fromEntries(
+      Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    );
+    const qs = new URLSearchParams(clean).toString();
+    return httpRequest(`/hubs${qs ? `?${qs}` : ''}`, options);
+  },
+  getSuggestions: async (q = '', signal) => {
+    if (IS_MOCK_MODE) {
+      const hubs = await mockServer.getHubs({ search: q });
+      return hubs.map((h) => ({
+        kind: 'HUB',
+        id: `hub-${h.id}`,
+        hubId: h.id,
+        title: h.name,
+        subtitle: `${h.campusZone} · ${h.address || ''}`,
+        status: h.status || 'ACTIVE',
+        meta: `🚲 ${h.availableBikes} · 🛴 ${h.availableScooters} · 🅿️ ${h.freeParkingSlots ?? 0} free`,
+        searchValue: h.name,
+      }));
+    }
+    return httpRequest(`/hubs/suggestions?q=${encodeURIComponent(q)}`, { signal });
   },
   getHubById: (hubId) =>
     IS_MOCK_MODE ? mockServer.getHubById(hubId) : httpRequest(`/hubs/${hubId}`),

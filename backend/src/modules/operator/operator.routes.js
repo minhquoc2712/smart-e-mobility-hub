@@ -5,6 +5,7 @@
 const express = require('express');
 const { pool } = require('../../config/db');
 const { authenticateToken, requireRole } = require('../../middlewares/auth.middleware');
+const hubsService = require('../hubs/hubs.service');
 
 const router = express.Router();
 
@@ -598,6 +599,11 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
         ]
       );
 
+      await hubsService.syncHubStatus(connection, sourceId);
+      if (destinationId !== sourceId) {
+        await hubsService.syncHubStatus(connection, destinationId);
+      }
+
       await connection.commit();
       transactionStarted = false;
 
@@ -712,6 +718,11 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
         reason,
       ]
     );
+
+    await hubsService.syncHubStatus(connection, sourceId);
+    if (destinationId !== sourceId) {
+      await hubsService.syncHubStatus(connection, destinationId);
+    }
 
     await connection.commit();
     transactionStarted = false;

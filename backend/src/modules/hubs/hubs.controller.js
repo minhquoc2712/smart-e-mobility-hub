@@ -2,8 +2,15 @@ const asyncHandler = require('../../utils/asyncHandler');
 const { parseId, parseStatus, parseOptionalStatus } = require('../../utils/validators');
 const hubsService = require('./hubs.service');
 
-const list = asyncHandler(async (_req, res) => {
-  res.json({ success: true, data: await hubsService.listHubs() });
+const list = asyncHandler(async (req, res) => {
+  const search = req.query.search ? String(req.query.search).trim() : '';
+  const vehicleType = req.query.vehicleType ? String(req.query.vehicleType).trim().toUpperCase() : '';
+  res.json({ success: true, data: await hubsService.listHubs({ search, vehicleType }) });
+});
+
+const suggestions = asyncHandler(async (req, res) => {
+  const q = req.query.q ? String(req.query.q).trim() : '';
+  res.json({ success: true, data: await hubsService.getSearchSuggestions(q) });
 });
 
 const getOne = asyncHandler(async (req, res) => {
@@ -28,4 +35,4 @@ const changeStatus = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await hubsService.changeHubStatus(hubId, status) });
 });
 
-module.exports = { list, getOne, listParkingSlots, listChargingPoints, changeStatus };
+module.exports = { list, suggestions, getOne, listParkingSlots, listChargingPoints, changeStatus };

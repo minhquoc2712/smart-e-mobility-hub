@@ -8,8 +8,12 @@ const chargersRepo = require('../charging-points/charging-points.repository');
 
 const notFound = () => new AppError(404, 'HUB_NOT_FOUND', 'Hub not found.');
 
-async function listHubs() {
-  return hubsRepo.findAll();
+async function listHubs(filters = {}) {
+  return hubsRepo.findAll(filters);
+}
+
+async function getSearchSuggestions(query = '') {
+  return hubsRepo.findSuggestions(query);
 }
 
 async function getHub(hubId) {
@@ -73,6 +77,7 @@ async function changeHubStatus(hubId, toStatus) {
 
 module.exports = {
   listHubs,
+  getSearchSuggestions,
   getHub,
   listParkingSlots,
   listChargingPoints,

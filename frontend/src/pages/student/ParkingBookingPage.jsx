@@ -18,13 +18,50 @@ function getSuggestedTimes() {
   const start = new Date();
   start.setMinutes(0, 0, 0);
   if (start.getTime() <= Date.now()) start.setHours(start.getHours() + 1);
-  if (start.getHours() > 20) start.setHours(9, 0, 0, 0);
+  if (start.getHours() > 20) {
+    start.setDate(start.getDate() + 1);
+    start.setHours(9, 0, 0, 0);
+  }
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
   return {
     date: getLocalDate(start),
-    arrival: `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`,
-    departure: `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`,
+    arrival: `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(
+      2,
+      '0'
+    )}`,
+    departure: `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(
+      2,
+      '0'
+    )}`,
   };
+}
+
+/**
+ * Safely normalizes any Date / ISO string / MySQL DATETIME into local 'YYYY-MM-DDTHH:mm:ss'
+ * so 11:00–13:00 always displays as 11:00–13:00 without UTC offset drift.
+ */
+function formatDateTime(value) {
+  if (!value) return '';
+  if (value instanceof Date) {
+    const date = getLocalDate(value);
+    const time = `${String(value.getHours()).padStart(2, '0')}:${String(
+      value.getMinutes()
+    ).padStart(2, '0')}`;
+    return `${date}T${time}:00`;
+  }
+  const str = String(value).trim();
+  // If string has Z or +/-HH:MM timezone offset, parse into local browser Date
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(str)) {
+    const parsed = new Date(str);
+    if (!Number.isNaN(parsed.getTime())) {
+      const date = getLocalDate(parsed);
+      const time = `${String(parsed.getHours()).padStart(2, '0')}:${String(
+        parsed.getMinutes()
+      ).padStart(2, '0')}`;
+      return `${date}T${time}:00`;
+    }
+  }
+  return str.replace(' ', 'T');
 }
 
 function normalizeParkingReservation(reservation) {
@@ -35,18 +72,18 @@ function normalizeParkingReservation(reservation) {
     reservationType: reservation.reservationType ?? reservation.reservation_type,
     startTime: formatDateTime(reservation.startTime ?? reservation.start_time),
     endTime: formatDateTime(reservation.endTime ?? reservation.end_time),
-    licensePlate: reservation.licensePlate ?? reservation.license_plate ?? '',
-    parkingSlotCode: reservation.parkingSlotCode ?? reservation.parking_slot_code ?? '',
+    licensePlate:
+      reservation.licensePlate ??
+      reservation.license_plate ??
+      reservation.return_condition_note ??
+      '',
+    parkingSlotCode:
+      reservation.parkingSlotCode ??
+      reservation.parking_slot_code ??
+      reservation.slotCode ??
+      reservation.slot_code ??
+      '',
   };
-}
-
-function formatDateTime(value) {
-  if (value instanceof Date) {
-    const date = getLocalDate(value);
-    const time = `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
-    return `${date}T${time}:00`;
-  }
-  return String(value || '').replace(' ', 'T');
 }
 
 export function ParkingBookingPage() {
@@ -68,31 +105,47 @@ export function ParkingBookingPage() {
       reservationApi.getMyReservations(user?.id),
     ]);
     setHub(hubData);
-    setBookings(reservations
-      .map(normalizeParkingReservation)
-      .filter((reservation) => reservation.hubId === Number(hubId)
-        && reservation.reservationType === 'PARKING'
-        && reservation.status !== 'CANCELLED'));
+    setBookings(
+      reservations
+        .map(normalizeParkingReservation)
+        .filter(
+          (reservation) =>
+            reservation.hubId === Number(hubId) &&
+            reservation.reservationType === 'PARKING' &&
+            reservation.status !== 'CANCELLED'
+        )
+    );
   };
 
   useEffect(() => {
-    loadData().catch((loadError) => setError(loadError.message || 'Unable to load parking details.'));
+    loadData().catch((loadError) =>
+      setError(loadError.message || 'Unable to load parking details.')
+    );
   }, [hubId, user?.id]);
 
   const today = getLocalDate(new Date());
-  const currentTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
+  const currentTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(
+    new Date().getMinutes()
+  ).padStart(2, '0')}`;
   const arrivalMin = date === today ? currentTime : undefined;
-  const departureMin = date === today
-    ? (arrival > currentTime ? arrival : currentTime)
-    : arrival || undefined;
+  const departureMin =
+    date === today ? (arrival > currentTime ? arrival : currentTime) : arrival || undefined;
 
   const validateBooking = () => {
-    if (!date || !arrival || !departure) return 'Enter a date, arrival time, and departure time.';
+    if (!date || !arrival || !departure) {
+      return 'Enter a date, arrival time, and departure time.';
+    }
     const start = new Date(`${date}T${arrival}`);
     const end = new Date(`${date}T${departure}`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 'Enter a valid date and time.';
-    if (start.getTime() < Date.now()) return 'Arrival date and time cannot be in the past.';
-    if (end.getTime() < Date.now()) return 'Departure date and time cannot be in the past.';
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return 'Enter a valid date and time.';
+    }
+    if (start.getTime() < Date.now() - 60000) {
+      return 'Arrival date and time cannot be in the past.';
+    }
+    if (end.getTime() < Date.now()) {
+      return 'Departure date and time cannot be in the past.';
+    }
     if (end <= start) return 'Departure time must be after arrival time.';
     return '';
   };
@@ -128,22 +181,68 @@ export function ParkingBookingPage() {
     try {
       setError('');
       await reservationApi.cancelReservation(reservationId);
-      setBookings((current) => current.filter((booking) => booking.id !== reservationId));
+      await loadData();
     } catch (requestError) {
       setError(requestError.message || 'Unable to cancel parking booking.');
     }
   };
 
+  const hubStatus = String(hub?.status || 'ACTIVE').toUpperCase();
+
   return (
     <div className="booking-page parking-booking-page">
-      <Link className="page-back-link" to={`/student/hubs/${hubId}/info`}>‹ Hub info</Link>
+      <Link className="page-back-link" to={`/student/hubs/${hubId}/info`}>
+        ‹ Hub info
+      </Link>
       <h1>Book parking</h1>
 
       <div className="booking-form-card parking-form-card">
         <form onSubmit={handleBook}>
-          <div className="booking-location">
-            <span>LOCATION</span>
-            <strong>{hub?.name?.replace(/\s+Hub$/i, '') || 'Loading hub...'}</strong>
+          <div
+            className="booking-location"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 8,
+            }}
+          >
+            <div>
+              <span>LOCATION</span>
+              <strong style={{ display: 'block' }}>
+                {hub?.name?.replace(/\s+Hub$/i, '') || 'Loading hub...'}
+              </strong>
+            </div>
+            {hub && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '3px 10px',
+                    borderRadius: 999,
+                    background:
+                      hubStatus === 'FULL'
+                        ? '#fee2e2'
+                        : hubStatus === 'NEAR_FULL'
+                        ? '#fef3c7'
+                        : '#dcfce7',
+                    color:
+                      hubStatus === 'FULL'
+                        ? '#991b1b'
+                        : hubStatus === 'NEAR_FULL'
+                        ? '#92400e'
+                        : '#166534',
+                  }}
+                >
+                  {hubStatus.replace('_', ' ')}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#1f3b24' }}>
+                  🅿️ {hub.freeParkingSlots ?? 0} free
+                </span>
+              </div>
+            )}
           </div>
           <label>
             Date
@@ -183,16 +282,28 @@ export function ParkingBookingPage() {
               value={licensePlate}
               maxLength={32}
               onChange={(event) => setLicensePlate(event.target.value)}
-              placeholder="Enter your license plate"
+              placeholder="Enter your license plate (e.g. 59-MĐ1 123.45)"
             />
           </label>
-          <button className="primary-action" type="submit" disabled={loading || !hub}>
-            {loading ? 'Booking...' : 'Book parking'}
+          <button
+            className="primary-action"
+            type="submit"
+            disabled={loading || !hub || hubStatus === 'FULL'}
+          >
+            {loading
+              ? 'Booking...'
+              : hubStatus === 'FULL'
+              ? 'Hub parking is FULL'
+              : 'Book parking'}
           </button>
         </form>
       </div>
 
-      {error && <p className="booking-error" role="alert">{error}</p>}
+      {error && (
+        <p className="booking-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <section className="parking-booking-results" aria-live="polite">
         {bookings.map((booking) => (
@@ -202,13 +313,34 @@ export function ParkingBookingPage() {
               <span>{booking.reservationCode || 'Confirmed'}</span>
             </div>
             <div className="parking-result-details">
-              <div><span>Location</span><strong>{booking.hubName}</strong></div>
-              <div><span>Date</span><strong>{booking.startTime?.slice(0, 10)}</strong></div>
-              <div><span>Parking time</span><strong>{booking.startTime?.slice(11, 16)} - {booking.endTime?.slice(11, 16)}</strong></div>
-              <div><span>Parking slot</span><strong>{booking.parkingSlotCode || 'Assigned'}</strong></div>
-              <div><span>License plate</span><strong>{booking.licensePlate || 'Not provided'}</strong></div>
+              <div>
+                <span>Location</span>
+                <strong>{booking.hubName}</strong>
+              </div>
+              <div>
+                <span>Date</span>
+                <strong>{booking.startTime?.slice(0, 10)}</strong>
+              </div>
+              <div>
+                <span>Parking time</span>
+                <strong>
+                  {booking.startTime?.slice(11, 16)} - {booking.endTime?.slice(11, 16)}
+                </strong>
+              </div>
+              <div>
+                <span>Parking slot</span>
+                <strong>{booking.parkingSlotCode || 'Assigned'}</strong>
+              </div>
+              <div>
+                <span>License plate</span>
+                <strong>{booking.licensePlate || 'Not provided'}</strong>
+              </div>
             </div>
-            <button type="button" className="parking-cancel-button" onClick={() => handleCancel(booking.id)}>
+            <button
+              type="button"
+              className="parking-cancel-button"
+              onClick={() => handleCancel(booking.id)}
+            >
               Cancel reservation
             </button>
           </article>

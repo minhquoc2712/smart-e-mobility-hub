@@ -8,6 +8,20 @@ const error = (status, code, message) => {
   throw new AppError(status, code, message);
 };
 
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function toLocalIso(val) {
+  if (!val) return val;
+  if (val instanceof Date) {
+    return `${val.getFullYear()}-${pad2(val.getMonth() + 1)}-${pad2(val.getDate())}T${pad2(
+      val.getHours()
+    )}:${pad2(val.getMinutes())}:${pad2(val.getSeconds())}`;
+  }
+  return String(val).replace(' ', 'T');
+}
+
 async function list(user) {
   const baseSelect = `
     SELECT cr.*,
@@ -26,7 +40,13 @@ async function list(user) {
           `${baseSelect} WHERE cr.user_id = ? AND cr.status <> 'CANCELLED' ORDER BY cr.created_at DESC LIMIT 100`,
           [requiredId(user.id)]
         );
-  return rows;
+  return rows.map((r) => ({
+    ...r,
+    scheduled_start: toLocalIso(r.scheduled_start),
+    scheduled_end: toLocalIso(r.scheduled_end),
+    scheduledStart: toLocalIso(r.scheduled_start),
+    scheduledEnd: toLocalIso(r.scheduled_end),
+  }));
 }
 
 async function detail(user, id) {
