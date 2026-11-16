@@ -1,0 +1,10 @@
+const express=require('express');
+const {authenticateToken}=require('../../middlewares/auth.middleware');
+const service=require('./reservations.service');
+const wrap=require('../../utils/asyncHandler');
+const router=express.Router();router.use(authenticateToken);
+router.get('/',wrap(async(req,res)=>{const items=(await service.list(req.user,req.query)).filter(r=>r.reservation_type==='VEHICLE'&&['ACTIVE','COMPLETED'].includes(r.status));res.json({success:true,data:items});}));
+router.post('/',wrap(async(req,res)=>{const result=await service.pickup(req.user,req.body.vehicleReservationId,req.body);res.status(201).json({success:true,data:result});}));
+router.get('/:reservationId',wrap(async(req,res)=>res.json({success:true,data:await service.detail(req.user,req.params.reservationId)})));
+router.post('/:reservationId/return',wrap(async(req,res)=>res.json({success:true,data:await service.returnVehicle(req.user,req.params.reservationId,req.body)})));
+module.exports=router;

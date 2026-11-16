@@ -1,7 +1,26 @@
+const express=require('express');
+const {authenticateToken}=require('../../middlewares/auth.middleware');
+const c=require('./reservations.controller');
+const router=express.Router();router.use(authenticateToken);
+router.get('/',c.list);
+router.get('/my',c.list);
+router.post('/',c.reserveVehicle); // API 2B.6
+router.post('/vehicles',c.reserveVehicle); // Existing frontend compatibility
+router.post('/parking',c.reserveParking); // Existing frontend compatibility
+router.get('/:reservationId',c.detail);
+router.post('/:reservationId/cancel',c.cancel); // API 2B.6
+router.patch('/:reservationId/cancel',c.cancel); // Existing frontend compatibility
+router.post('/:reservationId/pickup',c.pickup);
+router.post('/:reservationId/return',c.returnVehicle);
+router.post('/:reservationId/check-in',c.parkingCheckIn);
+router.post('/:reservationId/check-out',c.parkingCheckOut);
+module.exports=router;
+
+
 /**
- * Module: Reservations, Pickup/Return & Parking Booking (Task 3.2b — Owner: Lục Khánh Phát)
+ * Module: Reservations, Pickup/Return & Parking Booking (Task 3.2b â€” Owner: Lá»¥c KhÃ¡nh PhÃ¡t)
  * Implements UC04 (Reserve vehicle), UC05 (Cancel), UC06 (Pickup), UC07 (Return), UC08 (Reserve parking).
- */
+
 const express = require('express');
 const { pool } = require('../../config/db');
 const { authenticateToken } = require('../../middlewares/auth.middleware');
@@ -136,3 +155,5 @@ router.post('/:reservationId/return', async (req, res, next) => {
 });
 
 module.exports = router;
+
+**/

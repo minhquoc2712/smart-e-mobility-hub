@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { IS_MOCK_MODE } from '../../api';
+import logo from '../common/images/logo.png';
 
 export function StudentLayout() {
   const { user, isOperator, logout } = useAuth();
   const navigate = useNavigate();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -20,7 +22,10 @@ export function StudentLayout() {
         </div>
       )}
       <header className="topbar">
-        <div className="brand-title">⚡ Smart E-Mobility Hub · VNU-HCM</div>
+        <div className="brand-title">
+          <img src={logo} alt="" />
+          <span>Smart E-MOBILITY HUB</span>
+        </div>
         <nav className="nav-links">
           <NavLink to="/student/hubs" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             Find Hub & Vehicles
@@ -36,12 +41,26 @@ export function StudentLayout() {
               Switch to Operator →
             </NavLink>
           )}
+          <NavLink to="/student/vehicles" className="nav-link">My vehicles</NavLink>
         </nav>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.88rem' }}>
-          <span>{user?.fullName} (<strong>{user?.role}</strong>)</span>
-          <button type="button" className="btn btn-outline" onClick={handleLogout}>
-            Sign out
-          </button>
+        <div className="profile-menu">
+          <div className="profile-details">
+            <span>{user?.fullName}</span>
+            <strong>{user?.role}</strong>
+          </div>
+          <button
+            type="button"
+            className="profile-button"
+            aria-label="Open profile menu"
+            aria-expanded={profileMenuOpen}
+            onClick={() => setProfileMenuOpen((open) => !open)}
+          />
+          {profileMenuOpen && (
+            <div className="profile-dropdown">
+              <button type="button" onClick={() => navigate('/student/vehicles')}>My vehicles</button>
+              <button type="button" onClick={handleLogout}>Sign out</button>
+            </div>
+          )}
         </div>
       </header>
 

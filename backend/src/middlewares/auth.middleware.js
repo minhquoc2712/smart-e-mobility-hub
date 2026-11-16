@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-fallback-secret';
+const { jwtSecret } = require('../config/auth');
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -14,7 +14,7 @@ function authenticateToken(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret);
     req.user = decoded;
     return next();
   } catch (err) {

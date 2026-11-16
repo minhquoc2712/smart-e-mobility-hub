@@ -1,0 +1,11 @@
+const express=require('express');
+const {authenticateToken}=require('../../middlewares/auth.middleware');
+const c=require('./reservations.controller');
+const router=express.Router();router.use(authenticateToken);
+router.get('/',require('../../utils/asyncHandler')(async(req,res)=>{const service=require('./reservations.service');const data=(await service.list(req.user,req.query)).filter(r=>r.reservation_type==='PARKING');res.json({success:true,data});}));
+router.post('/',c.reserveParking);
+router.get('/:reservationId',c.detail);
+router.post('/:reservationId/cancel',c.cancel);
+router.post('/:reservationId/check-in',c.parkingCheckIn);
+router.post('/:reservationId/check-out',c.parkingCheckOut);
+module.exports=router;

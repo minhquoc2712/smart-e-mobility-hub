@@ -1,85 +1,142 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { hubApi, reservationApi } from '../../api';
-import { useAuth } from '../../context/AuthContext';
-import { StatusBadge } from '../../components/common/StatusBadge';
-import { BatteryIndicator } from '../../components/common/BatteryIndicator';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { hubApi, vehicleApi } from '../../api';
+import vehicleImage from '../../components/common/images/vehicle.jpg';
 
-/**
- * Starter Screen for Wireframes 4, 5, 6 (Hub Info + Vehicle Availability & Quick Reserve)
- * Owner for Task 3.2a expansion: Lê Minh Nhật
- */
+const VEHICLE_FILTERS = [
+  { value: 'ELECTRIC_BIKE', label: 'Electric bike' },
+  { value: 'ELECTRIC_SCOOTER', label: 'Electric scooter' },
+];
+
+function getVehicleTypeLabel(type) {
+  return type === 'ELECTRIC_BIKE' ? 'Electric bike' : 'Electric scooter';
+}
+
 export function HubDetailPage() {
   const { hubId } = useParams();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [hub, setHub] = useState(null);
+  const [vehicleType, setVehicleType] = useState('ELECTRIC_BIKE');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    hubApi.getHubById(hubId).then(setHub).catch((err) => setMessage(err.message));
+    let active = true;
+    setLoading(true);
+    setMessage('');
+    Promise.all([
+      hubApi.getHubById(hubId),
+      vehicleApi.getVehicles({ hubId }),
+    ])
+      .then(([data, vehicles]) => {
+        if (active) setHub({ ...data, vehicles });
+      })
+      .catch((error) => {
+        if (active) setMessage(error.message || 'Unable to load vehicles for this hub.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [hubId]);
 
-  const handleQuickReserve = async (vehicle) => {
-    try {
-      const now = new Date();
-      const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-      await reservationApi.reserveVehicle({
-        userId: user.id,
-        hubId: hub.id,
-        vehicleId: vehicle.id,
-        startTime: now.toISOString(),
-        endTime: twoHoursLater.toISOString(),
-      });
-      navigate('/student/reservations');
-    } catch (err) {
-      setMessage(err.message);
-    }
+  const vehicles = useMemo(
+    () => (hub?.vehicles || []).filter((vehicle) => vehicle.type === vehicleType),
+    [hub, vehicleType],
+  );
+
+  const handleReserve = (vehicle) => {
+    setMessage('');
+    navigate('/student/reservations', {
+      state: {
+        vehicle,
+        hub: { id: hub.id, name: hub.name, campusZone: hub.campusZone },
+      },
+    });
   };
 
-  if (!hub) return <p>Loading Hub details...</p>;
-
   return (
-    <div>
-      <Link to="/student/hubs" style={{ color: '#1b7f4c', fontWeight: 600, fontSize: '0.9rem' }}>
-        ← Back to all Hubs
-      </Link>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.75rem 0 1.25rem' }}>
-        <div>
-          <h2 style={{ margin: 0 }}>{hub.name}</h2>
-          <p style={{ margin: '0.2rem 0 0', color: '#556b5d' }}>{hub.address}</p>
-        </div>
-        <Link to="/student/charging" className="btn btn-outline">
-          🔌 Book Charger / Parking
-        </Link>
-      </div>
+    <div className="vehicle-availability-page">
+      <header className="vehicle-availability-heading">
+        <h1>Vehicle availability &amp; battery</h1>
+        <p>{hub?.name || 'Mobility hub'} · Check available vehicles and battery levels before you ride.</p>
+      </header>
 
-      {message && <p style={{ color: '#c93b3b' }}>{message}</p>}
-
-      <h3>Vehicles at this Hub</h3>
-      <div className="grid-3">
-        {(hub.vehicles || []).map((v) => (
-          <div key={v.id} className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong>{v.code}</strong>
-              <StatusBadge status={v.status} />
-            </div>
-            <div style={{ fontSize: '0.86rem', color: '#556b5d', marginTop: 4 }}>
-              {v.type === 'ELECTRIC_BIKE' ? '🚲 Electric Bike' : '🛵 Electric Scooter'} · {v.model}
-            </div>
-            <BatteryIndicator percent={v.batteryLevel} rangeKm={v.estimatedRangeKm} />
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: '0.5rem' }}
-              disabled={v.status !== 'AVAILABLE'}
-              onClick={() => handleQuickReserve(v)}
-            >
-              {v.status === 'AVAILABLE' ? 'Reserve Vehicle' : v.status}
-            </button>
-          </div>
+      <div className="vehicle-filter-actions" role="group" aria-label="Filter by vehicle type">
+        {VEHICLE_FILTERS.map((filter) => (
+          <button
+            key={filter.value}
+            type="button"
+            className={vehicleType === filter.value ? 'active' : ''}
+            aria-pressed={vehicleType === filter.value}
+            onClick={() => setVehicleType(filter.value)}
+          >
+            {filter.label} {vehicleType === filter.value && <span aria-hidden="true">✓</span>}
+          </button>
         ))}
       </div>
+
+      {message && <p className="vehicle-availability-error" role="alert">{message}</p>}
+
+      {loading ? (
+        <p>Loading available vehicles...</p>
+      ) : (
+        <>
+          <div className="vehicle-availability-grid">
+            {vehicles.map((vehicle) => {
+              const isAvailable = vehicle.status === 'AVAILABLE';
+              const battery = Math.min(100, Math.max(0, Number(vehicle.batteryLevel) || 0));
+              return (
+                <article className="vehicle-availability-card" key={vehicle.id}>
+                  <h2>{vehicle.code}</h2>
+                  <div className="vehicle-availability-image">
+                    <img src={vehicleImage} alt={getVehicleTypeLabel(vehicle.type)} />
+                  </div>
+                  <div className="vehicle-battery">
+                    <div className="vehicle-battery-label">
+                      <span>Battery level</span>
+                      <strong>{battery}%</strong>
+                    </div>
+                    <div
+                      className="vehicle-battery-track"
+                      role="meter"
+                      aria-label={`${vehicle.code} battery`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={battery}
+                    >
+                      <span style={{ width: `${battery}%` }} />
+                    </div>
+                  </div>
+                  <p className="vehicle-range-label">
+                    {vehicle.estimatedRangeKm} km estimated range
+                  </p>
+                  <button
+                    type="button"
+                    className="vehicle-reserve-button"
+                    disabled={!isAvailable}
+                    onClick={() => handleReserve(vehicle)}
+                  >
+                    {isAvailable ? 'Reserve vehicle' : vehicle.status.replaceAll('_', ' ')}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+          {!vehicles.length && (
+            <p className="vehicle-availability-empty">
+              No {getVehicleTypeLabel(vehicleType).toLowerCase()}s are listed at this hub.
+            </p>
+          )}
+        </>
+      )}
+
+      <Link className="vehicle-availability-back" to={`/student/hubs/${hubId}/info`}>
+        ← Back to hub information
+      </Link>
     </div>
   );
 }
