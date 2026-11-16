@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 const HOURS = Array.from({ length: 15 }, (_, idx) => idx + 7); // 07:00 .. 21:00
 
@@ -9,9 +9,15 @@ export function getLocalDateStr(d) {
   return `${year}-${month}-${day}`;
 }
 
-export function getWeekDates() {
+/**
+ * Computes the rolling 7-day window starting from the current local system date:
+ *   - On 16/11 -> 16/11 .. 22/11
+ *   - On 17/11 -> 17/11 .. 23/11
+ *   - On 18/11 -> 18/11 .. 24/11
+ */
+export function getWeekDates(referenceTimeMs = Date.now()) {
   const days = [];
-  const base = new Date();
+  const base = new Date(referenceTimeMs);
   base.setHours(0, 0, 0, 0);
   for (let i = 0; i < 7; i += 1) {
     const d = new Date(base);
@@ -57,9 +63,9 @@ export function findFirstFreeHour(dateStr, bookedIntervals = []) {
 }
 
 /**
- * Interactive 1-Week Date + Hourly Time-Slot Grid.
- * Any booked interval (e.g. 13:00–15:00 on 16/11) greys out ONLY those booked hours
- * on that specific date while keeping all other hours & days clickable!
+ * Interactive Rolling 7-Day Date + Hourly Time-Slot Grid.
+ * Automatically updates day-by-day (e.g. 16/11->22/11 today, 17/11->23/11 tomorrow, 18/11->24/11 on Wednesday)
+ * even if the browser tab remains open across midnight, and greys out booked/passed hours dynamically.
  */
 export function TimeSlotWeekPicker({
   date,
@@ -72,12 +78,26 @@ export function TimeSlotWeekPicker({
   disabled = false,
   durationOptions = [1, 2, 3, 4],
 }) {
-  const weekDates = useMemo(getWeekDates, []);
+  // Live clock tick every 30s so rolling 7-day calendar & passed hours auto-refresh in real time
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const todayStr = getLocalDateStr(new Date(nowMs));
+  const weekDates = useMemo(() => getWeekDates(nowMs), [todayStr]);
   const minDate = weekDates[0].value;
   const maxDate = weekDates[weekDates.length - 1].value;
 
+  // If the date rolls past midnight (e.g. 16/11 -> 17/11), auto-advance selected date into the new 7-day range
+  useEffect(() => {
+    if (date && (date < minDate || date > maxDate)) {
+      onDateChange(minDate);
+    }
+  }, [date, minDate, maxDate, onDateChange]);
+
   const selectedHour = startTime ? Number(startTime.split(':')[0]) : null;
-  const nowMs = Date.now();
 
   const hourStates = useMemo(() => {
     return HOURS.map((h) => {
@@ -128,7 +148,7 @@ export function TimeSlotWeekPicker({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* 1-Week Date Selector (7 days) */}
+      {/* Rolling 7-Day Date Selector */}
       <div>
         <div
           style={{
@@ -141,7 +161,7 @@ export function TimeSlotWeekPicker({
           }}
         >
           <span style={{ fontSize: 14, fontWeight: 600, color: '#202b20' }}>
-            Date (within 7 days)
+            Date ({weekDates[0].dayMonth} – {weekDates[weekDates.length - 1].dayMonth})
           </span>
           <input
             type="date"
@@ -149,7 +169,12 @@ export function TimeSlotWeekPicker({
             min={minDate}
             max={maxDate}
             disabled={disabled}
-            onChange={(e) => onDateChange(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val >= minDate && val <= maxDate) {
+                onDateChange(val);
+              }
+            }}
             style={{
               padding: '5px 10px',
               borderRadius: 8,
@@ -285,7 +310,6 @@ export function TimeSlotWeekPicker({
                 }
                 onClick={() => {
                   onStartTimeChange(slot.label);
-                  // If current duration collides with a later booked slot, clamp to 1h
                   const sMs = new Date(`${date}T${slot.label}:00`).getTime();
                   const eMs = sMs + Number(durationHours || 1) * 3600 * 1000;
                   if (
@@ -324,7 +348,7 @@ export function TimeSlotWeekPicker({
         </div>
       </div>
 
-      {/* Duration Selector (auto-disables durations that overlap a greyed-out booked slot!) */}
+      {/* Duration Selector */}
       <div>
         <span
           style={{

@@ -34,9 +34,12 @@ function windowOf(start, end, { maxAdvanceDays = 7, minMinutes = 30, maxMinutes 
   const s = dateTime(start, 'startTime');
   const e = dateTime(end, 'endTime');
   const now = Date.now();
+  const maxDateLimit = new Date();
+  maxDateLimit.setHours(23, 59, 59, 999);
+  maxDateLimit.setDate(maxDateLimit.getDate() + (maxAdvanceDays - 1));
   if (
     s.getTime() < now - 60000 ||
-    s.getTime() > now + maxAdvanceDays * 86400000 ||
+    s.getTime() > maxDateLimit.getTime() ||
     e <= s ||
     e - s < minMinutes * 60000 ||
     e - s > maxMinutes * 60000
@@ -44,7 +47,7 @@ function windowOf(start, end, { maxAdvanceDays = 7, minMinutes = 30, maxMinutes 
     throw new AppError(
       422,
       'INVALID_TIME_WINDOW',
-      `Start must be within 7 days and duration ${minMinutes}-${maxMinutes} minutes.`
+      `Start must be within the rolling 7-day schedule and duration ${minMinutes}-${maxMinutes} minutes.`
     );
   }
   return { start: mysqlDate(s), end: mysqlDate(e) };
