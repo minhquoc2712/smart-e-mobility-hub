@@ -124,49 +124,56 @@ async function reserveVehicle(user, body) {
       [vid],
       'VEHICLE_NOT_FOUND'
     );
-    if (v.status !== 'AVAILABLE') fail(409, 'VEHICLE_NOT_AVAILABLE', 'Vehicle is not available.');
+    if (v.status === 'OUT_OF_SERVICE' || v.status === 'IN_USE') {
+      fail(409, 'VEHICLE_NOT_AVAILABLE', 'Vehicle is currently in use or out of service.');
+    }
     if (v.battery_level < MIN_BATTERY_TO_RESERVE) {
       fail(422, 'BATTERY_TOO_LOW', 'Battery is too low.');
     }
     if (!v.current_hub_id) fail(409, 'VEHICLE_NOT_AT_HUB', 'Vehicle is not located at a Hub.');
     await liveHub(c, v.current_hub_id, { allowFull: true });
 
-    const [existing] = await c.execute(
-      `SELECT id, vehicle_id, status FROM reservations WHERE user_id = ? AND reservation_type = 'VEHICLE' AND status IN ('CONFIRMED', 'ACTIVE')`,
-      [uid]
-    );
-    for (const prev of existing) {
-      if (prev.status === 'ACTIVE') {
-        fail(
-          409,
-          'ACTIVE_RESERVATION_EXISTS',
-          'User already has an active rental. Please return it first.'
-        );
-      }
-      await c.execute("UPDATE reservations SET status = 'CANCELLED' WHERE id = ?", [prev.id]);
-      if (prev.vehicle_id && Number(prev.vehicle_id) !== Number(vid)) {
-        await c.execute("UPDATE vehicles SET status = 'AVAILABLE' WHERE id = ? AND status = 'RESERVED'", [
-          prev.vehicle_id,
-        ]);
-      }
-    }
-
     const start = body.startTime ? new Date(body.startTime) : new Date();
     const validStart = Number.isNaN(start.getTime()) ? new Date() : start;
     const end = body.endTime
       ? new Date(body.endTime)
-      : new Date(validStart.getTime() + 15 * 60000);
+      : new Date(validStart.getTime() + 2 * 3600 * 1000);
     const validEnd = Number.isNaN(end.getTime())
-      ? new Date(validStart.getTime() + 15 * 60000)
+      ? new Date(validStart.getTime() + 2 * 3600 * 1000)
       : end;
 
-    assertTransition('vehicle', v.status, 'RESERVED');
-    await c.execute("UPDATE vehicles SET status = 'RESERVED' WHERE id = ?", [vid]);
+    const startSql = mysqlDate(validStart);
+    const endSql = mysqlDate(validEnd);
+
+    // Check time-window overlap on this vehicle across all users
+    const [overlapping] = await c.execute(
+      `SELECT id FROM reservations
+       WHERE vehicle_id = ?
+         AND reservation_type = 'VEHICLE'
+         AND status IN ('CONFIRMED', 'ACTIVE')
+         AND start_time < ?
+         AND end_time > ?
+       LIMIT 1 FOR UPDATE`,
+      [vid, endSql, startSql]
+    );
+    if (overlapping.length > 0) {
+      fail(
+        409,
+        'VEHICLE_TIME_SLOT_BOOKED',
+        'This vehicle is already booked in that time window. Please choose another available hour.'
+      );
+    }
+
+    const isImmediateWindow = validStart.getTime() <= Date.now() + 2 * 3600 * 1000;
+    if (isImmediateWindow && v.status === 'AVAILABLE') {
+      assertTransition('vehicle', v.status, 'RESERVED');
+      await c.execute("UPDATE vehicles SET status = 'RESERVED' WHERE id = ?", [vid]);
+    }
     const reservationCode = code('RES-V');
     const [result] = await c.execute(
       `INSERT INTO reservations (reservation_code, user_id, reservation_type, hub_id, vehicle_id, start_time, end_time, status)
        VALUES (?, ?, 'VEHICLE', ?, ?, ?, ?, 'CONFIRMED')`,
-      [reservationCode, uid, v.current_hub_id, vid, mysqlDate(validStart), mysqlDate(validEnd)]
+      [reservationCode, uid, v.current_hub_id, vid, startSql, endSql]
     );
     return {
       id: result.insertId,
@@ -185,12 +192,19 @@ async function reserveParking(user, body) {
   const plateNote = body.licensePlate ? String(body.licensePlate).trim() : null;
 
   return withTransaction(async (c) => {
-    await liveHub(c, hubId);
+    // Allow booking future/non-overlapping 7-day time windows even if Hub is currently FULL right now
+    await liveHub(c, hubId, { allowFull: true });
+    const isImmediateWindow =
+      new Date(start.replace(' ', 'T')).getTime() <= Date.now() + 2 * 3600 * 1000;
+
     const [slots] = await c.execute(
       `SELECT s.* FROM parking_slots s
        WHERE s.hub_id = ?
          AND s.slot_type IN ('PRIVATE_EV', 'UNIVERSAL')
          AND s.status <> 'OUT_OF_SERVICE'
+         AND NOT EXISTS (
+           SELECT 1 FROM vehicles v WHERE v.parking_slot_id = s.id
+         )
          AND NOT EXISTS (
            SELECT 1 FROM reservations r
            WHERE r.parking_slot_id = s.id
@@ -203,13 +217,21 @@ async function reserveParking(user, body) {
       [hubId, end, start]
     );
 
-    const slot = slots.find((s) => s.status === 'FREE');
+    const requestedSlotId = body.parkingSlotId ? Number(body.parkingSlotId) : null;
+    const slot = requestedSlotId
+      ? slots.find((s) => Number(s.id) === requestedSlotId && (!isImmediateWindow || s.status !== 'OCCUPIED'))
+      : slots.find((s) => !isImmediateWindow || s.status === 'FREE') || slots[0];
+
     if (!slot) {
-      fail(409, 'HUB_PARKING_FULL', 'No compatible parking slot available in requested window.');
+      fail(
+        409,
+        'HUB_PARKING_FULL',
+        'That time window is already booked on all customer parking slots. Please choose another available hour.'
+      );
     }
 
     const reservationCode = code('RES-P');
-    if (slot.status === 'FREE') {
+    if (isImmediateWindow && slot.status === 'FREE') {
       assertTransition('parkingSlot', slot.status, 'RESERVED');
       await c.execute("UPDATE parking_slots SET status = 'RESERVED' WHERE id = ?", [slot.id]);
     }
@@ -280,8 +302,8 @@ async function pickup(user, id, body = {}) {
     if (r.reservation_type !== 'VEHICLE' || r.status !== 'CONFIRMED') {
       fail(409, 'INVALID_STATE_TRANSITION', 'Reservation is not ready for pickup.');
     }
-    if (Date.now() > new Date(r.created_at).getTime() + 15 * 60000) {
-      fail(409, 'RESERVATION_EXPIRED', '15-minute hold expired.');
+    if (Date.now() > new Date(r.end_time).getTime() + 15 * 60000) {
+      fail(409, 'RESERVATION_EXPIRED', 'Booking window has passed.');
     }
     const v = await selectOne(c, 'SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [r.vehicle_id]);
     if (body.hubId != null && requiredId(body.hubId, 'hubId') !== v.current_hub_id) {
@@ -289,6 +311,10 @@ async function pickup(user, id, body = {}) {
     }
     if (v.current_hub_id !== r.hub_id) {
       fail(409, 'WRONG_PICKUP_HUB', 'Vehicle moved from reservation hub.');
+    }
+    if (v.status === 'AVAILABLE') {
+      assertTransition('vehicle', 'AVAILABLE', 'RESERVED');
+      v.status = 'RESERVED';
     }
     assertTransition('vehicle', v.status, 'IN_USE');
     if (v.parking_slot_id) {
@@ -421,7 +447,7 @@ async function expireVehicleHolds() {
   const [rows] = await pool.execute(
     `SELECT id, user_id FROM reservations
      WHERE reservation_type = 'VEHICLE' AND status = 'CONFIRMED'
-       AND created_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+       AND end_time < DATE_SUB(NOW(), INTERVAL 15 MINUTE)
      ORDER BY id LIMIT 100`
   );
   let expired = 0;
@@ -429,7 +455,7 @@ async function expireVehicleHolds() {
     try {
       await withTransaction(async (c) => {
         const r = await authorizedReservation(c, row.id, { id: row.user_id, role: 'USER' });
-        if (r.status !== 'CONFIRMED' || Date.now() < new Date(r.created_at).getTime() + 15 * 60000) {
+        if (r.status !== 'CONFIRMED' || Date.now() < new Date(r.end_time).getTime() + 15 * 60000) {
           return;
         }
         const v = await selectOne(c, 'SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [

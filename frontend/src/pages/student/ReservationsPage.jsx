@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { hubApi, reservationApi, vehicleApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
+import {
+  TimeSlotWeekPicker,
+  findFirstFreeHour,
+  isWindowBooked,
+} from '../../components/common/TimeSlotWeekPicker';
 import vehicleImage from '../../components/common/images/vehicle.jpg';
 
 const HOURLY_RATE = 3;
@@ -142,6 +147,7 @@ export function ReservationsPage() {
   const [stage, setStage] = useState(location.state?.vehicle ? 'booking' : 'list');
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [returnHubId, setReturnHubId] = useState('');
+  const [vehicleBookings, setVehicleBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -166,6 +172,36 @@ export function ReservationsPage() {
   useEffect(() => {
     if (draftVehicle && draftHub) setPickupHubId(String(draftHub.id));
   }, [draftVehicle, draftHub]);
+
+  useEffect(() => {
+    if (!pickupHubId) return;
+    hubApi
+      .getBookedWindows(pickupHubId)
+      .then((w) => setVehicleBookings(w?.vehicleBookings || []))
+      .catch(() => setVehicleBookings([]));
+  }, [pickupHubId]);
+
+  const bookedIntervalsForDraftVehicle = useMemo(() => {
+    if (!draftVehicle?.id) return [];
+    return vehicleBookings.filter((b) => Number(b.vehicleId) === Number(draftVehicle.id));
+  }, [vehicleBookings, draftVehicle?.id]);
+
+  useEffect(() => {
+    if (!draftVehicle || !bookingDate) return;
+    const curStartMs = pickupTime ? new Date(`${bookingDate}T${pickupTime}:00`).getTime() : NaN;
+    const curEndMs = curStartMs + Number(durationHours || 1) * 3600 * 1000;
+    const isInvalid =
+      !pickupTime ||
+      Number.isNaN(curStartMs) ||
+      curStartMs < Date.now() - 60000 ||
+      isWindowBooked(curStartMs, curEndMs, bookedIntervalsForDraftVehicle);
+
+    if (isInvalid) {
+      const nextFree = findFirstFreeHour(bookingDate, bookedIntervalsForDraftVehicle);
+      setPickupTime(nextFree);
+      if (nextFree) setDurationHours(1);
+    }
+  }, [bookingDate, draftVehicle, bookedIntervalsForDraftVehicle]);
 
   const currentPickupHub = hubs.find((hub) => String(hub.id) === String(pickupHubId)) || draftHub;
   const duration = Number(durationHours);
@@ -221,10 +257,18 @@ export function ReservationsPage() {
       setError('Enter a valid pickup date and time.');
       return;
     }
-    if (start.getTime() < Date.now()) {
+    if (start.getTime() < Date.now() - 60000) {
       setError('Pickup date and time cannot be in the past.');
       return;
     }
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const toLocalStr = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+        d.getHours()
+      )}:${pad(d.getMinutes())}:00`;
+    const localStartStr = toLocalStr(start);
+    const localEndStr = toLocalStr(end);
 
     try {
       setLoading(true);
@@ -232,8 +276,8 @@ export function ReservationsPage() {
         userId: user?.id,
         hubId: Number(currentPickupHub.id),
         vehicleId: Number(draftVehicle.id),
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
+        startTime: localStartStr,
+        endTime: localEndStr,
       });
       const createdReservation = normalizeReservation({
         ...response,
@@ -244,8 +288,8 @@ export function ReservationsPage() {
         vehicleId: Number(draftVehicle.id),
         vehicleCode: draftVehicle.code,
         parkingSlotCode: getPositionCode({}, draftVehicle),
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
+        startTime: localStartStr,
+        endTime: localEndStr,
         status: response.status || 'CONFIRMED',
       });
       setSelectedReservation({ ...createdReservation, vehicle: draftVehicle });
@@ -363,55 +407,43 @@ export function ReservationsPage() {
 
           <section className="reservation-details-card">
             <h2>Reservation details</h2>
-            <form onSubmit={handleBook}>
-              <div className="reservation-field-grid">
-                <label>
-                  Pickup hub
-                  <select value={pickupHubId} onChange={(event) => setPickupHubId(event.target.value)} required>
-                    {hubs.map((hub) => (
-                      <option key={hub.id} value={hub.id}>{hub.name.replace(/\s+Hub$/i, '')}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Rental duration
-                  <select value={durationHours} onChange={(event) => setDurationHours(Number(event.target.value))}>
-                    {[1, 2, 3, 4, 5, 6].map((hours) => (
-                      <option key={hours} value={hours}>{hours} {hours === 1 ? 'hour' : 'hours'}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Date
-                  <input
-                    type="date"
-                    value={bookingDate}
-                    min={today}
-                    required
-                    onChange={(event) => setBookingDate(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Pickup time
-                  <input
-                    type="time"
-                    value={pickupTime}
-                    min={bookingDate === today ? nowTime : undefined}
-                    required
-                    onChange={(event) => setPickupTime(event.target.value)}
-                  />
-                </label>
-              </div>
+            <form onSubmit={handleBook} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <label>
+                Pickup hub
+                <select value={pickupHubId} onChange={(event) => setPickupHubId(event.target.value)} required>
+                  {hubs.map((hub) => (
+                    <option key={hub.id} value={hub.id}>{hub.name.replace(/\s+Hub$/i, '')}</option>
+                  ))}
+                </select>
+              </label>
+
+              <TimeSlotWeekPicker
+                date={bookingDate}
+                onDateChange={(nextDate) => {
+                  setBookingDate(nextDate);
+                  setError('');
+                }}
+                startTime={pickupTime}
+                onStartTimeChange={(nextTime) => {
+                  setPickupTime(nextTime);
+                  setError('');
+                }}
+                durationHours={durationHours}
+                onDurationChange={setDurationHours}
+                bookedIntervals={bookedIntervalsForDraftVehicle}
+                disabled={loading}
+              />
+
               <h3>Booking summary</h3>
               <div className="reservation-summary-row">
                 <span>Ride / return time</span>
-                <strong>{pickupTime || '—'} – {endTime || '—'}</strong>
+                <strong>{pickupTime ? `${pickupTime} – ${endTime}` : 'No free slot on this day'}</strong>
               </div>
               <div className="reservation-summary-row">
                 <span>Total · {duration} {duration === 1 ? 'hour' : 'hours'} × $3</span>
                 <strong>${fee.toFixed(2)}</strong>
               </div>
-              <button className="reservation-primary-long-button" type="submit" disabled={loading}>
+              <button className="reservation-primary-long-button" type="submit" disabled={loading || !pickupTime}>
                 {loading ? 'Confirming...' : 'Confirm booking'}
               </button>
             </form>

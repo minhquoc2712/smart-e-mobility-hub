@@ -56,6 +56,10 @@ export const hubApi = {
   },
   getHubById: (hubId) =>
     IS_MOCK_MODE ? mockServer.getHubById(hubId) : httpRequest(`/hubs/${hubId}`),
+  getBookedWindows: (hubId) =>
+    IS_MOCK_MODE
+      ? Promise.resolve({ chargerBookings: [], parkingBookings: [], vehicleBookings: [] })
+      : httpRequest(`/hubs/${hubId}/booked-windows`),
   getParkingSlots: (hubId) =>
     IS_MOCK_MODE
       ? mockServer.getParkingSlots(hubId)

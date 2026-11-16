@@ -1,6 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { chargingApi, hubApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
+import {
+  TimeSlotWeekPicker,
+  findFirstFreeHour,
+  getLocalDateStr,
+  isWindowBooked,
+} from '../../components/common/TimeSlotWeekPicker';
 import chargingImage from '../../components/common/images/charging spot.jpg';
 
 const VEHICLES_KEY = 'semh_private_vehicles';
@@ -8,27 +14,6 @@ const DEFAULT_VEHICLES = [
   { id: 'PV-018', name: 'My e-bike', type: 'Private electric bike', battery: 38 },
 ];
 const RATE_PER_HOUR = 1;
-
-function getLocalDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getInitialSchedule() {
-  const start = new Date();
-  start.setMinutes(0, 0, 0);
-  if (start.getTime() <= Date.now()) start.setHours(start.getHours() + 1);
-  if (start.getHours() > 22) {
-    start.setDate(start.getDate() + 1);
-    start.setHours(8, 0, 0, 0);
-  }
-  return {
-    date: getLocalDate(start),
-    time: `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`,
-  };
-}
 
 function getConnector(vehicle) {
   const type = vehicle?.type?.toLowerCase() || '';
@@ -52,20 +37,60 @@ function displayDate(date) {
 
 export function ChargingPage() {
   const { user } = useAuth();
-  const initialSchedule = useMemo(getInitialSchedule, []);
+  const today = useMemo(() => getLocalDateStr(new Date()), []);
   const [hubs, setHubs] = useState([]);
   const [vehicles, setVehicles] = useState(DEFAULT_VEHICLES);
   const [hubId, setHubId] = useState('');
   const [vehicleId, setVehicleId] = useState(DEFAULT_VEHICLES[0].id);
   const [chargingPoints, setChargingPoints] = useState([]);
-  const [date, setDate] = useState(initialSchedule.date);
-  const [startTime, setStartTime] = useState(initialSchedule.time);
-  const [durationHours, setDurationHours] = useState(1);
+  const [chargerBookings, setChargerBookings] = useState([]);
+  const [myRegistrations, setMyRegistrations] = useState([]);
+
   const [slotCode, setSlotCode] = useState('');
-  const [registration, setRegistration] = useState(null);
+  const [date, setDate] = useState(today);
+  const [startTime, setStartTime] = useState('');
+  const [durationHours, setDurationHours] = useState(1);
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const refreshMyRegistrations = useCallback(() => {
+    chargingApi
+      .getChargingRequests()
+      .then((requests) => {
+        if (user?.id == null) return;
+        const active = (requests || []).filter(
+          (r) =>
+            String(r.userId ?? r.user_id) === String(user?.id) &&
+            (r.ownershipType ?? r.ownership_type) === 'PRIVATE' &&
+            ['SCHEDULED', 'QUEUED', 'CHARGING'].includes(String(r.status || '').toUpperCase())
+        );
+        setMyRegistrations(active);
+      })
+      .catch(() => {});
+  }, [user?.id]);
+
+  const refreshHubChargersAndBookings = useCallback(async (targetHubId) => {
+    if (!targetHubId) return;
+    const [points, windows] = await Promise.all([
+      hubApi.getChargingPoints(targetHubId),
+      hubApi.getBookedWindows(targetHubId).catch(() => ({ chargerBookings: [] })),
+    ]);
+    const operational = (points || []).filter(
+      (point) => String(point.status).toUpperCase() !== 'OUT_OF_SERVICE'
+    );
+    setChargingPoints(operational);
+    setChargerBookings(windows?.chargerBookings || []);
+    setSlotCode((prev) => {
+      if (prev && operational.some((p) => getChargingPointCode(p) === prev)) {
+        return prev;
+      }
+      const firstAvail =
+        operational.find((p) => String(p.status).toUpperCase() !== 'CHARGING') || operational[0];
+      return firstAvail ? getChargingPointCode(firstAvail) : '';
+    });
+  }, []);
 
   useEffect(() => {
     const savedVehicles = JSON.parse(sessionStorage.getItem(VEHICLES_KEY) || 'null');
@@ -95,102 +120,86 @@ export function ChargingPage() {
       })
       .catch((loadError) => setError(loadError.message || 'Unable to load charging hubs.'));
 
-    chargingApi
-      .getChargingRequests()
-      .then((requests) => {
-        if (user?.id == null) return;
-        const now = Date.now();
-        const existingRegistration = requests.find(
-          (request) =>
-            String(request.userId ?? request.user_id) === String(user?.id) &&
-            (request.ownershipType ?? request.ownership_type) === 'PRIVATE' &&
-            ['SCHEDULED', 'QUEUED'].includes(String(request.status || '').toUpperCase()) &&
-            new Date(request.scheduledEnd ?? request.scheduled_end).getTime() > now
-        );
-        if (existingRegistration) setRegistration(existingRegistration);
-      })
-      .catch((loadError) =>
-        setError(loadError.message || 'Unable to load charging registrations.')
-      );
-  }, [user?.id, user?.privateVehiclePlate, user?.privateVehicleModel]);
+    refreshMyRegistrations();
+  }, [user?.privateVehiclePlate, user?.privateVehicleModel, refreshMyRegistrations]);
 
   useEffect(() => {
-    let active = true;
-    setChargingPoints([]);
-    setSlotCode('');
-    if (!hubId) {
-      return () => {
-        active = false;
-      };
-    }
-
-    hubApi
-      .getChargingPoints(hubId)
-      .then((points) => {
-        if (!active) return;
-        const operational = (points || []).filter(
-          (point) => String(point.status).toUpperCase() !== 'OUT_OF_SERVICE'
-        );
-        setChargingPoints(operational);
-        const firstAvail = operational.find(
-          (point) => String(point.status).toUpperCase() === 'AVAILABLE'
-        );
-        setSlotCode(firstAvail ? getChargingPointCode(firstAvail) : 'WAITLIST');
-      })
-      .catch((loadError) => {
-        if (!active) return;
-        setChargingPoints([]);
-        setSlotCode('');
-        setError(loadError.message || 'Unable to load charging points.');
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [hubId]);
+    if (!hubId) return;
+    refreshHubChargersAndBookings(hubId).catch((err) =>
+      setError(err.message || 'Unable to load charging slots.')
+    );
+  }, [hubId, refreshHubChargersAndBookings]);
 
   const selectedVehicle =
     vehicles.find((vehicle) => String(vehicle.id) === String(vehicleId)) || vehicles[0];
   const selectedHub = hubs.find((hub) => String(hub.id) === String(hubId));
-  const availablePoints = chargingPoints.filter(
-    (p) => String(p.status).toUpperCase() === 'AVAILABLE'
-  );
-  const selectedChargingPoint = availablePoints.find(
+  const selectedChargingPoint = chargingPoints.find(
     (point) => getChargingPointCode(point) === slotCode
   );
+
+  // Booked intervals ONLY for the currently selected charger!
+  const bookedIntervalsForCharger = useMemo(() => {
+    if (!selectedChargingPoint) return [];
+    return chargerBookings.filter(
+      (b) => Number(b.chargingPointId) === Number(selectedChargingPoint.id)
+    );
+  }, [chargerBookings, selectedChargingPoint]);
+
+  // Auto-select first free hour when date or charger changes if current startTime is empty or booked
+  useEffect(() => {
+    if (!date) return;
+    const curStartMs = startTime ? new Date(`${date}T${startTime}:00`).getTime() : NaN;
+    const curEndMs = curStartMs + Number(durationHours || 1) * 3600 * 1000;
+    const isInvalid =
+      !startTime ||
+      Number.isNaN(curStartMs) ||
+      curStartMs < Date.now() - 60000 ||
+      isWindowBooked(curStartMs, curEndMs, bookedIntervalsForCharger);
+
+    if (isInvalid) {
+      const nextFree = findFirstFreeHour(date, bookedIntervalsForCharger);
+      setStartTime(nextFree);
+      if (nextFree) setDurationHours(1);
+    }
+  }, [date, slotCode, bookedIntervalsForCharger]);
+
   const duration = Number(durationHours);
   const endTime = useMemo(() => {
     if (!startTime) return '';
     const [hours, minutes] = startTime.split(':').map(Number);
     const end = new Date(2000, 0, 1, hours, minutes + duration * 60);
-    return `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
+    return `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(
+      2,
+      '0'
+    )}`;
   }, [startTime, duration]);
   const total = (duration * RATE_PER_HOUR).toFixed(2);
-  const today = getLocalDate(new Date());
-  const currentTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(
-    new Date().getMinutes()
-  ).padStart(2, '0')}`;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
     setSuccess('');
 
-    if (!date || !startTime || !duration || !hubId || !selectedVehicle) {
-      setError('Complete all charging details before registering.');
+    if (!date || !startTime || !duration || !hubId || !selectedVehicle || !selectedChargingPoint) {
+      setError('Please select a charger and an available (unshaded) start time.');
       return;
     }
 
-    const scheduledStart = new Date(`${date}T${startTime}`);
-    const scheduledEnd = new Date(scheduledStart.getTime() + duration * 60 * 60 * 1000);
-    if (Number.isNaN(scheduledStart.getTime()) || Number.isNaN(scheduledEnd.getTime())) {
-      setError('Enter a valid charging date and time.');
+    const [hh, mm] = startTime.split(':').map(Number);
+    const [yy, mo, dd] = date.split('-').map(Number);
+    const scheduledStart = new Date(yy, mo - 1, dd, hh, mm, 0);
+    const scheduledEnd = new Date(scheduledStart.getTime() + duration * 3600 * 1000);
+
+    if (isWindowBooked(scheduledStart.getTime(), scheduledEnd.getTime(), bookedIntervalsForCharger)) {
+      setError('Selected time range overlaps a greyed-out booked slot. Please choose free hours.');
       return;
     }
-    if (scheduledStart.getTime() < Date.now() - 60000) {
-      setError('Charging date and start time cannot be in the past.');
-      return;
-    }
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const toLocalStr = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+        d.getHours()
+      )}:${pad(d.getMinutes())}:00`;
 
     try {
       setSubmitting(true);
@@ -199,30 +208,17 @@ export function ChargingPage() {
         hubId: Number(hubId),
         ownershipType: 'PRIVATE',
         vehicleId: null,
-        chargingPointId: selectedChargingPoint?.id || null,
+        chargingPointId: selectedChargingPoint.id,
         slotCode,
         privateVehicleLabel: `${selectedVehicle.name} · ${selectedVehicle.id}`,
         currentBatteryLevel: Number(selectedVehicle.battery) || 38,
         targetBatteryLevel: 85,
-        scheduledStart: scheduledStart.toISOString(),
-        scheduledEnd: scheduledEnd.toISOString(),
+        scheduledStart: toLocalStr(scheduledStart),
+        scheduledEnd: toLocalStr(scheduledEnd),
       };
-      const created = await chargingApi.createChargingRequest(payload);
-      setRegistration({
-        ...payload,
-        ...created,
-        hubName: selectedHub?.name,
-        slotCode: created.chargerCode || slotCode,
-      });
-      if (created.status === 'QUEUED') {
-        setSuccess(
-          `All chargers in ${startTime}–${endTime} are locked by earlier bookings. You joined the Priority Waitlist (#${created.queuePosition || 1})!`
-        );
-      } else {
-        setSuccess(
-          `Time-slot ${startTime}–${endTime} on ${created.chargerCode || slotCode} is now LOCKED for your vehicle!`
-        );
-      }
+      await chargingApi.createChargingRequest(payload);
+      await Promise.all([refreshHubChargersAndBookings(hubId), refreshMyRegistrations()]);
+      setSuccess(`Booked ${slotCode} on ${displayDate(date)} (${startTime}–${endTime}).`);
     } catch (requestError) {
       setError(requestError.message || 'Unable to register for charging.');
     } finally {
@@ -230,18 +226,13 @@ export function ChargingPage() {
     }
   };
 
-  const handleCancelRegistration = async () => {
-    if (!registration?.id) {
-      setError('The registration has no server ID and cannot be cancelled.');
-      return;
-    }
-
+  const handleCancelRegistration = async (reqId) => {
     try {
       setSubmitting(true);
       setError('');
-      await chargingApi.cancelChargingRequest(registration.id);
-      setRegistration(null);
-      setSuccess('Charging registration cancelled and slot released in MySQL.');
+      await chargingApi.cancelChargingRequest(reqId);
+      await Promise.all([refreshHubChargersAndBookings(hubId), refreshMyRegistrations()]);
+      setSuccess('Charging slot cancelled — those hours are now open again.');
     } catch (requestError) {
       setError(requestError.message || 'Unable to cancel charging registration.');
     } finally {
@@ -249,24 +240,15 @@ export function ChargingPage() {
     }
   };
 
-  const handleHubChange = (event) => {
-    setHubId(event.target.value);
-    setSlotCode('');
-  };
-
   return (
     <div className="charging-registration-page">
       <header className="charging-page-heading">
         <h1>Register for charging</h1>
-        <p>
-          Reserve a charging slot for your private vehicle — confirmed time windows are{' '}
-          <strong>locked first</strong>; if full, requests join the{' '}
-          <strong>Battery Priority Waitlist</strong>.
-        </p>
+        <p>Reserve a charging slot for your private vehicle at a nearby hub.</p>
       </header>
 
       <div className="charging-page-grid">
-        <section className={`charging-details-card${registration ? ' is-registered' : ''}`}>
+        <section className="charging-details-card">
           <h2>Charging details</h2>
           <form id="charging-registration-form" onSubmit={handleSubmit}>
             <div className="charging-fields-row">
@@ -275,11 +257,10 @@ export function ChargingPage() {
                 <select
                   value={vehicleId}
                   onChange={(event) => setVehicleId(event.target.value)}
-                  disabled={Boolean(registration)}
                 >
                   {vehicles.map((vehicle) => (
                     <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.name} · {vehicle.id} ({vehicle.battery}%)
+                      {vehicle.name} · {vehicle.id}
                     </option>
                   ))}
                 </select>
@@ -297,86 +278,68 @@ export function ChargingPage() {
               </label>
             </div>
 
-            <label>
-              Charging hub
-              <select
-                value={hubId}
-                onChange={handleHubChange}
-                required
-                disabled={Boolean(registration)}
-              >
-                {hubs.map((hub) => (
-                  <option key={hub.id} value={hub.id}>
-                    {hub.name} — {hub.campusZone}
-                  </option>
-                ))}
-              </select>
-            </label>
-
             <div className="charging-fields-row">
               <label>
-                Charger / Waitlist
+                Charging hub
                 <select
-                  value={slotCode}
-                  onChange={(event) => setSlotCode(event.target.value)}
-                  disabled={Boolean(registration)}
+                  value={hubId}
+                  onChange={(e) => {
+                    setHubId(e.target.value);
+                    setError('');
+                    setSuccess('');
+                  }}
                   required
                 >
-                  {availablePoints.map((point) => {
+                  {hubs.map((hub) => (
+                    <option key={hub.id} value={hub.id}>
+                      {hub.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Charging slot
+                <select
+                  value={slotCode}
+                  onChange={(event) => {
+                    setSlotCode(event.target.value);
+                    setError('');
+                  }}
+                  required
+                >
+                  {chargingPoints.length === 0 && <option value="">No chargers at hub</option>}
+                  {chargingPoints.map((point) => {
                     const code = getChargingPointCode(point);
                     return (
                       <option key={point.id} value={code}>
-                        {code} · Available (Locks time slot)
+                        {code} ({point.maxPowerKw || 3.5} kW)
                       </option>
                     );
                   })}
-                  <option value="WAITLIST">
-                    ⏳ Join Priority Waitlist (if chosen window is full)
-                  </option>
                 </select>
-              </label>
-              <label>
-                Date
-                <input
-                  type="date"
-                  value={date}
-                  min={today}
-                  required
-                  onChange={(event) => setDate(event.target.value)}
-                  disabled={Boolean(registration)}
-                />
               </label>
             </div>
 
-            <div className="charging-fields-row">
-              <label>
-                Start time
-                <input
-                  type="time"
-                  value={startTime}
-                  min={date === today ? currentTime : undefined}
-                  required
-                  onChange={(event) => setStartTime(event.target.value)}
-                  disabled={Boolean(registration)}
-                />
-              </label>
-              <label>
-                Duration
-                <select
-                  value={durationHours}
-                  onChange={(event) => setDurationHours(Number(event.target.value))}
-                  disabled={Boolean(registration)}
-                >
-                  <option value={1}>1 hour</option>
-                  <option value={2}>2 hours</option>
-                  <option value={3}>3 hours</option>
-                  <option value={4}>4 hours</option>
-                </select>
-              </label>
-            </div>
+            <TimeSlotWeekPicker
+              date={date}
+              onDateChange={(nextDate) => {
+                setDate(nextDate);
+                setError('');
+              }}
+              startTime={startTime}
+              onStartTimeChange={(nextTime) => {
+                setStartTime(nextTime);
+                setError('');
+              }}
+              durationHours={durationHours}
+              onDurationChange={setDurationHours}
+              bookedIntervals={bookedIntervalsForCharger}
+              disabled={submitting || !selectedChargingPoint}
+            />
+
             <p className="charging-form-note">
-              🔒 Booking rule: Once confirmed, your time window ({startTime}–{endTime}) is locked
-              exclusively for you and cannot be overridden by later bookings.
+              Bring your own compatible charger. Your slot is held for the selected charging period.
             </p>
           </form>
         </section>
@@ -396,11 +359,7 @@ export function ChargingPage() {
             <span>Hub / slot</span>
             <strong className="charging-summary-hub-slot">
               <span>{selectedHub?.name?.replace(/\s+Hub$/i, '') || 'Select a hub'} ·</span>
-              <span>
-                {registration?.chargerCode ||
-                  registration?.slotCode ||
-                  (slotCode === 'WAITLIST' ? 'Priority Waitlist' : slotCode || 'Auto-assign')}
-              </span>
+              <span>{slotCode || 'No slot'}</span>
             </strong>
           </div>
           <div className="charging-summary-row">
@@ -410,7 +369,7 @@ export function ChargingPage() {
           <div className="charging-summary-row">
             <span>Charging time</span>
             <strong>
-              {startTime || '—'} – {endTime || '—'}
+              {startTime ? `${startTime} – ${endTime}` : 'No free slot on this day'}
             </strong>
           </div>
           <div className="charging-summary-row">
@@ -429,24 +388,78 @@ export function ChargingPage() {
               {success}
             </p>
           )}
-          {registration ? (
-            <button
-              type="button"
-              className="charging-cancel-button"
-              onClick={handleCancelRegistration}
-              disabled={submitting}
+          <button
+            type="submit"
+            form="charging-registration-form"
+            className="charging-register-button"
+            disabled={submitting || !hubId || !startTime}
+          >
+            {submitting ? 'Registering...' : 'Register charging'}
+          </button>
+
+          {myRegistrations.length > 0 && (
+            <div
+              style={{
+                marginTop: 14,
+                paddingTop: 12,
+                borderTop: '1px solid #d4e8d4',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
             >
-              {submitting ? 'Cancelling...' : 'Cancel registration'}
-            </button>
-          ) : (
-            <button
-              type="submit"
-              form="charging-registration-form"
-              className="charging-register-button"
-              disabled={submitting || !hubId}
-            >
-              {submitting ? 'Registering...' : 'Register charging'}
-            </button>
+              <strong style={{ fontSize: 14, color: '#1f3b24' }}>
+                Your booked charging windows ({myRegistrations.length})
+              </strong>
+              {myRegistrations.map((reg) => {
+                const sStr = String(reg.scheduledStart || reg.scheduled_start || '').replace(
+                  ' ',
+                  'T'
+                );
+                const eStr = String(reg.scheduledEnd || reg.scheduled_end || '').replace(' ', 'T');
+                return (
+                  <div
+                    key={reg.id}
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: 10,
+                      padding: '8px 10px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 13,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#1f3b24' }}>
+                        {reg.chargerCode || reg.slotCode || 'Charger'} · {sStr.slice(0, 10)}
+                      </div>
+                      <div style={{ color: '#556b5d' }}>
+                        {sStr.slice(11, 16)} – {eStr.slice(11, 16)} ({reg.hubName || 'Campus Hub'})
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => handleCancelRegistration(reg.id)}
+                      style={{
+                        background: '#fee2e2',
+                        color: '#991b1b',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '5px 10px',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </section>
       </div>

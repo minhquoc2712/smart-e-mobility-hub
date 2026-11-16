@@ -17,6 +17,11 @@ const getOne = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await hubsService.getHub(parseId(req.params.hubId, 'hubId')) });
 });
 
+const bookedWindows = asyncHandler(async (req, res) => {
+  const hubId = parseId(req.params.hubId, 'hubId');
+  res.json({ success: true, data: await hubsService.getBookedWindows(hubId) });
+});
+
 const listParkingSlots = asyncHandler(async (req, res) => {
   const hubId = parseId(req.params.hubId, 'hubId');
   const status = parseOptionalStatus('parkingSlot', req.query.status);
@@ -35,4 +40,12 @@ const changeStatus = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await hubsService.changeHubStatus(hubId, status) });
 });
 
-module.exports = { list, suggestions, getOne, listParkingSlots, listChargingPoints, changeStatus };
+module.exports = {
+  list,
+  suggestions,
+  getOne,
+  bookedWindows,
+  listParkingSlots,
+  listChargingPoints,
+  changeStatus,
+};

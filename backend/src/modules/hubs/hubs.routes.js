@@ -18,6 +18,7 @@ const router = express.Router();
 router.get('/', controller.list);
 router.get('/suggestions', controller.suggestions);
 router.get('/:hubId', controller.getOne);
+router.get('/:hubId/booked-windows', controller.bookedWindows);
 router.get('/:hubId/parking-slots', controller.listParkingSlots);
 router.get('/:hubId/charging-points', controller.listChargingPoints);
 router.patch('/:hubId/status', authenticateToken, requireRole('OPERATOR'), controller.changeStatus);

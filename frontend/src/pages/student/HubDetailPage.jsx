@@ -87,7 +87,7 @@ export function HubDetailPage() {
         <>
           <div className="vehicle-availability-grid">
             {vehicles.map((vehicle) => {
-              const isAvailable = vehicle.status === 'AVAILABLE';
+              const isBookable = ['AVAILABLE', 'RESERVED'].includes(vehicle.status);
               const battery = Math.min(100, Math.max(0, Number(vehicle.batteryLevel) || 0));
               return (
                 <article className="vehicle-availability-card" key={vehicle.id}>
@@ -117,10 +117,10 @@ export function HubDetailPage() {
                   <button
                     type="button"
                     className="vehicle-reserve-button"
-                    disabled={!isAvailable}
+                    disabled={!isBookable}
                     onClick={() => handleReserve(vehicle)}
                   >
-                    {isAvailable ? 'Reserve vehicle' : vehicle.status.replaceAll('_', ' ')}
+                    {isBookable ? 'Reserve vehicle' : vehicle.status.replaceAll('_', ' ')}
                   </button>
                 </article>
               );

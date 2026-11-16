@@ -143,4 +143,70 @@ async function updateStatus(conn, id, status) {
   await conn.execute('UPDATE hubs SET status = ? WHERE id = ?', [status, id]);
 }
 
-module.exports = { findAll, findSuggestions, findById, lockById, getStatus, getSlotUsage, updateStatus };
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function toLocalIso(val) {
+  if (!val) return val;
+  if (val instanceof Date) {
+    return `${val.getFullYear()}-${pad2(val.getMonth() + 1)}-${pad2(val.getDate())}T${pad2(
+      val.getHours()
+    )}:${pad2(val.getMinutes())}:${pad2(val.getSeconds())}`;
+  }
+  return String(val).replace(' ', 'T');
+}
+
+async function findBookedWindows(hubId) {
+  const [chargerRows] = await pool.execute(
+    `SELECT cr.id, cr.charging_point_id AS chargingPointId, cp.charger_code AS chargerCode,
+            cr.scheduled_start AS startTime, cr.scheduled_end AS endTime, cr.status
+     FROM charging_requests cr
+     LEFT JOIN charging_points cp ON cp.id = cr.charging_point_id
+     WHERE cr.hub_id = ?
+       AND cr.charging_point_id IS NOT NULL
+       AND cr.status IN ('SCHEDULED', 'CHARGING')
+       AND cr.scheduled_end >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+     ORDER BY cr.scheduled_start ASC`,
+    [hubId]
+  );
+
+  const [resRows] = await pool.execute(
+    `SELECT r.id, r.reservation_type AS reservationType,
+            r.parking_slot_id AS parkingSlotId, ps.slot_code AS slotCode,
+            r.vehicle_id AS vehicleId, v.code AS vehicleCode,
+            r.start_time AS startTime, r.end_time AS endTime, r.status
+     FROM reservations r
+     LEFT JOIN parking_slots ps ON ps.id = r.parking_slot_id
+     LEFT JOIN vehicles v ON v.id = r.vehicle_id
+     WHERE r.hub_id = ?
+       AND r.status IN ('CONFIRMED', 'ACTIVE')
+       AND r.end_time >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+     ORDER BY r.start_time ASC`,
+    [hubId]
+  );
+
+  return {
+    chargerBookings: chargerRows.map((r) => ({
+      ...r,
+      startTime: toLocalIso(r.startTime),
+      endTime: toLocalIso(r.endTime),
+    })),
+    parkingBookings: resRows
+      .filter((r) => r.reservationType === 'PARKING')
+      .map((r) => ({
+        ...r,
+        startTime: toLocalIso(r.startTime),
+        endTime: toLocalIso(r.endTime),
+      })),
+    vehicleBookings: resRows
+      .filter((r) => r.reservationType === 'VEHICLE')
+      .map((r) => ({
+        ...r,
+        startTime: toLocalIso(r.startTime),
+        endTime: toLocalIso(r.endTime),
+      })),
+  };
+}
+
+module.exports = { findAll, findSuggestions, findById, findBookedWindows, lockById, getStatus, getSlotUsage, updateStatus };

@@ -1,60 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { hubApi, reservationApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
+import {
+  TimeSlotWeekPicker,
+  findFirstFreeHour,
+  getLocalDateStr,
+  isWindowBooked,
+} from '../../components/common/TimeSlotWeekPicker';
 
-function toLocalDateTime(date, time) {
-  return `${date}T${time}:00`;
-}
-
-function getLocalDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getSuggestedTimes() {
-  const start = new Date();
-  start.setMinutes(0, 0, 0);
-  if (start.getTime() <= Date.now()) start.setHours(start.getHours() + 1);
-  if (start.getHours() > 20) {
-    start.setDate(start.getDate() + 1);
-    start.setHours(9, 0, 0, 0);
-  }
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-  return {
-    date: getLocalDate(start),
-    arrival: `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(
-      2,
-      '0'
-    )}`,
-    departure: `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(
-      2,
-      '0'
-    )}`,
-  };
-}
-
-/**
- * Safely normalizes any Date / ISO string / MySQL DATETIME into local 'YYYY-MM-DDTHH:mm:ss'
- * so 11:00–13:00 always displays as 11:00–13:00 without UTC offset drift.
- */
 function formatDateTime(value) {
   if (!value) return '';
   if (value instanceof Date) {
-    const date = getLocalDate(value);
+    const date = getLocalDateStr(value);
     const time = `${String(value.getHours()).padStart(2, '0')}:${String(
       value.getMinutes()
     ).padStart(2, '0')}`;
     return `${date}T${time}:00`;
   }
   const str = String(value).trim();
-  // If string has Z or +/-HH:MM timezone offset, parse into local browser Date
   if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(str)) {
     const parsed = new Date(str);
     if (!Number.isNaN(parsed.getTime())) {
-      const date = getLocalDate(parsed);
+      const date = getLocalDateStr(parsed);
       const time = `${String(parsed.getHours()).padStart(2, '0')}:${String(
         parsed.getMinutes()
       ).padStart(2, '0')}`;
@@ -89,24 +57,45 @@ function normalizeParkingReservation(reservation) {
 export function ParkingBookingPage() {
   const { hubId } = useParams();
   const { user } = useAuth();
-  const [suggestedTimes] = useState(getSuggestedTimes);
+  const today = useMemo(() => getLocalDateStr(new Date()), []);
+
   const [hub, setHub] = useState(null);
-  const [date, setDate] = useState(suggestedTimes.date);
-  const [arrival, setArrival] = useState(suggestedTimes.arrival);
-  const [departure, setDeparture] = useState(suggestedTimes.departure);
+  const [customerSlots, setCustomerSlots] = useState([]);
+  const [selectedSlotId, setSelectedSlotId] = useState('');
+  const [parkingBookings, setParkingBookings] = useState([]);
+
+  const [date, setDate] = useState(today);
+  const [startTime, setStartTime] = useState('');
+  const [durationHours, setDurationHours] = useState(2);
   const [licensePlate, setLicensePlate] = useState('');
+
   const [bookings, setBookings] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const loadData = async () => {
-    const [hubData, reservations] = await Promise.all([
+  const loadData = useCallback(async () => {
+    const [hubData, slots, windows, reservations] = await Promise.all([
       hubApi.getHubById(hubId),
+      hubApi.getParkingSlots(hubId).catch(() => []),
+      hubApi.getBookedWindows(hubId).catch(() => ({ parkingBookings: [] })),
       reservationApi.getMyReservations(user?.id),
     ]);
     setHub(hubData);
+    const compatibleSlots = (slots || []).filter(
+      (s) =>
+        ['PRIVATE_EV', 'UNIVERSAL'].includes(String(s.slotType || s.slot_type).toUpperCase()) &&
+        String(s.status).toUpperCase() !== 'OUT_OF_SERVICE' &&
+        !s.vehicleId
+    );
+    setCustomerSlots(compatibleSlots);
+    setSelectedSlotId((prev) => {
+      if (prev && compatibleSlots.some((s) => String(s.id) === String(prev))) return prev;
+      return compatibleSlots[0] ? String(compatibleSlots[0].id) : '';
+    });
+    setParkingBookings(windows?.parkingBookings || []);
+
     setBookings(
-      reservations
+      (reservations || [])
         .map(normalizeParkingReservation)
         .filter(
           (reservation) =>
@@ -115,48 +104,69 @@ export function ParkingBookingPage() {
             reservation.status !== 'CANCELLED'
         )
     );
-  };
+  }, [hubId, user?.id]);
 
   useEffect(() => {
     loadData().catch((loadError) =>
       setError(loadError.message || 'Unable to load parking details.')
     );
-  }, [hubId, user?.id]);
+  }, [loadData]);
 
-  const today = getLocalDate(new Date());
-  const currentTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(
-    new Date().getMinutes()
-  ).padStart(2, '0')}`;
-  const arrivalMin = date === today ? currentTime : undefined;
-  const departureMin =
-    date === today ? (arrival > currentTime ? arrival : currentTime) : arrival || undefined;
+  // Booked intervals ONLY for the selected parking slot
+  const bookedIntervalsForSlot = useMemo(() => {
+    if (!selectedSlotId) return [];
+    return parkingBookings.filter((b) => Number(b.parkingSlotId) === Number(selectedSlotId));
+  }, [parkingBookings, selectedSlotId]);
 
-  const validateBooking = () => {
-    if (!date || !arrival || !departure) {
-      return 'Enter a date, arrival time, and departure time.';
+  useEffect(() => {
+    if (!date) return;
+    const curStartMs = startTime ? new Date(`${date}T${startTime}:00`).getTime() : NaN;
+    const curEndMs = curStartMs + Number(durationHours || 1) * 3600 * 1000;
+    const isInvalid =
+      !startTime ||
+      Number.isNaN(curStartMs) ||
+      curStartMs < Date.now() - 60000 ||
+      isWindowBooked(curStartMs, curEndMs, bookedIntervalsForSlot);
+
+    if (isInvalid) {
+      const nextFree = findFirstFreeHour(date, bookedIntervalsForSlot);
+      setStartTime(nextFree);
+      if (nextFree) setDurationHours(1);
     }
-    const start = new Date(`${date}T${arrival}`);
-    const end = new Date(`${date}T${departure}`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return 'Enter a valid date and time.';
-    }
-    if (start.getTime() < Date.now() - 60000) {
-      return 'Arrival date and time cannot be in the past.';
-    }
-    if (end.getTime() < Date.now()) {
-      return 'Departure date and time cannot be in the past.';
-    }
-    if (end <= start) return 'Departure time must be after arrival time.';
-    return '';
-  };
+  }, [date, selectedSlotId, bookedIntervalsForSlot]);
+
+  const endTime = useMemo(() => {
+    if (!startTime) return '';
+    const [hh, mm] = startTime.split(':').map(Number);
+    const end = new Date(2000, 0, 1, hh, mm + Number(durationHours || 1) * 60);
+    return `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(
+      2,
+      '0'
+    )}`;
+  }, [startTime, durationHours]);
 
   const handleBook = async (event) => {
     event.preventDefault();
-    const validationError = validateBooking();
-    if (validationError) {
-      setError(validationError);
+    if (!date || !startTime || !selectedSlotId) {
+      setError('Please select a parking slot and an available (unshaded) start time.');
       return;
     }
+
+    const [hh, mm] = startTime.split(':').map(Number);
+    const [yy, mo, dd] = date.split('-').map(Number);
+    const start = new Date(yy, mo - 1, dd, hh, mm, 0);
+    const end = new Date(start.getTime() + Number(durationHours || 1) * 3600 * 1000);
+
+    if (isWindowBooked(start.getTime(), end.getTime(), bookedIntervalsForSlot)) {
+      setError('Selected range overlaps a greyed-out booked slot. Please choose free hours.');
+      return;
+    }
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const toLocalStr = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+        d.getHours()
+      )}:${pad(d.getMinutes())}:00`;
 
     try {
       setError('');
@@ -164,8 +174,9 @@ export function ParkingBookingPage() {
       await reservationApi.reserveParking({
         userId: user?.id,
         hubId: Number(hubId),
-        startTime: toLocalDateTime(date, arrival),
-        endTime: toLocalDateTime(date, departure),
+        parkingSlotId: Number(selectedSlotId),
+        startTime: toLocalStr(start),
+        endTime: toLocalStr(end),
         licensePlate: licensePlate.trim() || null,
       });
       setLicensePlate('');
@@ -215,67 +226,67 @@ export function ParkingBookingPage() {
               </strong>
             </div>
             {hub && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    padding: '3px 10px',
-                    borderRadius: 999,
-                    background:
-                      hubStatus === 'FULL'
-                        ? '#fee2e2'
-                        : hubStatus === 'NEAR_FULL'
-                        ? '#fef3c7'
-                        : '#dcfce7',
-                    color:
-                      hubStatus === 'FULL'
-                        ? '#991b1b'
-                        : hubStatus === 'NEAR_FULL'
-                        ? '#92400e'
-                        : '#166534',
-                  }}
-                >
-                  {hubStatus.replace('_', ' ')}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#1f3b24' }}>
-                  🅿️ {hub.freeParkingSlots ?? 0} free
-                </span>
-              </div>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: '3px 10px',
+                  borderRadius: 999,
+                  background:
+                    hubStatus === 'FULL'
+                      ? '#fee2e2'
+                      : hubStatus === 'NEAR_FULL'
+                      ? '#fef3c7'
+                      : '#dcfce7',
+                  color:
+                    hubStatus === 'FULL'
+                      ? '#991b1b'
+                      : hubStatus === 'NEAR_FULL'
+                      ? '#92400e'
+                      : '#166534',
+                }}
+              >
+                {hubStatus.replace('_', ' ')}
+              </span>
             )}
           </div>
+
           <label>
-            Date
-            <input
-              type="date"
-              value={date}
-              min={today}
+            Parking space
+            <select
+              value={selectedSlotId}
+              onChange={(e) => {
+                setSelectedSlotId(e.target.value);
+                setError('');
+              }}
               required
-              onChange={(event) => setDate(event.target.value)}
-            />
+            >
+              {customerSlots.length === 0 && <option value="">No customer parking spaces</option>}
+              {customerSlots.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.slotCode || s.slot_code} ({(s.slotType || s.slot_type || '').replace('_', ' ')})
+                </option>
+              ))}
+            </select>
           </label>
-          <div className="booking-time-grid">
-            <label>
-              Arrival time
-              <input
-                type="time"
-                value={arrival}
-                min={arrivalMin}
-                required
-                onChange={(event) => setArrival(event.target.value)}
-              />
-            </label>
-            <label>
-              Departure time
-              <input
-                type="time"
-                value={departure}
-                min={departureMin}
-                required
-                onChange={(event) => setDeparture(event.target.value)}
-              />
-            </label>
-          </div>
+
+          <TimeSlotWeekPicker
+            date={date}
+            onDateChange={(nextDate) => {
+              setDate(nextDate);
+              setError('');
+            }}
+            startTime={startTime}
+            onStartTimeChange={(nextTime) => {
+              setStartTime(nextTime);
+              setError('');
+            }}
+            durationHours={durationHours}
+            onDurationChange={setDurationHours}
+            bookedIntervals={bookedIntervalsForSlot}
+            disabled={loading || !selectedSlotId}
+          />
+
           <label>
             License plate (optional)
             <input
@@ -285,16 +296,17 @@ export function ParkingBookingPage() {
               placeholder="Enter your license plate (e.g. 59-MĐ1 123.45)"
             />
           </label>
+
           <button
             className="primary-action"
             type="submit"
-            disabled={loading || !hub || hubStatus === 'FULL'}
+            disabled={loading || !hub || !selectedSlotId || !startTime}
           >
             {loading
               ? 'Booking...'
-              : hubStatus === 'FULL'
-              ? 'Hub parking is FULL'
-              : 'Book parking'}
+              : startTime
+              ? `Book parking (${startTime} – ${endTime})`
+              : 'No free hours on this day'}
           </button>
         </form>
       </div>

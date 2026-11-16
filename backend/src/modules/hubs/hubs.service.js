@@ -22,6 +22,11 @@ async function getHub(hubId) {
   return hub;
 }
 
+async function getBookedWindows(hubId) {
+  await getHub(hubId);
+  return hubsRepo.findBookedWindows(hubId);
+}
+
 async function listParkingSlots(hubId, filters = {}) {
   await getHub(hubId);
   return slotsRepo.findAll({ ...filters, hubId });
@@ -79,6 +84,7 @@ module.exports = {
   listHubs,
   getSearchSuggestions,
   getHub,
+  getBookedWindows,
   listParkingSlots,
   listChargingPoints,
   assertHubOperational,

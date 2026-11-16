@@ -96,7 +96,9 @@ async function schedule(user, body) {
 
     const [hubs] = await c.execute('SELECT id, status FROM hubs WHERE id = ? FOR UPDATE', [hubId]);
     if (!hubs.length) error(404, 'HUB_NOT_FOUND', 'Hub not found.');
-    if (['MAINTENANCE', 'FULL'].includes(hubs[0].status)) error(409, 'HUB_CLOSED', 'Hub unavailable.');
+    if (hubs[0].status === 'MAINTENANCE') {
+      error(409, 'HUB_IN_MAINTENANCE', 'Hub is currently under maintenance.');
+    }
 
     // Lock all operational charging points at this Hub
     const [points] = await c.execute(
@@ -123,14 +125,25 @@ async function schedule(user, body) {
     );
     const lockedPointIds = new Set(overlapping.map((r) => Number(r.charging_point_id)));
 
+    const isImmediateWindow =
+      new Date(start.replace(' ', 'T')).getTime() <= Date.now() + 2 * 3600 * 1000;
+
     const freePointsInWindow = points.filter(
-      (p) => p.status !== 'CHARGING' && !lockedPointIds.has(Number(p.id))
+      (p) => (!isImmediateWindow || p.status !== 'CHARGING') && !lockedPointIds.has(Number(p.id))
     );
 
     const requestedPointId = body.chargingPointId ? Number(body.chargingPointId) : null;
+    if (requestedPointId && lockedPointIds.has(requestedPointId)) {
+      error(
+        409,
+        'TIME_SLOT_BOOKED',
+        'That time window is already booked on the selected charger. Please choose another hour or charger.'
+      );
+    }
+
     const assignedPoint =
       (requestedPointId && freePointsInWindow.find((p) => Number(p.id) === requestedPointId)) ||
-      freePointsInWindow[0] ||
+      (!requestedPointId ? freePointsInWindow[0] : null) ||
       null;
 
     const autoPriority =
@@ -161,7 +174,7 @@ async function schedule(user, body) {
         ]
       );
 
-      if (assignedPoint.status === 'AVAILABLE') {
+      if (isImmediateWindow && assignedPoint.status === 'AVAILABLE') {
         await c.execute(
           "UPDATE charging_points SET status = 'RESERVED', priority_level = ? WHERE id = ?",
           [priority, assignedPoint.id]
