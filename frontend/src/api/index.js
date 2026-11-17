@@ -97,6 +97,8 @@ export const reservationApi = {
     IS_MOCK_MODE
       ? mockServer.returnReservation(id, payload)
       : httpRequest(`/reservations/${id}/return`, { method: 'POST', body: JSON.stringify(payload) }),
+  parkingCheckOut: (id) =>
+    IS_MOCK_MODE ? Promise.resolve({ id, status: 'COMPLETED' }) : httpRequest(`/parking-reservations/${id}/check-out`, { method: 'POST' }),
   cancelReservation: (id) =>
     IS_MOCK_MODE
       ? mockServer.cancelReservation(id)
@@ -104,6 +106,8 @@ export const reservationApi = {
 };
 
 export const chargingApi = {
+  startCharging: (id) => IS_MOCK_MODE ? Promise.resolve({id,status:'CHARGING'}) : httpRequest(`/charging-requests/${id}/start`,{method:'POST'}),
+  stopCharging: (id) => IS_MOCK_MODE ? Promise.resolve({id,status:'COMPLETED'}) : httpRequest(`/charging-requests/${id}/stop`,{method:'POST'}),
   getChargingRequests: () =>
     IS_MOCK_MODE ? mockServer.getChargingRequests() : httpRequest('/charging-requests'),
   createChargingRequest: (payload) =>
@@ -124,6 +128,7 @@ export const chargingApi = {
 };
 
 export const operatorApi = {
+  getParkingBookings: () => IS_MOCK_MODE ? Promise.resolve([]) : httpRequest('/parking-reservations'),
   getDashboard: () =>
     IS_MOCK_MODE ? mockServer.getOperatorDashboard() : httpRequest('/operator/dashboard'),
 
@@ -132,7 +137,7 @@ export const operatorApi = {
       const data = await mockServer.getOperatorDashboard();
       return buildOperatorDashboardBundle({ rawDashboard: data });
     }
-    const rawDashboard = await httpRequest('/operator/dashboard');
+    const [rawDashboard, parkingBookings] = await Promise.all([httpRequest('/operator/dashboard'), httpRequest('/parking-reservations')]);
     if (
       rawDashboard &&
       rawDashboard.overview &&
@@ -140,7 +145,7 @@ export const operatorApi = {
       rawDashboard.manageParking &&
       rawDashboard.vehicleCharging
     ) {
-      return buildOperatorDashboardBundle({ rawDashboard });
+      return { ...buildOperatorDashboardBundle({ rawDashboard }), parkingBookings };
     }
     // Synthesize full bundle from real MySQL endpoints (/hubs, /vehicles, /parking-slots, /charging-points)
     const [hubs, vehicles, parkingSlots, chargingPoints] = await Promise.all([
@@ -149,13 +154,13 @@ export const operatorApi = {
       httpRequest('/parking-slots'),
       httpRequest('/charging-points'),
     ]);
-    return buildOperatorDashboardBundle({
+    return { ...buildOperatorDashboardBundle({
       rawDashboard,
       hubs,
       vehicles,
       parkingSlots,
       chargingPoints,
-    });
+    }), parkingBookings };
   },
 
   async getIncidents() {

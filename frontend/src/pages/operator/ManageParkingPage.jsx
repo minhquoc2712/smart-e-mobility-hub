@@ -1,27 +1,35 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { operatorApi, parkingSlotApi } from '../../api';
+import { operatorApi, parkingSlotApi, reservationApi } from '../../api';
 
 function formatClock(dateStr) {
-  if (!dateStr) return '08:30';
+  if (!dateStr) return '—';
   if (/^\d{2}:\d{2}$/.test(dateStr)) return dateStr;
   const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return '08:30';
+  if (Number.isNaN(d.getTime())) return '—';
   return d.toTimeString().slice(0, 5);
 }
 
 function formatDuration(dateStr, fallback) {
   if (fallback) return fallback;
-  if (!dateStr) return '1h 15m';
+  if (!dateStr) return '—';
   const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return '1h 15m';
-  const diffMin = Math.max(5, Math.floor((Date.now() - d.getTime()) / 60000));
+  if (Number.isNaN(d.getTime())) return '—';
+  const diffMin = Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000));
   if (diffMin >= 60) {
     const h = Math.floor(diffMin / 60);
     const m = diffMin % 60;
     return `${h}h ${String(m).padStart(2, '0')}m`;
   }
   return `${diffMin}m`;
+}
+
+function bookingDuration(booking) {
+  if (!booking) return '—';
+  const minutes = Math.round((new Date(booking.end_time ?? booking.endTime) - new Date(booking.start_time ?? booking.startTime)) / 60000);
+  if (!Number.isFinite(minutes) || minutes <= 0) return '—';
+  const hours = Math.floor(minutes / 60);
+  return `${hours ? `${hours}h ` : ''}${minutes % 60}m`;
 }
 
 function slotCodeRange(codes, fallback) {
@@ -70,6 +78,16 @@ export function ManageParkingPage() {
     () => (bundle?.vehicleCharging?.chargingPoints || []).filter((c) => c.hubId === currentHub?.id),
     [bundle, currentHub]
   );
+  const bookingBySlotId = useMemo(() => {
+    const bySlot = new Map();
+    // Only current or upcoming bookings; cancelled/completed bookings never occupy a slot.
+    (bundle?.parkingBookings || []).filter((r) =>
+      r.reservation_type === 'PARKING' && ['CONFIRMED','ACTIVE'].includes(r.status)
+      && new Date(r.end_time).getTime() > Date.now()
+    ).sort((a,b) => (a.status === 'ACTIVE' ? -1 : 0) - (b.status === 'ACTIVE' ? -1 : 0) || new Date(a.start_time) - new Date(b.start_time))
+      .forEach((r) => { if (!bySlot.has(Number(r.parking_slot_id))) bySlot.set(Number(r.parking_slot_id), r); });
+    return bySlot;
+  }, [bundle]);
   const hubVehicles = useMemo(
     () => (bundle?.vehicleCharging?.vehicles || []).filter((v) => v.currentHubId === currentHub?.id),
     [bundle, currentHub]
@@ -111,8 +129,8 @@ export function ManageParkingPage() {
           zoneCode: 'B',
           zoneLabel: 'B · Charging',
           space: charger?.chargerCode || 'B01',
-          checkIn: formatClock(v.updatedAt),
-          duration: formatDuration(v.updatedAt, '1h 05m'),
+          checkIn: '—',
+          duration: '—',
           statusText: `Charging · ${v.batteryLevel}%`,
           actionType: 'VIEW',
           detail: `${v.model} · Battery ${v.batteryLevel}% (~${v.estimatedRangeKm} km)`,
@@ -126,8 +144,8 @@ export function ManageParkingPage() {
           zoneCode: inZoneC ? 'C' : 'A',
           zoneLabel: inZoneC ? 'C · Universal (Fleet)' : 'A · Rental vehicles',
           space: slot?.slotCode || 'Unassigned',
-          checkIn: formatClock(v.updatedAt),
-          duration: formatDuration(v.updatedAt, '2h 10m'),
+          checkIn: v.model === 'Customer Private EV' ? formatClock(v.updatedAt) : '—',
+          duration: v.model === 'Customer Private EV' ? formatDuration(v.updatedAt) : '—',
           statusText:
             v.status === 'AVAILABLE'
               ? 'Ready to rent'
@@ -143,26 +161,28 @@ export function ManageParkingPage() {
     // Zone C occupied/reserved customer parking slots
     customerSlots
       .filter((s) => s.status === 'OCCUPIED' || s.status === 'RESERVED')
-      .forEach((s, idx) => {
+      .forEach((s) => {
         const linkedFleet = hubVehicles.some((v) => v.parkingSlotId === s.id);
         if (linkedFleet) return;
+        const booking = bookingBySlotId.get(Number(s.id));
         rows.push({
           key: `slot-${s.id}`,
           slotId: s.id,
-          label: s.vehiclePlate || `59G2-71${idx + 3}.82`,
+          label: booking ? (booking.license_plate || 'Plate not provided') : (s.vehiclePlate || 'Plate not provided'),
           zoneCode: 'C',
           zoneLabel: 'C · Customer',
           space: s.slotCode,
-          checkIn: s.checkInAt || formatClock(s.updatedAt),
-          duration: formatDuration(s.updatedAt, s.durationLabel || '1h 30m'),
+          checkIn: formatClock(booking?.actual_pickup_time || booking?.start_time || s.checkInAt || s.updatedAt),
+          duration: booking ? bookingDuration(booking) : formatDuration(s.updatedAt),
           statusText: s.status === 'RESERVED' ? 'Reserved booking' : 'Parked · no charge',
-          actionType: 'CHECKOUT',
+          actionType: booking?.status === 'CONFIRMED' ? 'CANCEL_BOOKING' : 'CHECKOUT',
+          bookingId: booking?.id ?? null,
           detail: `Customer slot ${s.slotCode} (${s.slotType})`,
         });
       });
 
     return rows;
-  }, [hubVehicles, hubSlots, hubChargers, customerSlots]);
+  }, [hubVehicles, hubSlots, hubChargers, customerSlots, bookingBySlotId]);
 
   const filteredRecords = useMemo(() => {
     return parkingRecords.filter((rec) => {
@@ -178,7 +198,7 @@ export function ManageParkingPage() {
     });
   }, [parkingRecords, zoneFilter, searchText]);
 
-  const freeCustomerSlots = hubSlots.filter((s) => s.status === 'FREE');
+  const freeCustomerSlots = customerSlots.filter((s) => s.status === 'FREE');
 
   const handleHubChange = (e) => {
     const nextId = Number(e.target.value);
@@ -196,7 +216,7 @@ export function ManageParkingPage() {
     }
     try {
       await parkingSlotApi.updateStatus(targetSlot.id, 'OCCUPIED', {
-        vehiclePlate: checkInPlate.trim() || '59X1-889.20',
+        vehiclePlate: checkInPlate.trim(),
       });
       setCheckInPlate('');
       setCheckInOpen(false);
@@ -207,9 +227,15 @@ export function ManageParkingPage() {
     }
   };
 
-  const handleCheckoutSlot = async (slotId, slotCode) => {
+  const handleCheckoutSlot = async (slotId, slotCode, bookingId, actionType) => {
     try {
-      await parkingSlotApi.updateStatus(slotId, 'FREE');
+      if (bookingId && actionType === 'CANCEL_BOOKING') {
+        await reservationApi.cancelReservation(bookingId);
+      } else if (bookingId) {
+        await reservationApi.parkingCheckOut(bookingId);
+      } else {
+        await parkingSlotApi.updateStatus(slotId, 'FREE');
+      }
       setFeedback(`Checked out slot ${slotCode} → now FREE.`);
       await loadData();
     } catch (err) {
@@ -321,8 +347,8 @@ export function ManageParkingPage() {
               style={{ width: '100%' }}
               placeholder="e.g. 59D1-482.36"
               value={checkInPlate}
-              onChange={(e) => setCheckInPlate(e.target.value)}
               required
+              onChange={(e) => setCheckInPlate(e.target.value)}
             />
           </div>
           <div style={{ flex: '1 1 200px' }}>
@@ -603,10 +629,10 @@ export function ManageParkingPage() {
                     <span>{rec.duration}</span>
                     <span>{rec.statusText}</span>
                     <span>
-                      {rec.actionType === 'CHECKOUT' ? (
+                      {['CHECKOUT','CANCEL_BOOKING'].includes(rec.actionType) ? (
                         <button
                           type="button"
-                          onClick={() => handleCheckoutSlot(rec.slotId, rec.space)}
+                          onClick={() => handleCheckoutSlot(rec.slotId, rec.space, rec.bookingId, rec.actionType)}
                           style={{
                             background: 'none',
                             border: 'none',
@@ -617,7 +643,7 @@ export function ManageParkingPage() {
                             cursor: 'pointer',
                           }}
                         >
-                          Check out
+                          {rec.actionType === 'CANCEL_BOOKING' ? 'Cancel' : 'Check out'}
                         </button>
                       ) : (
                         <button

@@ -78,7 +78,7 @@ function getPositionCode(reservation, vehicle) {
     || vehicle?.positionCode
     || vehicle?.slotCode
     || vehicle?.rackPositionCode
-    || 'B-04';
+    || 'Assigned at pickup';
 }
 
 function getVehicleKind(vehicle, vehicleCode) {
@@ -243,7 +243,7 @@ export function ReservationsPage() {
         hubName: currentPickupHub.name,
         vehicleId: Number(draftVehicle.id),
         vehicleCode: draftVehicle.code,
-        parkingSlotCode: getPositionCode({}, draftVehicle),
+        parkingSlotCode: response.parkingSlotCode || getPositionCode({}, draftVehicle),
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         status: response.status || 'CONFIRMED',
@@ -367,7 +367,7 @@ export function ReservationsPage() {
               <div className="reservation-field-grid">
                 <label>
                   Pickup hub
-                  <select value={pickupHubId} onChange={(event) => setPickupHubId(event.target.value)} required>
+                  <select value={pickupHubId} onChange={(event) => setPickupHubId(event.target.value)} disabled={Boolean(draftVehicle)} required>
                     {hubs.map((hub) => (
                       <option key={hub.id} value={hub.id}>{hub.name.replace(/\s+Hub$/i, '')}</option>
                     ))}
@@ -481,7 +481,7 @@ export function ReservationsPage() {
               </div>
               <p>Scan the code to unlock your vehicle.</p>
             </div>
-            <div style={{color:'#556b5d'}}>Pickup starts your {selectedDuration}-hour rental. Check brakes, tyres and lights before leaving the hub.</div>
+            <div style={{color:'#556b5d'}}>Pickup opens 15 minutes before your scheduled time and closes 15 minutes afterward. Your rental duration is {selectedDuration} hour(s). Check brakes, tyres and lights before leaving the hub.</div>
             <div className="reservation-button-row">
               <button type="button" className="reservation-secondary-button" onClick={handleCancel} disabled={loading}>
                 {loading ? 'Cancelling...' : 'Cancel reservation'}

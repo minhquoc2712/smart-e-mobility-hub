@@ -12,6 +12,9 @@ router.get('/', wrap(async (req, res) => res.json({ success: true, data: await s
 router.get('/:requestId', wrap(async (req, res) => res.json({ success: true, data: await service.detail(req.user, req.params.requestId) })));
 router.post('/', wrap(async (req, res) => res.status(201).json({ success: true, data: await service.schedule(req.user, req.body) })));
 router.delete('/:requestId', wrap(async (req, res) => res.json({ success: true, data: await service.cancelRequest(req.user, req.params.requestId) })));
+router.post('/:requestId/start', requireRole('OPERATOR'), wrap(async(req,res)=>res.json({success:true,data:await service.startCharging(req.user,req.params.requestId)})));
+router.post('/:requestId/stop', requireRole('OPERATOR'), wrap(async(req,res)=>res.json({success:true,data:await service.stopCharging(req.user,req.params.requestId)})));
+router.post('/:requestId/cancel', wrap(async(req,res)=>res.json({success:true,data:await service.cancelRequest(req.user,req.params.requestId)})));
 
 // Priority belongs to the shared/operator charging workflow
 router.patch('/:requestId/priority', requireRole('OPERATOR'), wrap(async (req, res) => {

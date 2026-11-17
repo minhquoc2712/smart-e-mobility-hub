@@ -7,8 +7,22 @@ const HUB_SELECT = `
     h.total_parking_slots AS totalParkingSlots,
     h.total_charging_points AS totalChargingPoints,
     h.status,
-    (SELECT COUNT(*) FROM parking_slots ps WHERE ps.hub_id = h.id AND ps.status = 'FREE') AS freeParkingSlots,
-    (SELECT COUNT(*) FROM charging_points cp WHERE cp.hub_id = h.id AND cp.status = 'AVAILABLE') AS availableChargingPoints,
+    -- Future reservations should not consume CURRENT availability.
+    (SELECT COUNT(*) FROM parking_slots ps WHERE ps.hub_id = h.id
+       AND (ps.status = 'FREE' OR (ps.status = 'RESERVED' AND EXISTS (
+         SELECT 1 FROM reservations r_future WHERE r_future.parking_slot_id=ps.id
+           AND r_future.reservation_type='PARKING' AND r_future.status='CONFIRMED'
+           AND r_future.start_time > UTC_TIMESTAMP())))
+       AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.parking_slot_id=ps.id
+         AND r.reservation_type='PARKING' AND r.status IN ('CONFIRMED','ACTIVE')
+         AND r.start_time <= UTC_TIMESTAMP() AND r.end_time > UTC_TIMESTAMP())) AS freeParkingSlots,
+    (SELECT COUNT(*) FROM charging_points cp WHERE cp.hub_id = h.id
+       AND (cp.status = 'AVAILABLE' OR (cp.status = 'RESERVED' AND EXISTS (
+         SELECT 1 FROM charging_requests f WHERE f.charging_point_id=cp.id
+          AND f.status='SCHEDULED' AND f.scheduled_start > UTC_TIMESTAMP())))
+       AND NOT EXISTS (SELECT 1 FROM charging_requests cr WHERE cr.charging_point_id=cp.id
+         AND cr.status IN ('SCHEDULED','CHARGING') AND cr.scheduled_start <= UTC_TIMESTAMP()
+         AND cr.scheduled_end > UTC_TIMESTAMP())) AS availableChargingPoints,
     (SELECT COUNT(*) FROM vehicles v WHERE v.current_hub_id = h.id AND v.type = 'ELECTRIC_BIKE' AND v.status = 'AVAILABLE') AS availableBikes,
     (SELECT COUNT(*) FROM vehicles v WHERE v.current_hub_id = h.id AND v.type = 'ELECTRIC_SCOOTER' AND v.status = 'AVAILABLE') AS availableScooters
   FROM hubs h`;
@@ -27,7 +41,7 @@ async function findById(id) {
   return toHub(rows[0]) || null;
 }
 
-// Khóa dòng hub trong transaction (SELECT ... FOR UPDATE).
+
 async function lockById(conn, id) {
   const [rows] = await conn.execute('SELECT id, status FROM hubs WHERE id = ? FOR UPDATE', [id]);
   return rows[0] || null;
@@ -38,7 +52,6 @@ async function getStatus(conn, id) {
   return rows[0] || null;
 }
 
-// usable = slot chưa OUT_OF_SERVICE; used = slot đang RESERVED hoặc OCCUPIED.
 async function getSlotUsage(conn, id) {
   const [rows] = await conn.execute(
     `SELECT
