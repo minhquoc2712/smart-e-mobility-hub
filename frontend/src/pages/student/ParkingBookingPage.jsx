@@ -4,7 +4,7 @@ import { hubApi, reservationApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 
 function toLocalDateTime(date, time) {
-  return `${date}T${time}:00`;
+  return new Date(`${date}T${time}:00`).toISOString();
 }
 
 function getLocalDate(date) {
@@ -18,7 +18,7 @@ function getSuggestedTimes() {
   const start = new Date();
   start.setMinutes(0, 0, 0);
   if (start.getTime() <= Date.now()) start.setHours(start.getHours() + 1);
-  if (start.getHours() > 20) start.setHours(9, 0, 0, 0);
+  if (start.getHours() > 20) { start.setDate(start.getDate() + 1); start.setHours(9, 0, 0, 0); }
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
   return {
     date: getLocalDate(start),
@@ -44,9 +44,12 @@ function formatDateTime(value) {
   if (value instanceof Date) {
     const date = getLocalDate(value);
     const time = `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
-    return `${date}T${time}:00`;
+    return new Date(`${date}T${time}:00`).toISOString();
   }
-  return String(value || '').replace(' ', 'T');
+  if (!value) return '';
+  const date = new Date(String(value).replace(' ', 'T'));
+  if (Number.isNaN(date.getTime())) return '';
+  return `${getLocalDate(date)}T${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:00`;
 }
 
 export function ParkingBookingPage() {
@@ -72,7 +75,7 @@ export function ParkingBookingPage() {
       .map(normalizeParkingReservation)
       .filter((reservation) => reservation.hubId === Number(hubId)
         && reservation.reservationType === 'PARKING'
-        && reservation.status !== 'CANCELLED'));
+        && ['CONFIRMED','ACTIVE'].includes(reservation.status)));
   };
 
   useEffect(() => {

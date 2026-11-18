@@ -20,7 +20,14 @@ export function HubListPage() {
     hubApi
       .getHubs({ search, vehicleType })
       .then((data) => {
-        if (active) setHubs(data);
+        if (active) setHubs(data.filter((hub) => {
+          const term = search.trim().toLowerCase();
+          const matches = !term || [hub.name, hub.campusZone, hub.address].some((value) => String(value || '').toLowerCase().includes(term));
+          // Keep hubs with zero currently available vehicles or chargers in the list.
+          // Dormitory Zone B can have a charger OUT_OF_SERVICE and still offer parking
+          // or become available in a future time window; it must not disappear.
+          return matches;
+        }));
       })
       .catch((requestError) => {
         if (active) setError(requestError.message || 'Unable to load mobility hubs.');
@@ -99,7 +106,7 @@ export function HubListPage() {
               </div>
               <div className="nearby-hub-availability">
                 <span>
-                  {hub.availableBikes} electric {hub.availableBikes === 1 ? 'bike' : 'bikes'} · {hub.availableScooters} electric {hub.availableScooters === 1 ? 'scooter' : 'scooters'}
+                  {hub.availableBikes} electric {hub.availableBikes === 1 ? 'bike' : 'bikes'} · {hub.availableScooters} electric {hub.availableScooters === 1 ? 'scooter' : 'scooters'} · {hub.availableChargingPoints} charging points available
                 </span>
               </div>
               <Link to={`/student/hubs/${hub.id}/info`} className="view-vehicles-button">
@@ -107,7 +114,7 @@ export function HubListPage() {
               </Link>
             </article>
           ))}
-          {!hubs.length && <p className="find-hub-empty">No hubs match this search and vehicle type.</p>}
+          {!hubs.length && <p className="find-hub-empty">No hubs match this location search.</p>}
         </div>
       )}
     </div>

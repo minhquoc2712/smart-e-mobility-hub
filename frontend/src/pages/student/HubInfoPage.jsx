@@ -25,6 +25,7 @@ export function HubInfoPage() {
           <div className="hub-service-image">
             <img src={vehicleImage} alt="Rental vehicle" />
           </div>
+          <p className="hub-service-status">{hub ? `${Number(hub.availableBikes || 0) + Number(hub.availableScooters || 0)} rental vehicle(s) currently available` : 'Checking vehicle availability…'}</p>
           <button type="button" onClick={() => navigate(`/student/hubs/${hubId}/vehicles`)}>
             Book now
           </button>
@@ -35,6 +36,7 @@ export function HubInfoPage() {
           <div className="hub-service-image">
             <img src={parkingImage} alt="Parking space" />
           </div>
+          <p className="hub-service-status">{hub ? `${Number(hub.freeParkingSlots || 0)} parking space(s) currently available` : 'Checking parking availability…'}</p>
           <button type="button" onClick={() => navigate(`/student/hubs/${hubId}/parking`)}>
             Book now
           </button>
@@ -45,7 +47,8 @@ export function HubInfoPage() {
           <div className="hub-service-image">
             <img src={chargingImage} alt="Charging station" />
           </div>
-          <button type="button" onClick={() => navigate('/student/charging')}>
+          <p className="hub-service-status">{hub?.availableChargingPoints ?? '—'} charging point(s) currently available</p>
+          <button type="button" onClick={() => navigate(`/student/charging?hubId=${hubId}`)}>
             Book now
           </button>
         </article>

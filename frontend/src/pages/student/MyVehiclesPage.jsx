@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { chargingApi } from '../../api';
+import { chargingApi, authApi, hubApi } from '../../api';
 import vehicleImage from '../../components/common/images/vehicle.jpg';
 
 const VEHICLES_KEY = 'semh_private_vehicles';
-const CANCELLED_CHARGING_KEY = 'semh_cancelled_charging_requests';
 
 const initialVehicles = [
   { id: 'PV-018', name: 'My e-bike', type: 'Private electric bike', battery: 38 },
@@ -18,6 +17,8 @@ export function MyVehiclesPage() {
   const [name, setName] = useState(initialVehicles[0].name);
   const [type, setType] = useState(initialVehicles[0].type);
   const [requests, setRequests] = useState([]);
+  const [hubs, setHubs] = useState([]);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const savedVehicles = JSON.parse(sessionStorage.getItem(VEHICLES_KEY) || 'null');
@@ -25,10 +26,8 @@ export function MyVehiclesPage() {
       setVehicles(savedVehicles);
       setVehicleId(savedVehicles[0].id);
     }
-    const cancelled = JSON.parse(sessionStorage.getItem(CANCELLED_CHARGING_KEY) || '[]');
-    chargingApi.getChargingRequests().then((items) => {
-      setRequests(items.filter((item) => !cancelled.includes(item.id)));
-    });
+    chargingApi.getChargingRequests().then(setRequests).catch((err) => setError(err.message));
+    hubApi.getHubs().then(setHubs).catch((err) => setError(err.message));
   }, []);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId) || vehicles[0];
@@ -58,15 +57,14 @@ export function MyVehiclesPage() {
   };
 
   const cancelCharging = async (id) => {
-    const cancelled = JSON.parse(sessionStorage.getItem(CANCELLED_CHARGING_KEY) || '[]');
-    sessionStorage.setItem(CANCELLED_CHARGING_KEY, JSON.stringify([...cancelled, id]));
-    setRequests((items) => items.filter((item) => item.id !== id));
     try {
       await chargingApi.cancelChargingRequest(id);
-    } catch {
-      // Keep local cancellation if request was already cancelled
-    }
+      setRequests((items) => items.map((r) => r.id === id ? {...r,status:'CANCELLED'} : r));
+    } catch (err) { setError(err.message || 'Unable to cancel charging.'); }
   };
+  const activeRequests = requests.filter((r) => ['SCHEDULED','QUEUED','CHARGING'].includes(r.status));
+  const requestHistory = requests.filter((r) => !['SCHEDULED','QUEUED','CHARGING'].includes(r.status));
+  const localTime = (value) => value ? new Date(value).toLocaleString('en-GB', {dateStyle:'short',timeStyle:'short'}) : '—';
 
   return (
     <div className="my-vehicles-page">
@@ -99,9 +97,7 @@ export function MyVehiclesPage() {
         <div>
           <section className="availability-owner-card">
             <h2>Nearby charging availability</h2>
-            <div><span>HCMUT Main Gate hub · 0.3 km</span><strong>2 slots available</strong></div>
-            <div><span>Central hub · 0.8 km</span><strong>1 slot available</strong></div>
-            <div><span>IU Main gate</span><strong>No slots available</strong></div>
+            {hubs.map((h) => <div key={h.id}><span>{h.name}</span><strong>{h.availableChargingPoints} currently available</strong></div>)}
             <button className="floating-action" type="button" onClick={() => navigate('/student/charging')}>
               Register for charging
             </button>
@@ -109,15 +105,26 @@ export function MyVehiclesPage() {
 
           <section className="charging-status-card">
             <h2>Current charging status</h2>
-            {requests.map((request) => (
+            {activeRequests.map((request) => (
               <article key={request.id} className="charging-status-row">
-                <strong>{request.requestCode}</strong>
-                <div><span>Vehicle / slot</span><strong>{request.privateVehicleLabel || selectedVehicle.id}</strong></div>
-                <div><span>Charging session</span><strong>{request.scheduledStart?.slice(11, 16)} - {request.scheduledEnd?.slice(11, 16)}</strong></div>
-                <button type="button" onClick={() => cancelCharging(request.id)}>Cancel reservation</button>
+                <strong>{request.requestCode ?? request.request_code}</strong>
+                <div><span>Vehicle / slot</span><strong>{request.privateVehicleLabel ?? request.private_vehicle_label ?? selectedVehicle.id}</strong></div>
+                <div><span>Charging session</span><strong>{localTime(request.scheduledStart ?? request.scheduled_start)} – {localTime(request.scheduledEnd ?? request.scheduled_end)}</strong></div>
+                <div><span>Charger</span><strong>{request.chargingPointCode ?? (request.status === 'QUEUED' ? 'Automatic queue' : 'Assigned')}</strong></div>
+                <div><span>Status</span><strong>{request.status}</strong></div>
+                {['QUEUED','SCHEDULED'].includes(request.status) && <button type="button" onClick={() => cancelCharging(request.id)}>Cancel reservation</button>}
               </article>
             ))}
-            {!requests.length && <p>No active charging reservations.</p>}
+            {!activeRequests.length && <p>No active charging reservations.</p>}
+            <h3>Charging history</h3>
+            {requestHistory.map((request) => <article key={request.id} className="charging-status-row">
+              <strong>{request.requestCode ?? request.request_code}</strong>
+              <div><span>Vehicle</span><strong>{request.privateVehicleLabel ?? request.private_vehicle_label ?? selectedVehicle.id}</strong></div>
+              <div><span>Session</span><strong>{localTime(request.scheduledStart ?? request.scheduled_start)} – {localTime(request.scheduledEnd ?? request.scheduled_end)}</strong></div>
+              <div><span>Status</span><strong>{request.status}</strong></div>
+            </article>)}
+            {!requestHistory.length && <p>No past or cancelled requests.</p>}
+            {error && <p role="alert">{error}</p>}
           </section>
         </div>
       </div>

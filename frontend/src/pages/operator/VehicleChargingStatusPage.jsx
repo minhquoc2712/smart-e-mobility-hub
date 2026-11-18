@@ -90,6 +90,14 @@ export function VehicleChargingStatusPage() {
   const [showChargers, setShowChargers] = useState(false);
   const [showQueue, setShowQueue] = useState(true);
   const [queueNotice, setQueueNotice] = useState('');
+  const transitionCharging = async (request, action) => {
+    try {
+      if (action === 'start') await chargingApi.startCharging(request.id);
+      else await chargingApi.stopCharging(request.id);
+      setQueueNotice(`Charging request ${request.request_code ?? request.requestCode} ${action === 'start' ? 'started' : 'completed'}.`);
+      await loadStatus();
+    } catch (err) { setQueueNotice(err.message || 'Could not update charging status.'); }
+  };
 
   const loadStatus = useCallback(async () => {
     const [data, requests] = await Promise.all([
@@ -109,14 +117,17 @@ export function VehicleChargingStatusPage() {
   const hubs = bundle?.hubUtilization?.hubs || [];
   const vehicles = bundle?.vehicleCharging?.vehicles || [];
   const chargingPoints = bundle?.vehicleCharging?.chargingPoints || [];
-  const chargingVehiclesCount =
-    bundle?.vehicleCharging?.vehicleStats?.CHARGING ??
-    vehicles.filter((v) => v.status === 'CHARGING').length;
+  const chargingVehiclesCount = new Set([
+    ...vehicles.filter((v) => v.status === 'CHARGING').map((v) => `fleet-${v.id}`),
+    ...chargingRequests.filter((r) => r.status === 'CHARGING').map((r) =>
+      r.vehicle_id ? `fleet-${r.vehicle_id}` : `private-${r.id}`),
+  ]).size;
+  const activeChargingRequests = chargingRequests.filter((r) => ['QUEUED', 'SCHEDULED', 'CHARGING'].includes(r.status));
 
   // Map active charging_requests by vehicleId so fleet vehicles & DB requests stay linked
   const requestByVehicleId = useMemo(() => {
     const map = new Map();
-    chargingRequests.forEach((req) => {
+    activeChargingRequests.forEach((req) => {
       const vid = req.vehicleId ?? req.vehicle_id;
       if (vid != null) {
         map.set(Number(vid), req);
@@ -196,8 +207,8 @@ export function VehicleChargingStatusPage() {
           v.status === 'CHARGING'
             ? `Charging at ${charger?.chargerCode || 'charger'}`
             : linkedReq?.status === 'SCHEDULED'
-            ? 'Scheduled in queue'
-            : 'Queued (waiting charger)',
+            ? 'Scheduled for charging'
+            : linkedReq?.status === 'QUEUED' ? 'Queued (waiting charger)' : 'Needs charging',
         autoPriority,
         manualPriority,
         effectivePriority,
@@ -206,7 +217,7 @@ export function VehicleChargingStatusPage() {
     });
 
     // 2. Private EV / standalone charging_requests from students
-    chargingRequests.forEach((req) => {
+    activeChargingRequests.forEach((req) => {
       if (seenRequestIds.has(Number(req.id))) return;
       const reqHubId = req.hubId ?? req.hub_id;
       if (hubFilter !== 'ALL' && Number(reqHubId) !== Number(hubFilter)) return;
@@ -232,6 +243,7 @@ export function VehicleChargingStatusPage() {
           `CHG-${req.id}`,
         subLabel: `${req.requestCode || req.request_code || `CHG-${req.id}`} · Private Student EV`,
         ownershipType: req.ownershipType || req.ownership_type || 'PRIVATE',
+        createdAt: req.createdAt || req.created_at,
         hubId: reqHubId,
         hubName: req.hubName || req.hub_name || 'Campus Hub',
         currentBattery: curBatt,
@@ -244,13 +256,15 @@ export function VehicleChargingStatusPage() {
       });
     });
 
-    // Sort queue: 1) Effective Priority (URGENT -> HIGH -> NORMAL -> LOW), 2) Lowest battery % first
+    // Two policies: fleet vehicles are ranked by low battery / staff override;
+    // private students retain first-come-first-served order, NOT battery priority.
     items.sort((a, b) => {
-      const rankDiff =
-        (PRIORITY_RANK[a.effectivePriority] ?? 2) -
-        (PRIORITY_RANK[b.effectivePriority] ?? 2);
-      if (rankDiff !== 0) return rankDiff;
-      return a.currentBattery - b.currentBattery;
+      const aPrivate = a.ownershipType === 'PRIVATE';
+      const bPrivate = b.ownershipType === 'PRIVATE';
+      if (aPrivate !== bPrivate) return aPrivate ? 1 : -1;
+      if (aPrivate) return (new Date(a.createdAt || 0) - new Date(b.createdAt || 0)) || (a.requestId - b.requestId);
+      const rankDiff = (PRIORITY_RANK[a.effectivePriority] ?? 2) - (PRIORITY_RANK[b.effectivePriority] ?? 2);
+      return rankDiff || (a.currentBattery - b.currentBattery);
     });
 
     return items.map((item, idx) => ({
@@ -504,6 +518,22 @@ export function VehicleChargingStatusPage() {
                   {cp.status}
                   {cp.currentVehicleCode ? ` (${cp.currentVehicleCode})` : ''}
                 </div>
+                <div style={{ fontSize: 13, color: 'var(--staff-olive)', marginTop: 6 }}>
+                  {chargingRequests.filter((r) =>
+                    Number(r.charging_point_id ?? r.chargingPointId) === cp.id && r.status === 'CHARGING'
+                  ).length || (cp.status === 'CHARGING' ? 1 : 0)} vehicle(s) charging now ·{' '}
+                  {chargingRequests.filter((r) =>
+                    Number(r.charging_point_id ?? r.chargingPointId) === cp.id && r.status === 'SCHEDULED'
+                  ).length} upcoming reservation(s)
+                </div>
+                {chargingRequests.filter((r) => Number(r.charging_point_id ?? r.chargingPointId) === cp.id && ['SCHEDULED','CHARGING'].includes(r.status)).map((r) => (
+                  <div key={r.id} style={{fontSize:12,marginTop:6}}>
+                    {r.private_vehicle_label || r.privateVehicleLabel || r.vehicleCode || `Request ${r.id}`} · {r.status}
+                    <button type="button" style={{marginLeft:8,padding:'4px 8px',borderRadius:6,border:'1px solid #cde8cc',cursor:'pointer'}} onClick={() => transitionCharging(r,r.status==='SCHEDULED'?'start':'stop')}>
+                      {r.status==='SCHEDULED'?'Start':'Finish'}
+                    </button>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -538,7 +568,7 @@ export function VehicleChargingStatusPage() {
                 Smart charging queue ({smartQueue.length}) · Auto queue with Staff manual override
               </div>
               <div style={{ fontSize: 13.5, color: 'var(--staff-olive)' }}>
-                Automatically ranked by battery level — Staff can manually set priority to jump queue order
+                Fleet ranked by battery / staff priority; private EV bookings ordered by request time
               </div>
             </div>
 
