@@ -1,6 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { operatorApi, simulationApi } from '../../api';
 
+const SCENARIO_DEFAULTS = {
+  'SCN-METRO-SURGE': { targetHubCode: 'HUB-METRO-VNU', extraDemandRequests: 45 },
+  'SCN-DORMB-FULL': { targetHubCode: 'HUB-DORM-B', incomingReturns: 18 },
+  'SCN-CHARGER-OUTAGE': { targetHubCode: 'HUB-CENTRAL', failedChargersCount: 4 },
+  'SCN-FLEET-IMBALANCE': { surplusHubCode: 'HUB-DORM-B', deficitHubCode: 'HUB-BK-GATE1' },
+};
+
+const METRIC_LABELS = {
+  requestedVehicles: 'Requested Vehicles',
+  fulfilledRequests: 'Fulfilled Requests',
+  unmetDemandEstimate: 'Unmet Demand',
+  peakUtilizationPercent: 'Peak Utilization (%)',
+  incomingVehicles: 'Incoming Vehicles',
+  availableSlots: 'Available Parking Slots',
+  strandedVehicles: 'Stranded Vehicles',
+  chargersDisabled: 'Chargers Disabled',
+  remainingOperational: 'Remaining Operational',
+  impactOnChargingQueue: 'Charging Queue Impact',
+  surplusHubAvailableVehicles: 'Surplus Hub Available',
+  deficitHubAvailableVehicles: 'Deficit Hub Available',
+  imbalanceSeverity: 'Imbalance Severity',
+};
+
 /**
  * Staff / What-if (Task 4.2a & 4.2b — Thùy Trang & Nils Bousquet)
  * Evaluates isolated snapshot state evolution via Backend Simulation Engine
@@ -9,34 +32,25 @@ import { operatorApi, simulationApi } from '../../api';
 export function SimulationPage() {
   const [hubs, setHubs] = useState([]);
   const [scenarios, setScenarios] = useState([]);
-  const [selectedScenarioCode, setSelectedScenarioCode] = useState('SCN-FLEET-IMBALANCE');
-  const [sourceHubId, setSourceHubId] = useState(2);
-  const [destinationHubId, setDestinationHubId] = useState(1);
-  const [vehiclesToMove, setVehiclesToMove] = useState(4);
-  const [simOutcome, setSimOutcome] = useState(null);
+  const [selectedScenarioCode, setSelectedScenarioCode] = useState('SCN-METRO-SURGE');
+
+  // Dynamic parameters matching backend simulation.routes.js
+  const [targetHubCode, setTargetHubCode] = useState('HUB-METRO-VNU');
+  const [surplusHubCode, setSurplusHubCode] = useState('HUB-DORM-B');
+  const [deficitHubCode, setDeficitHubCode] = useState('HUB-BK-GATE1');
+  const [extraDemandRequests, setExtraDemandRequests] = useState(45);
+  const [incomingReturns, setIncomingReturns] = useState(18);
+  const [failedChargersCount, setFailedChargersCount] = useState(4);
+
   const [engineResult, setEngineResult] = useState(null);
-  const [appliedRecId, setAppliedRecId] = useState(null);
+  const [appliedRecIds, setAppliedRecIds] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     operatorApi.getDashboardBundle().then((bundle) => {
       const list = bundle?.hubUtilization?.hubs || [];
       setHubs(list);
-      if (list.length >= 2) {
-        const src = list[1];
-        const dst = list[0];
-        setSourceHubId(src.id);
-        setDestinationHubId(dst.id);
-        const move = Math.min(4, src.availableVehicles);
-        setSimOutcome({
-          sourceName: src.name,
-          destName: dst.name,
-          beforeSrc: src.availableVehicles,
-          afterSrc: Math.max(0, src.availableVehicles - move),
-          beforeDst: dst.availableVehicles,
-          afterDst: dst.availableVehicles + move,
-        });
-      }
     });
 
     simulationApi
@@ -44,58 +58,67 @@ export function SimulationPage() {
       .then((rows) => {
         if (Array.isArray(rows) && rows.length > 0) {
           setScenarios(rows);
-          setSelectedScenarioCode(rows[0].code);
+          handleScenarioChange(rows[0].code);
         }
       })
       .catch(() => {});
   }, []);
 
+  const handleScenarioChange = (code) => {
+    setSelectedScenarioCode(code);
+    setEngineResult(null);
+    setError(null);
+    setAppliedRecIds([]);
+
+    const defaults = SCENARIO_DEFAULTS[code];
+    if (!defaults) return;
+    if (defaults.targetHubCode) setTargetHubCode(defaults.targetHubCode);
+    if (defaults.surplusHubCode) setSurplusHubCode(defaults.surplusHubCode);
+    if (defaults.deficitHubCode) setDeficitHubCode(defaults.deficitHubCode);
+    if (defaults.extraDemandRequests !== undefined) setExtraDemandRequests(defaults.extraDemandRequests);
+    if (defaults.incomingReturns !== undefined) setIncomingReturns(defaults.incomingReturns);
+    if (defaults.failedChargersCount !== undefined) setFailedChargersCount(defaults.failedChargersCount);
+  };
+
+  const buildParams = () => {
+    switch (selectedScenarioCode) {
+      case 'SCN-METRO-SURGE':
+        return { targetHubCode: 'HUB-METRO-VNU', extraDemandRequests: Number(extraDemandRequests) || 0 };
+      case 'SCN-DORMB-FULL':
+        return { targetHubCode: 'HUB-DORM-B', incomingReturns: Number(incomingReturns) || 0 };
+      case 'SCN-CHARGER-OUTAGE':
+        return { targetHubCode, failedChargersCount: Number(failedChargersCount) || 0 };
+      case 'SCN-FLEET-IMBALANCE':
+        return { surplusHubCode, deficitHubCode };
+      default:
+        return {};
+    }
+  };
+
   const handleRunScenario = async (e) => {
     e.preventDefault();
-    const src = hubs.find((h) => h.id === Number(sourceHubId));
-    const dst = hubs.find((h) => h.id === Number(destinationHubId));
-    if (src && dst) {
-      const requested = Math.max(0, Number(vehiclesToMove) || 0);
-      const actualMoved = Math.min(requested, src.availableVehicles);
-      setSimOutcome({
-        sourceName: src.name,
-        destName: dst.name,
-        beforeSrc: src.availableVehicles,
-        afterSrc: src.availableVehicles - actualMoved,
-        beforeDst: dst.availableVehicles,
-        afterDst: dst.availableVehicles + actualMoved,
-      });
-    }
-
     try {
       setLoading(true);
-      setAppliedRecId(null);
+      setError(null);
+      setAppliedRecIds([]);
       const res = await simulationApi.runSimulation({
         scenarioCode: selectedScenarioCode,
-        params: {
-          surplusHubCode: src?.code || 'HUB-CENTRAL',
-          deficitHubCode: dst?.code || 'HUB-BK-GATE1',
-          targetHubCode: dst?.code || 'HUB-METRO-VNU',
-          extraDemandRequests: Number(vehiclesToMove) * 10 || 40,
-          incomingReturns: Number(vehiclesToMove) * 4 || 16,
-          failedChargersCount: Math.max(1, Number(vehiclesToMove) || 2),
-        },
+        params: buildParams(),
       });
       setEngineResult(res);
-    } catch {
-      // Keep local hypothetical preview if offline
+    } catch (err) {
+      setError(err?.message || 'Failed to run simulation.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleApplyRecommendation = async (recId) => {
-    if (!engineResult?.runId) return;
+    if (!engineResult?.runId || appliedRecIds.includes(recId)) return;
     try {
       await simulationApi.applyRecommendation(engineResult.runId, recId);
-      setAppliedRecId(recId);
-    } catch {
-      setAppliedRecId(recId);
+    } finally {
+      setAppliedRecIds((prev) => [...prev, recId]);
     }
   };
 
@@ -114,7 +137,7 @@ export function SimulationPage() {
             <select
               className="staff-field-green"
               value={selectedScenarioCode}
-              onChange={(e) => setSelectedScenarioCode(e.target.value)}
+              onChange={(e) => handleScenarioChange(e.target.value)}
             >
               {scenarios.map((s) => (
                 <option key={s.code} value={s.code}>
@@ -130,55 +153,119 @@ export function SimulationPage() {
           </div>
         )}
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: 24,
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Source hub</label>
-            <select
-              className="staff-field-green"
-              value={sourceHubId}
-              onChange={(e) => setSourceHubId(Number(e.target.value))}
-            >
-              {hubs.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Dynamic inputs depending on the selected scenario */}
+        {selectedScenarioCode === 'SCN-FLEET-IMBALANCE' ? (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: 24,
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Surplus hub</label>
+              <select
+                className="staff-field-green"
+                value={surplusHubCode}
+                onChange={(e) => setSurplusHubCode(e.target.value)}
+              >
+                {hubs.map((h) => (
+                  <option key={h.code} value={h.code}>
+                    {h.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Destination hub</label>
-            <select
-              className="staff-field-green"
-              value={destinationHubId}
-              onChange={(e) => setDestinationHubId(Number(e.target.value))}
-            >
-              {hubs.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.name}
-                </option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Deficit hub</label>
+              <select
+                className="staff-field-green"
+                value={deficitHubCode}
+                onChange={(e) => setDeficitHubCode(e.target.value)}
+              >
+                {hubs.map((h) => (
+                  <option key={h.code} value={h.code}>
+                    {h.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: 24,
+            }}
+          >
+            {selectedScenarioCode === 'SCN-CHARGER-OUTAGE' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Target hub</label>
+                <select
+                  className="staff-field-green"
+                  value={targetHubCode}
+                  onChange={(e) => setTargetHubCode(e.target.value)}
+                >
+                  {hubs.map((h) => (
+                    <option key={h.code} value={h.code}>
+                      {h.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Vehicles to move</label>
-          <input
-            type="number"
-            min={1}
-            max={30}
-            className="staff-field-green"
-            value={vehiclesToMove}
-            onChange={(e) => setVehiclesToMove(e.target.value)}
-          />
-        </div>
+            {selectedScenarioCode === 'SCN-METRO-SURGE' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>
+                  Extra demand requests
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  className="staff-field-green"
+                  value={extraDemandRequests}
+                  onChange={(e) => setExtraDemandRequests(e.target.value)}
+                />
+              </div>
+            )}
+
+            {selectedScenarioCode === 'SCN-DORMB-FULL' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>
+                  Incoming vehicle returns
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  className="staff-field-green"
+                  value={incomingReturns}
+                  onChange={(e) => setIncomingReturns(e.target.value)}
+                />
+              </div>
+            )}
+
+            {selectedScenarioCode === 'SCN-CHARGER-OUTAGE' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>
+                  Failed chargers count
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  className="staff-field-green"
+                  value={failedChargersCount}
+                  onChange={(e) => setFailedChargersCount(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <button type="submit" className="staff-pill-btn" disabled={loading}>
@@ -186,61 +273,8 @@ export function SimulationPage() {
           </button>
         </div>
 
-        {simOutcome && (
-          <div
-            style={{
-              background: 'var(--staff-pill)',
-              borderRadius: 16,
-              padding: '24px 28px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 14,
-            }}
-          >
-            <div style={{ fontSize: 19, fontWeight: 600, color: 'var(--staff-forest)' }}>
-              Hypothetical sample results
-            </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1.8fr 0.7fr 0.7fr',
-                color: 'var(--staff-muted)',
-                fontSize: 16,
-              }}
-            >
-              <span>Available vehicles</span>
-              <span>Before</span>
-              <span>After</span>
-            </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1.8fr 0.7fr 0.7fr',
-                fontSize: 18,
-                color: 'var(--staff-ink)',
-                paddingTop: 4,
-              }}
-            >
-              <span>{simOutcome.sourceName}</span>
-              <span>{simOutcome.beforeSrc}</span>
-              <span>{simOutcome.afterSrc}</span>
-            </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1.8fr 0.7fr 0.7fr',
-                fontSize: 18,
-                color: 'var(--staff-ink)',
-              }}
-            >
-              <span>{simOutcome.destName}</span>
-              <span>{simOutcome.beforeDst}</span>
-              <span>{simOutcome.afterDst}</span>
-            </div>
-          </div>
+        {error && (
+          <div style={{ color: '#c62828', fontSize: 15, fontWeight: 500 }}>{error}</div>
         )}
 
         {engineResult && (
@@ -252,7 +286,7 @@ export function SimulationPage() {
               padding: '20px 24px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 12,
+              gap: 14,
             }}
           >
             <div
@@ -289,45 +323,57 @@ export function SimulationPage() {
               >
                 {Object.entries(engineResult.impactSummary).map(([k, v]) => (
                   <div key={k}>
-                    <div style={{ fontSize: 12.5, color: 'var(--staff-olive)' }}>{k}</div>
-                    <strong style={{ fontSize: 16, color: 'var(--staff-forest)' }}>{String(v)}</strong>
+                    <div style={{ fontSize: 12.5, color: 'var(--staff-olive)' }}>
+                      {METRIC_LABELS[k] || k}
+                    </div>
+                    <strong style={{ fontSize: 16, color: 'var(--staff-forest)' }}>
+                      {String(v)}
+                    </strong>
                   </div>
                 ))}
               </div>
             )}
 
-            {Array.isArray(engineResult.recommendations) && engineResult.recommendations.length > 0 && (
+            {Array.isArray(engineResult.recommendations) && engineResult.recommendations.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--staff-forest)' }}>
                   System recommendations:
                 </div>
-                {engineResult.recommendations.map((rec) => (
-                  <div
-                    key={rec.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: 12,
-                      background: 'var(--staff-pill)',
-                      padding: '10px 14px',
-                      borderRadius: 10,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <span style={{ fontSize: 14.5, color: 'var(--staff-ink)' }}>
-                      <strong>[{rec.actionType}]</strong> {rec.summary}
-                    </span>
-                    <button
-                      type="button"
-                      className="staff-mini-link"
-                      style={{ background: '#cdf4cf', fontWeight: 600 }}
-                      onClick={() => handleApplyRecommendation(rec.id)}
+                {engineResult.recommendations.map((rec) => {
+                  const isApplied = appliedRecIds.includes(rec.id);
+                  return (
+                    <div
+                      key={rec.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 12,
+                        background: 'var(--staff-pill)',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        flexWrap: 'wrap',
+                      }}
                     >
-                      {appliedRecId === rec.id ? '✓ Applied' : 'Apply recommendation'}
-                    </button>
-                  </div>
-                ))}
+                      <span style={{ fontSize: 14.5, color: 'var(--staff-ink)' }}>
+                        <strong>[{rec.actionType}]</strong> {rec.summary}
+                      </span>
+                      <button
+                        type="button"
+                        className="staff-mini-link"
+                        style={{ background: '#cdf4cf', fontWeight: 600 }}
+                        onClick={() => handleApplyRecommendation(rec.id)}
+                        disabled={isApplied}
+                      >
+                        {isApplied ? '✓ Applied' : 'Apply recommendation'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: 14.5, color: 'var(--staff-olive)' }}>
+                No critical impact detected — no action required.
               </div>
             )}
           </div>
