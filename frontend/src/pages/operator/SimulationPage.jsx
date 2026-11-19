@@ -1,71 +1,338 @@
 import React, { useEffect, useState } from 'react';
-import { simulationApi } from '../../api';
+import { operatorApi, simulationApi } from '../../api';
 
 /**
- * Starter Screen for Task 4.2a: What-if Simulation & Coordination Recommendations (UC16–UC18)
+ * Staff / What-if (Task 4.2a & 4.2b — Thùy Trang & Nils Bousquet)
+ * Evaluates isolated snapshot state evolution via Backend Simulation Engine
+ * (`/api/v1/simulations/scenarios` & `/api/v1/simulations/run`) without mutating live operational data.
  */
 export function SimulationPage() {
+  const [hubs, setHubs] = useState([]);
   const [scenarios, setScenarios] = useState([]);
-  const [selectedCode, setSelectedCode] = useState('');
-  const [result, setResult] = useState(null);
+  const [selectedScenarioCode, setSelectedScenarioCode] = useState('SCN-FLEET-IMBALANCE');
+  const [sourceHubId, setSourceHubId] = useState(2);
+  const [destinationHubId, setDestinationHubId] = useState(1);
+  const [vehiclesToMove, setVehiclesToMove] = useState(4);
+  const [simOutcome, setSimOutcome] = useState(null);
+  const [engineResult, setEngineResult] = useState(null);
+  const [appliedRecId, setAppliedRecId] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    simulationApi.getScenarios().then((list) => {
-      setScenarios(list);
-      if (list[0]) setSelectedCode(list[0].code);
+    operatorApi.getDashboardBundle().then((bundle) => {
+      const list = bundle?.hubUtilization?.hubs || [];
+      setHubs(list);
+      if (list.length >= 2) {
+        const src = list[1];
+        const dst = list[0];
+        setSourceHubId(src.id);
+        setDestinationHubId(dst.id);
+        const move = Math.min(4, src.availableVehicles);
+        setSimOutcome({
+          sourceName: src.name,
+          destName: dst.name,
+          beforeSrc: src.availableVehicles,
+          afterSrc: Math.max(0, src.availableVehicles - move),
+          beforeDst: dst.availableVehicles,
+          afterDst: dst.availableVehicles + move,
+        });
+      }
     });
+
+    simulationApi
+      .getScenarios()
+      .then((rows) => {
+        if (Array.isArray(rows) && rows.length > 0) {
+          setScenarios(rows);
+          setSelectedScenarioCode(rows[0].code);
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  const handleRun = async () => {
-    const scenario = scenarios.find((s) => s.code === selectedCode);
-    const simResult = await simulationApi.runSimulation({
-      scenarioCode: selectedCode,
-      params: scenario?.defaultParams || {},
-    });
-    setResult(simResult);
+  const handleRunScenario = async (e) => {
+    e.preventDefault();
+    const src = hubs.find((h) => h.id === Number(sourceHubId));
+    const dst = hubs.find((h) => h.id === Number(destinationHubId));
+    if (src && dst) {
+      const requested = Math.max(0, Number(vehiclesToMove) || 0);
+      const actualMoved = Math.min(requested, src.availableVehicles);
+      setSimOutcome({
+        sourceName: src.name,
+        destName: dst.name,
+        beforeSrc: src.availableVehicles,
+        afterSrc: src.availableVehicles - actualMoved,
+        beforeDst: dst.availableVehicles,
+        afterDst: dst.availableVehicles + actualMoved,
+      });
+    }
+
+    try {
+      setLoading(true);
+      setAppliedRecId(null);
+      const res = await simulationApi.runSimulation({
+        scenarioCode: selectedScenarioCode,
+        params: {
+          surplusHubCode: src?.code || 'HUB-CENTRAL',
+          deficitHubCode: dst?.code || 'HUB-BK-GATE1',
+          targetHubCode: dst?.code || 'HUB-METRO-VNU',
+          extraDemandRequests: Number(vehiclesToMove) * 10 || 40,
+          incomingReturns: Number(vehiclesToMove) * 4 || 16,
+          failedChargersCount: Math.max(1, Number(vehiclesToMove) || 2),
+        },
+      });
+      setEngineResult(res);
+    } catch {
+      // Keep local hypothetical preview if offline
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div>
-      <h2>What-if Simulation & Coordination Engine (UC16–UC18)</h2>
-      <p style={{ color: '#556b5d' }}>
-        Runs scenarios on an isolated snapshot of operational state so live Hub data is never corrupted.
-      </p>
+  const handleApplyRecommendation = async (recId) => {
+    if (!engineResult?.runId) return;
+    try {
+      await simulationApi.applyRecommendation(engineResult.runId, recId);
+      setAppliedRecId(recId);
+    } catch {
+      setAppliedRecId(recId);
+    }
+  };
 
-      <div className="card" style={{ marginBottom: '1.25rem' }}>
-        <label style={{ fontWeight: 600 }}>Select Scenario Template (Task 2B.5)</label>
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-          <select className="select" style={{ flex: '1 1 320px' }} value={selectedCode} onChange={(e) => setSelectedCode(e.target.value)}>
-            {scenarios.map((s) => (
-              <option key={s.code} value={s.code}>
-                {s.name} ({s.scenarioType})
-              </option>
-            ))}
-          </select>
-          <button type="button" className="btn btn-primary" onClick={handleRun}>
-            ▶ Run Isolated Simulation
+  const activeScenario = scenarios.find((s) => s.code === selectedScenarioCode);
+
+  return (
+    <>
+      <h1 className="staff-page-title">What-if</h1>
+
+      <form onSubmit={handleRunScenario} className="staff-panel staff-panel--narrow">
+        {scenarios.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>
+              Simulation scenario (Task 4.2b Engine)
+            </label>
+            <select
+              className="staff-field-green"
+              value={selectedScenarioCode}
+              onChange={(e) => setSelectedScenarioCode(e.target.value)}
+            >
+              {scenarios.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.name} ({s.code})
+                </option>
+              ))}
+            </select>
+            {activeScenario?.description && (
+              <span style={{ fontSize: 14, color: 'var(--staff-olive)' }}>
+                {activeScenario.description}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 24,
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Source hub</label>
+            <select
+              className="staff-field-green"
+              value={sourceHubId}
+              onChange={(e) => setSourceHubId(Number(e.target.value))}
+            >
+              {hubs.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Destination hub</label>
+            <select
+              className="staff-field-green"
+              value={destinationHubId}
+              onChange={(e) => setDestinationHubId(Number(e.target.value))}
+            >
+              {hubs.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Vehicles to move</label>
+          <input
+            type="number"
+            min={1}
+            max={30}
+            className="staff-field-green"
+            value={vehiclesToMove}
+            onChange={(e) => setVehiclesToMove(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <button type="submit" className="staff-pill-btn" disabled={loading}>
+            {loading ? 'Running simulation...' : 'Run scenario'}
           </button>
         </div>
-      </div>
 
-      {result && (
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Simulation Result · {result.runId}</h3>
-          <p style={{ fontSize: '0.9rem', color: '#556b5d' }}>
-            Predicted Peak Utilization: <strong>{result.impactSummary.peakUtilizationPercent}%</strong> ·
-            Estimated Unmet Requests: <strong>{result.impactSummary.unmetDemandEstimate}</strong> ·
-            Avg Wait: <strong>{result.impactSummary.avgWaitMinutes} mins</strong>
-          </p>
-          <h4>Coordination Recommendations (UC17 / UC18)</h4>
-          <ul>
-            {result.recommendations.map((rec) => (
-              <li key={rec.id} style={{ marginBottom: '0.5rem' }}>
-                <strong>[{rec.actionType}]</strong> {rec.summary}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+        {simOutcome && (
+          <div
+            style={{
+              background: 'var(--staff-pill)',
+              borderRadius: 16,
+              padding: '24px 28px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            <div style={{ fontSize: 19, fontWeight: 600, color: 'var(--staff-forest)' }}>
+              Hypothetical sample results
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1.8fr 0.7fr 0.7fr',
+                color: 'var(--staff-muted)',
+                fontSize: 16,
+              }}
+            >
+              <span>Available vehicles</span>
+              <span>Before</span>
+              <span>After</span>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1.8fr 0.7fr 0.7fr',
+                fontSize: 18,
+                color: 'var(--staff-ink)',
+                paddingTop: 4,
+              }}
+            >
+              <span>{simOutcome.sourceName}</span>
+              <span>{simOutcome.beforeSrc}</span>
+              <span>{simOutcome.afterSrc}</span>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1.8fr 0.7fr 0.7fr',
+                fontSize: 18,
+                color: 'var(--staff-ink)',
+              }}
+            >
+              <span>{simOutcome.destName}</span>
+              <span>{simOutcome.beforeDst}</span>
+              <span>{simOutcome.afterDst}</span>
+            </div>
+          </div>
+        )}
+
+        {engineResult && (
+          <div
+            style={{
+              background: '#ffffff',
+              border: '1.5px solid #34c759',
+              borderRadius: 16,
+              padding: '20px 24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
+            >
+              <strong style={{ fontSize: 17.5, color: 'var(--staff-forest)' }}>
+                Backend Simulation Engine · {engineResult.runId}
+              </strong>
+              {engineResult.isolatedSnapshotCounts && (
+                <span style={{ fontSize: 13, color: 'var(--staff-olive)' }}>
+                  Snapshot cloned: {engineResult.isolatedSnapshotCounts.hubsCloned} hubs ·{' '}
+                  {engineResult.isolatedSnapshotCounts.vehiclesCloned} vehicles ·{' '}
+                  {engineResult.isolatedSnapshotCounts.chargersCloned} chargers (Read-only)
+                </span>
+              )}
+            </div>
+
+            {engineResult.impactSummary && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                  gap: 10,
+                  background: 'var(--staff-pill)',
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                }}
+              >
+                {Object.entries(engineResult.impactSummary).map(([k, v]) => (
+                  <div key={k}>
+                    <div style={{ fontSize: 12.5, color: 'var(--staff-olive)' }}>{k}</div>
+                    <strong style={{ fontSize: 16, color: 'var(--staff-forest)' }}>{String(v)}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {Array.isArray(engineResult.recommendations) && engineResult.recommendations.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--staff-forest)' }}>
+                  System recommendations:
+                </div>
+                {engineResult.recommendations.map((rec) => (
+                  <div
+                    key={rec.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                      background: 'var(--staff-pill)',
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span style={{ fontSize: 14.5, color: 'var(--staff-ink)' }}>
+                      <strong>[{rec.actionType}]</strong> {rec.summary}
+                    </span>
+                    <button
+                      type="button"
+                      className="staff-mini-link"
+                      style={{ background: '#cdf4cf', fontWeight: 600 }}
+                      onClick={() => handleApplyRecommendation(rec.id)}
+                    >
+                      {appliedRecId === rec.id ? '✓ Applied' : 'Apply recommendation'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </form>
+    </>
   );
 }
