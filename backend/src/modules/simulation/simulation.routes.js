@@ -3,8 +3,10 @@ const { pool } = require('../../config/db');
 const { authenticateToken, requireRole } = require('../../middlewares/auth.middleware');
 
 const router = express.Router();
+const { validateRequest: validate } = require('../../middlewares/validateRequest.middleware');
 
-// router.use(authenticateToken, requireRole('OPERATOR'));
+// OpenAPI: simulation endpoints are restricted to OPERATOR users.
+router.use(authenticateToken, requireRole('OPERATOR'));
 
 router.get('/scenarios', async (_req, res, next) => {
   try {
@@ -15,7 +17,7 @@ router.get('/scenarios', async (_req, res, next) => {
   }
 });
 
-router.post('/run', async (req, res, next) => {
+router.post('/run', validate('simulation'), async (req, res, next) => {
   try {
     const { scenarioCode, params = {} } = req.body;
 

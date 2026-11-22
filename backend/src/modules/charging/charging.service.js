@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { pool } = require('../../config/db');
 const { withTransaction } = require('../../utils/transaction');
 const AppError = require('../../utils/appError');
+const { assertTransition } = require('../state/stateMachine');
 const { requiredId, windowOf, battery } = require('../reservations/reservations.validation');
 
 const fail = (status, code, msg) => { throw new AppError(status, code, msg); };
@@ -95,6 +96,16 @@ async function schedule(user, body) {
     const [[hub]] = await c.execute('SELECT id,status FROM hubs WHERE id=? FOR UPDATE',[hubId]);
     if(!hub) fail(404,'HUB_NOT_FOUND','Hub not found.');
     if(hub.status==='MAINTENANCE') fail(409,'HUB_CLOSED','Hub under maintenance.');
+    if(ownershipType==='RENTAL') {
+      const vehicleId=requiredId(body.vehicleId,'vehicleId');
+      const [[vehicle]]=await c.execute('SELECT id,current_hub_id,status FROM vehicles WHERE id=? FOR UPDATE',[vehicleId]);
+      if(!vehicle) fail(404,'VEHICLE_NOT_FOUND','Rental vehicle not found.');
+      if(Number(vehicle.current_hub_id)!==hubId || !['AVAILABLE','CHARGING'].includes(vehicle.status))
+        fail(409,'VEHICLE_NOT_AVAILABLE','Rental vehicle is not available for charging at this Hub.');
+      const [overlap]=await c.execute(`SELECT id FROM charging_requests WHERE vehicle_id=?
+        AND status IN ('QUEUED','SCHEDULED','CHARGING') AND scheduled_start<? AND scheduled_end>? LIMIT 1`, [vehicleId,end,start]);
+      if(overlap.length) fail(409,'DUPLICATE_CHARGING_BOOKING','Rental vehicle already has a charging session in that window.');
+    }
     if(ownershipType==='PRIVATE') {
       const [duplicates]=await c.execute(`SELECT id FROM charging_requests WHERE user_id=?
         AND ownership_type='PRIVATE' AND private_vehicle_label=? AND status IN ('QUEUED','SCHEDULED','CHARGING')
@@ -106,13 +117,13 @@ async function schedule(user, body) {
     const point=await findFreePoint(c,hubId,start,end,label,connector);
     const status=point?'SCHEDULED':'QUEUED';
     const [[count]] = await c.execute("SELECT COUNT(*) AS n FROM charging_requests WHERE hub_id=? AND status='QUEUED'",[hubId]);
-    const requestCode=`CHG-${crypto.randomUUID().slice(0,8).toUpperCase()}`;
+    const requestCode=`CHG-${crypto.randomUUID().replace(/-/g,'')}`;
     const priority=priorityFor(current);
     const [result]=await c.execute(
       `INSERT INTO charging_requests (request_code,user_id,ownership_type,vehicle_id,private_vehicle_label,hub_id,
         charging_point_id,current_battery_level,target_battery_level,priority,scheduled_start,scheduled_end,queue_position,status)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [requestCode,uid,ownershipType,body.vehicleId || null,label || null,hubId,point?.id || null,current,target,priority,start,end,status==='QUEUED'?Number(count.n)+1:1,status]
+      [requestCode,uid,ownershipType,ownershipType==='RENTAL'?requiredId(body.vehicleId,'vehicleId'):null,label || null,hubId,point?.id || null,current,target,priority,start,end,status==='QUEUED'?Number(count.n)+1:1,status]
     );
     if(point) await syncPoint(c,point.id);
     return {id:result.insertId,requestCode,status,priority,chargingPointId:point?.id || null,chargingPointCode:point?.charger_code || null,queuePosition:status==='QUEUED'?Number(count.n)+1:null,
@@ -151,6 +162,12 @@ async function startCharging(user,id) {
   if(Date.now()>new Date(row.scheduled_end).getTime()) fail(409,'SCHEDULE_EXPIRED','Charging window already ended.');
   const [busy]=await c.execute("SELECT id FROM charging_requests WHERE charging_point_id=? AND status='CHARGING' AND id<>? LIMIT 1",[cp.id,reqId]);
   if(busy.length) fail(409,'CHARGER_NOT_AVAILABLE','Another vehicle is charging.');
+  assertTransition('chargingPoint',cp.status,'CHARGING');
+  if(row.vehicle_id) {
+    const [[vehicle]]=await c.execute('SELECT id,status,current_hub_id FROM vehicles WHERE id=? FOR UPDATE',[row.vehicle_id]);
+    if(!vehicle || Number(vehicle.current_hub_id)!==Number(row.hub_id)) fail(409,'VEHICLE_NOT_AT_HUB','Rental vehicle is not at this Hub.');
+    assertTransition('vehicle',vehicle.status,'CHARGING');
+  }
   await c.execute("UPDATE charging_requests SET status='CHARGING' WHERE id=?",[reqId]);
   await c.execute("UPDATE charging_points SET status='CHARGING', current_vehicle_id=? WHERE id=?",[row.vehicle_id || null,cp.id]);
   if(row.vehicle_id) await c.execute("UPDATE vehicles SET status='CHARGING' WHERE id=?",[row.vehicle_id]);

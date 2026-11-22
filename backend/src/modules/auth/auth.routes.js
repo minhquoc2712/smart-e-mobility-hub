@@ -1,7 +1,3 @@
-/**
- * Module: Authentication & Role-Based Access (Task 3.1c : Pham Tuan Minh)
- * Verifies Google ID token, maps configured emails to OPERATOR (others -> USER), and issues JWT.
- */
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
@@ -20,9 +16,7 @@ function resolveRoleByEmail(email) {
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
   if (
-    operatorList.includes(normalized) ||
-    normalized.includes('operator') ||
-    normalized.includes('staff')
+    operatorList.includes(normalized)
   ) {
     return 'OPERATOR';
   }
@@ -135,7 +129,7 @@ router.post('/dev-login', async (req, res, next) => {
     );
 
     if (rows.length === 0) {
-      const defaultName = role === 'OPERATOR' ? 'Lê Điều Phối Viên' : email.split('@')[0];
+      const defaultName = role === 'OPERATOR' ? 'LÃª Äiá»u Phá»‘i ViÃªn' : email.split('@')[0];
       await pool.execute(
         `INSERT INTO users (email, full_name, role, private_vehicle_plate, private_vehicle_model)
          VALUES (?, ?, ?, ?, ?)`,

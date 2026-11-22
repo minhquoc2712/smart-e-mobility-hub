@@ -3,6 +3,7 @@ const {withTransaction} = require('../../utils/transaction');
 const AppError = require('../../utils/appError');
 const {MIN_BATTERY_TO_RESERVE} = require('../../config/businessRules');
 const {assertTransition} = require('../state/stateMachine');
+const {syncHubStatus} = require('../hubs/hubs.service');
 const {requiredId,windowOf,mysqlDate,battery} = require('./reservations.validation');
 const crypto=require('node:crypto');
 const fail=(status,code,message)=>{throw new AppError(status,code,message)};
@@ -53,21 +54,28 @@ async function list(user,query={}){
 async function reserveVehicle(user,body){
  const uid=userId(user), vid=requiredId(body.vehicleId,'vehicleId');
  return withTransaction(async c=>{
-  // Lock vehicle first; concurrent booking of the same vehicle cannot succeed.
+  // Serialize reservations by user before checking a vehicle. Locking only the
+  // vehicle would allow simultaneous bookings of DIFFERENT vehicles by one user.
+  const [[owner]]=await c.execute('SELECT id FROM users WHERE id=? FOR UPDATE',[uid]);
+  if(!owner)fail(401,'UNAUTHORIZED','Authenticated user does not exist.');
+  // A vehicle row lock prevents two different users booking the SAME vehicle.
   const v=await selectOne(c,'SELECT * FROM vehicles WHERE id=? FOR UPDATE',[vid],'VEHICLE_NOT_FOUND');
   if(v.status!=='AVAILABLE')fail(409,'VEHICLE_NOT_AVAILABLE','Vehicle is not available.');
-  if(v.battery_level<MIN_BATTERY_TO_RESERVE)fail(422,'BATTERY_TOO_LOW','Battery is too low.');
+  if(v.battery_level<MIN_BATTERY_TO_RESERVE)fail(409,'BATTERY_TOO_LOW','Battery is too low.');
   if(!v.current_hub_id)fail(409,'VEHICLE_NOT_AT_HUB','Vehicle is not located at a Hub.');
   await liveHub(c,v.current_hub_id);
   if(body.hubId!=null && requiredId(body.hubId,'hubId')!==Number(v.current_hub_id))fail(422,'WRONG_PICKUP_HUB','Vehicle is at a different hub.');
-  const [existing]=await c.execute(`SELECT id, vehicle_id, status FROM reservations WHERE user_id=? AND reservation_type='VEHICLE' AND status IN ('CONFIRMED','ACTIVE')`,[uid]);
+  const [existing]=await c.execute(`SELECT id, vehicle_id, status FROM reservations WHERE user_id=? AND reservation_type='VEHICLE' AND status IN ('CONFIRMED','ACTIVE') FOR UPDATE`,[uid]);
   for (const prev of existing) {
     if (prev.status === 'ACTIVE') {
       fail(409,'ACTIVE_RESERVATION_EXISTS','User already has an active rental. Please return it first.');
     }
     await c.execute("UPDATE reservations SET status='CANCELLED' WHERE id=?",[prev.id]);
     if (prev.vehicle_id && Number(prev.vehicle_id) !== Number(vid)) {
-      await c.execute("UPDATE vehicles SET status='AVAILABLE' WHERE id=? AND status='RESERVED'",[prev.vehicle_id]);
+      const [previousVehicle]=await c.execute('SELECT status FROM vehicles WHERE id=? FOR UPDATE',[prev.vehicle_id]);
+      if(previousVehicle.length && previousVehicle[0].status==='RESERVED') {
+        await c.execute("UPDATE vehicles SET status='AVAILABLE' WHERE id=? AND status='RESERVED'",[prev.vehicle_id]);
+      }
     }
   }
   // Requested rental times are separate from the 15-minute reservation HOLD.
@@ -90,10 +98,10 @@ async function reserveParking(user,body){
  return withTransaction(async c=>{
   await liveHub(c,hubId); // hub lock serializes competing interval allocations
   const [slots]=await c.execute(`SELECT s.* FROM parking_slots s WHERE s.hub_id=? AND s.slot_type IN ('PRIVATE_EV','UNIVERSAL')
-   AND s.status NOT IN ('OUT_OF_SERVICE','OCCUPIED') AND NOT EXISTS (
+   AND s.status NOT IN ('OUT_OF_SERVICE','OCCUPIED') AND (?='PRIVATE_EV' OR s.slot_type='UNIVERSAL') AND NOT EXISTS (
     SELECT 1 FROM reservations r WHERE r.parking_slot_id=s.id AND r.reservation_type='PARKING'
       AND r.status IN ('CONFIRMED','ACTIVE') AND r.start_time < ? AND r.end_time > ?)
-   ORDER BY s.id FOR UPDATE`,[hubId,end,start]);
+   ORDER BY s.id FOR UPDATE`,[hubId,body.slotType||'PRIVATE_EV',end,start]);
   const slot=slots.find(s=>s.status==='FREE'||s.status==='RESERVED');
   if(!slot)fail(409,'HUB_PARKING_FULL','No compatible parking slot available in requested window.');
   const plate=body.licensePlate == null ? null : String(body.licensePlate).trim();
@@ -109,6 +117,7 @@ async function reserveParking(user,body){
   const plateNote = plate ? `${PARKING_PLATE_PREFIX}${plate}` : null;
   const [result]=await c.execute(`INSERT INTO reservations (reservation_code,user_id,reservation_type,hub_id,parking_slot_id,start_time,end_time,return_condition_note,status)
   VALUES (?,?,'PARKING',?,?,?,?,?,'CONFIRMED')`,[reservationCode,uid,hubId,slot.id,start,end,plateNote]);
+  await syncHubStatus(c,hubId);
   return {id:result.insertId,reservationCode,parkingSlotId:slot.id,slotCode:slot.slot_code,parkingSlotCode:slot.slot_code,licensePlate:plate,startTime:new Date(body.startTime).toISOString(),endTime:new Date(body.endTime).toISOString(),status:'CONFIRMED'};
  });
 }
@@ -126,6 +135,7 @@ async function cancel(user,id){
    const [others]=await c.execute(`SELECT id FROM reservations WHERE parking_slot_id=? AND id<>? AND status IN ('CONFIRMED','ACTIVE') LIMIT 1`,[r.parking_slot_id,r.id]);
    const slot=await selectOne(c,'SELECT * FROM parking_slots WHERE id=? FOR UPDATE',[r.parking_slot_id]);
    if(!others.length&&slot.status==='RESERVED')await c.execute("UPDATE parking_slots SET status='FREE' WHERE id=?",[slot.id]);
+   await syncHubStatus(c,r.hub_id);
   }
   return {id:r.id,status:'CANCELLED'};
  });
@@ -150,6 +160,7 @@ async function pickup(user,id,body={}){
   }
   await c.execute("UPDATE vehicles SET status='IN_USE', current_hub_id=NULL, parking_slot_id=NULL WHERE id=?",[v.id]);
   await c.execute("UPDATE reservations SET status='ACTIVE',actual_pickup_time=UTC_TIMESTAMP() WHERE id=?",[r.id]);
+  await syncHubStatus(c,r.hub_id);
   return {id:r.id,vehicleId:v.id,status:'ACTIVE'};
  });
 }
@@ -160,17 +171,24 @@ async function returnVehicle(user,id,body={}){
   if(r.reservation_type!=='VEHICLE'||r.status!=='ACTIVE')fail(409,'INVALID_STATE_TRANSITION','No active rental for this reservation.');
   await liveHub(c,hubId);
   const v=await selectOne(c,'SELECT * FROM vehicles WHERE id=? FOR UPDATE',[r.vehicle_id]);
-  assertTransition('vehicle',v.status,'AVAILABLE');
-  const [slots]=await c.execute(`SELECT * FROM parking_slots WHERE hub_id=? AND slot_type IN ('SHARED_EV','UNIVERSAL') AND status='FREE' ORDER BY id FOR UPDATE`,[hubId]);
+  // After a breakdown mid-rental, the rider can still return the vehicle,
+  // but only maintenance/incident closure may restore AVAILABLE.
+  const isDamaged = v.status==='OUT_OF_SERVICE';
+  if(!isDamaged) assertTransition('vehicle',v.status,'AVAILABLE');
+  const [slots]=await c.execute(`SELECT * FROM parking_slots s WHERE s.hub_id=? AND s.slot_type IN ('SHARED_EV','UNIVERSAL') AND s.status='FREE'
+    AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.parking_slot_id=s.id AND r.reservation_type='PARKING'
+      AND r.status IN ('CONFIRMED','ACTIVE')) ORDER BY s.id FOR UPDATE`,[hubId]);
   if(!slots.length)fail(409,'HUB_PARKING_FULL','No free rental-vehicle parking slot.');
   const slot=slots[0];
-  const level=body.batteryLevel===undefined?v.battery_level:battery(body.batteryLevel);
+  const requestedLevel=body.remainingBattery ?? body.batteryLevel;
+  const level=requestedLevel===undefined?v.battery_level:battery(requestedLevel);
   assertTransition('parkingSlot',slot.status,'OCCUPIED');
   await c.execute("UPDATE parking_slots SET status='OCCUPIED' WHERE id=?",[slot.id]);
-  await c.execute("UPDATE vehicles SET status='AVAILABLE',current_hub_id=?,parking_slot_id=?,battery_level=? WHERE id=?",[hubId,slot.id,level,v.id]);
+  await c.execute('UPDATE vehicles SET status=?,current_hub_id=?,parking_slot_id=?,battery_level=? WHERE id=?',[isDamaged?'OUT_OF_SERVICE':'AVAILABLE',hubId,slot.id,level,v.id]);
   await c.execute("UPDATE reservations SET status='COMPLETED',actual_return_time=UTC_TIMESTAMP(),return_hub_id=?,return_condition_note=? WHERE id=?",
-    [hubId,body.returnConditionNote|| (level<MIN_BATTERY_TO_RESERVE?'LOW_BATTERY_REQUIRES_CHARGING':null),r.id]);
-  return {id:r.id,status:'COMPLETED',returnHubId:hubId,parkingSlotId:slot.id,batteryLevel:level,needsCharging:level<MIN_BATTERY_TO_RESERVE};
+    [hubId,body.conditionNote ?? body.returnConditionNote ?? (level<MIN_BATTERY_TO_RESERVE?'LOW_BATTERY_REQUIRES_CHARGING':null),r.id]);
+  await syncHubStatus(c,hubId);
+  return {id:r.id,status:'COMPLETED',returnHubId:hubId,parkingSlotId:slot.id,batteryLevel:level,needsCharging:!isDamaged&&level<MIN_BATTERY_TO_RESERVE,needsRepair:isDamaged};
  });
 }
 async function parkingCheckIn(user,id){
@@ -192,6 +210,7 @@ async function parkingCheckIn(user,id){
   assertTransition('parkingSlot',s.status,'OCCUPIED');
   await c.execute("UPDATE parking_slots SET status='OCCUPIED' WHERE id=?",[s.id]);
   await c.execute("UPDATE reservations SET status='ACTIVE',actual_pickup_time=UTC_TIMESTAMP() WHERE id=?",[r.id]);
+  await syncHubStatus(c,r.hub_id);
   return {id:r.id,status:'ACTIVE',parkingSlotId:s.id};
  });
 }
@@ -202,9 +221,14 @@ async function parkingCheckOut(user,id){
   const [charging]=await c.execute(`SELECT id FROM charging_requests WHERE user_id=? AND hub_id=? AND status='CHARGING' LIMIT 1`,[r.user_id,r.hub_id]);
   if(charging.length)fail(409,'CHARGING_IN_PROGRESS','Stop charging before parking checkout.');
   const s=await selectOne(c,'SELECT * FROM parking_slots WHERE id=? FOR UPDATE',[r.parking_slot_id]);
-  assertTransition('parkingSlot',s.status,'FREE');
-  await c.execute("UPDATE parking_slots SET status='FREE' WHERE id=?",[s.id]);
+  // If the slot was marked OUT_OF_SERVICE while occupied, checkout must
+  // finish the reservation without overriding the incident state.
+  if(s.status!=='OUT_OF_SERVICE'){
+   assertTransition('parkingSlot',s.status,'FREE');
+   await c.execute("UPDATE parking_slots SET status='FREE' WHERE id=?",[s.id]);
+  }
   await c.execute("UPDATE reservations SET status='COMPLETED',actual_return_time=UTC_TIMESTAMP() WHERE id=?",[r.id]);
+  await syncHubStatus(c,r.hub_id);
   return {id:r.id,status:'COMPLETED'};
  });
 }
