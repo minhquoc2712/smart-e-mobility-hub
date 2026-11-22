@@ -99,6 +99,13 @@ export const chargingPointApi = {
     const qs = new URLSearchParams(filters).toString();
     return httpRequest(`/charging-points${qs ? `?${qs}` : ''}`);
   },
+  updateStatus: (chargerId, status, extra = {}) =>
+    IS_MOCK_MODE
+      ? mockServer.updateChargingPointStatus?.(chargerId, status, extra)
+      : httpRequest(`/charging-points/${chargerId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status, ...extra }),
+        }),
 };
 
 export const reservationApi = {
@@ -230,6 +237,30 @@ export const operatorApi = {
     IS_MOCK_MODE
       ? Promise.resolve({ reset: true })
       : httpRequest('/operator/charging-priority/reset-all', { method: 'POST' }),
+
+  plugInVehicle: ({ vehicleId, chargerId } = {}) =>
+    IS_MOCK_MODE
+      ? mockServer.plugInVehicle(vehicleId, chargerId)
+      : httpRequest('/operator/charging/plug-in', {
+          method: 'POST',
+          body: JSON.stringify({ vehicleId, chargerId }),
+        }),
+
+  unplugVehicle: ({ vehicleId, chargerId } = {}) =>
+    IS_MOCK_MODE
+      ? mockServer.unplugVehicle(vehicleId, chargerId)
+      : httpRequest('/operator/charging/unplug', {
+          method: 'POST',
+          body: JSON.stringify({ vehicleId, chargerId }),
+        }),
+
+  swapVehicles: ({ activeVehicleId, queueVehicleId } = {}) =>
+    IS_MOCK_MODE
+      ? mockServer.swapVehicles(activeVehicleId, queueVehicleId)
+      : httpRequest('/operator/charging/swap', {
+          method: 'POST',
+          body: JSON.stringify({ activeVehicleId, queueVehicleId }),
+        }),
 };
 
 export const simulationApi = {

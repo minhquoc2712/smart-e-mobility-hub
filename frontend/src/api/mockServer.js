@@ -349,6 +349,60 @@ export const mockServer = {
     return req;
   },
 
+  async plugInVehicle(vehicleId, chargerId = null) {
+    await delay();
+    const db = loadDb();
+    const veh = db.vehicles.find((v) => v.id === Number(vehicleId));
+    if (!veh) throw new Error('Vehicle not found.');
+    let charger = chargerId ? db.chargingPoints.find((c) => c.id === Number(chargerId)) : null;
+    if (!charger) {
+      charger = db.chargingPoints.find(
+        (c) => Number(c.hubId) === Number(veh.currentHubId) && c.status === 'AVAILABLE'
+      );
+    }
+    if (!charger) throw new Error('No available charger at this hub.');
+    veh.status = 'CHARGING';
+    charger.status = 'CHARGING';
+    charger.currentVehicleId = veh.id;
+    charger.currentVehicleCode = veh.code;
+    saveDb(db);
+    return { vehicleId: veh.id, chargerId: charger.id, status: 'CHARGING' };
+  },
+
+  async unplugVehicle(vehicleId, chargerId = null) {
+    await delay();
+    const db = loadDb();
+    const veh = vehicleId ? db.vehicles.find((v) => v.id === Number(vehicleId)) : null;
+    let charger = chargerId ? db.chargingPoints.find((c) => c.id === Number(chargerId)) : null;
+    if (!charger && veh) {
+      charger = db.chargingPoints.find((c) => Number(c.currentVehicleId) === Number(veh.id));
+    }
+    if (veh) veh.status = 'AVAILABLE';
+    if (charger) {
+      charger.status = 'AVAILABLE';
+      charger.currentVehicleId = null;
+      charger.currentVehicleCode = null;
+    }
+    saveDb(db);
+    return { unplugged: true };
+  },
+
+  async swapVehicles(activeVehicleId, queueVehicleId) {
+    await delay();
+    const db = loadDb();
+    const aVeh = db.vehicles.find((v) => v.id === Number(activeVehicleId));
+    const qVeh = db.vehicles.find((v) => v.id === Number(queueVehicleId));
+    if (!aVeh || !qVeh) throw new Error('Vehicle not found.');
+    const charger = db.chargingPoints.find((c) => Number(c.currentVehicleId) === Number(aVeh.id));
+    if (!charger) throw new Error('Active vehicle not plugged in.');
+    aVeh.status = 'AVAILABLE';
+    qVeh.status = 'CHARGING';
+    charger.currentVehicleId = qVeh.id;
+    charger.currentVehicleCode = qVeh.code;
+    saveDb(db);
+    return { swapped: true };
+  },
+
   async getOperatorDashboard() {
     await delay();
     const db = loadDb();
