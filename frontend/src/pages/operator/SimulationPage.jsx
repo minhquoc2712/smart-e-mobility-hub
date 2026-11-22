@@ -9,6 +9,8 @@ const SCENARIO_DEFAULTS = {
 };
 
 const METRIC_LABELS = {
+  sourceHubAvailableVehicles: 'Source Hub Available',
+  destinationHubAvailableVehicles: 'Destination Hub Available',
   requestedVehicles: 'Requested Vehicles',
   fulfilledRequests: 'Fulfilled Requests',
   unmetDemandEstimate: 'Unmet Demand',
@@ -132,7 +134,7 @@ export function SimulationPage() {
         {scenarios.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>
-              Simulation scenario (Task 4.2b Engine)
+              Simulation scenario
             </label>
             <select
               className="staff-field-green"
@@ -163,7 +165,7 @@ export function SimulationPage() {
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Surplus hub</label>
+              <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Source hub</label>
               <select
                 className="staff-field-green"
                 value={surplusHubCode}
@@ -178,7 +180,7 @@ export function SimulationPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Deficit hub</label>
+              <label style={{ fontSize: 18, color: 'var(--staff-forest)' }}>Destination hub</label>
               <select
                 className="staff-field-green"
                 value={deficitHubCode}

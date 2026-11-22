@@ -28,7 +28,7 @@ router.post('/run', async (req, res, next) => {
     const simState = {
       hubs: JSON.parse(JSON.stringify(hubsSnapshot)),
       vehicles: JSON.parse(JSON.stringify(vehiclesSnapshot)),
-      chargers: JSON.parse(JSON.stringify(chargersSnapshot))
+      chargers: JSON.parse(JSON.stringify(chargersSnapshot)),
     };
 
     let impactSummary = {};
@@ -58,7 +58,7 @@ router.post('/run', async (req, res, next) => {
           recommendations.push({
             id: `REC-${Date.now()}-1`,
             actionType: 'DISPATCH',
-            summary: `Redistribute ${unmetDemand} available vehicles to ${targetHub.name} to meet metro surge demand.`
+            summary: `Redistribute ${unmetDemand} available vehicles to ${targetHub.name} to meet metro surge demand.`,
           });
         }
         break;
@@ -80,12 +80,20 @@ router.post('/run', async (req, res, next) => {
           incomingVehicles: incoming,
           availableSlots: availableSlots,
           strandedVehicles: stranded,
-          peakUtilizationPercent: 100
+          peakUtilizationPercent: 100,
         };
 
         if (stranded > 0) {
-          recommendations.push({ id: `REC-${Date.now()}-1`, actionType: 'REROUTE_USERS', summary: `Reroute ${stranded} incoming users from ${targetHub.name} to Central Library Hub.` });
-          recommendations.push({ id: `REC-${Date.now()}-2`, actionType: 'DISPATCH', summary: `Dispatch a collection truck to ${targetHub.name} to remove ${stranded} vehicles.` });
+          recommendations.push({
+            id: `REC-${Date.now()}-1`,
+            actionType: 'REROUTE_USERS',
+            summary: `Reroute ${stranded} incoming users from ${targetHub.name} to Central Library Hub.`,
+          });
+          recommendations.push({
+            id: `REC-${Date.now()}-2`,
+            actionType: 'DISPATCH',
+            summary: `Dispatch a collection truck to ${targetHub.name} to remove ${stranded} vehicles.`,
+          });
         }
         break;
       }
@@ -101,31 +109,54 @@ router.post('/run', async (req, res, next) => {
         const broken = Math.min(brokenCount, activeChargers.length);
         const remaining = activeChargers.length - broken;
 
-        impactSummary = { chargersDisabled: broken, remainingOperational: remaining, impactOnChargingQueue: 'HIGH' };
+        impactSummary = {
+          chargersDisabled: broken,
+          remainingOperational: remaining,
+          impactOnChargingQueue: 'HIGH',
+        };
 
         if (broken > 0) {
-          recommendations.push({ id: `REC-${Date.now()}-1`, actionType: 'MAINTENANCE_TICKET', summary: `Generate CRITICAL incident for ${broken} broken charging points at ${targetHub.name}.` });
+          recommendations.push({
+            id: `REC-${Date.now()}-1`,
+            actionType: 'MAINTENANCE_TICKET',
+            summary: `Generate CRITICAL incident for ${broken} broken charging points at ${targetHub.name}.`,
+          });
         }
         break;
       }
 
       case 'SCN-FLEET-IMBALANCE': {
-        const surplusHubCode = params.surplusHubCode || 'HUB-DORM-B';
-        const deficitHubCode = params.deficitHubCode || 'HUB-BK-GATE1';
+        const sourceHubCode = params.sourceHubCode || params.surplusHubCode || 'HUB-DORM-B';
+        const destinationHubCode = params.destinationHubCode || params.deficitHubCode || 'HUB-BK-GATE1';
 
-        const surplusHub = simState.hubs.find(h => h.code === surplusHubCode);
-        const deficitHub = simState.hubs.find(h => h.code === deficitHubCode);
+        const sourceHub = simState.hubs.find(h => h.code === sourceHubCode);
+        const destinationHub = simState.hubs.find(h => h.code === destinationHubCode);
+        if (!sourceHub || !destinationHub) throw new Error('Hub not found');
 
-        const surplusAvailable = simState.vehicles.filter(v => v.current_hub_id === surplusHub.id && v.status === 'AVAILABLE').length;
-        const deficitAvailable = simState.vehicles.filter(v => v.current_hub_id === deficitHub.id && v.status === 'AVAILABLE').length;
+        const sourceAvailable = simState.vehicles.filter(v => v.current_hub_id === sourceHub.id && v.status === 'AVAILABLE').length;
+        const destinationAvailable = simState.vehicles.filter(v => v.current_hub_id === destinationHub.id && v.status === 'AVAILABLE').length;
 
-        impactSummary = { 
-          surplusHubAvailableVehicles: surplusAvailable, 
-          deficitHubAvailableVehicles: deficitAvailable,
-          imbalanceSeverity: 'CRITICAL' 
+        const diff = sourceAvailable - destinationAvailable;
+        const vehiclesToTransfer = diff >= 2 ? Math.floor(diff / 2) : 0;
+
+        const imbalanceSeverity =
+          diff >= 6 ? 'CRITICAL' :
+          diff >= 2 ? 'MODERATE' :
+          'LOW';
+
+        impactSummary = {
+          sourceHubAvailableVehicles: sourceAvailable,
+          destinationHubAvailableVehicles: destinationAvailable,
+          imbalanceSeverity,
         };
 
-        recommendations.push({ id: `REC-${Date.now()}-1`, actionType: 'DISPATCH', summary: `Transfer 10 vehicles from ${surplusHub.name} to ${deficitHub.name} to resolve imbalance.` });
+        if (vehiclesToTransfer > 0) {
+          recommendations.push({
+            id: `REC-${Date.now()}-1`,
+            actionType: 'DISPATCH',
+            summary: `Transfer ${vehiclesToTransfer} vehicle(s) from ${sourceHub.name} to ${destinationHub.name} to resolve imbalance.`,
+          });
+        }
         break;
       }
 
@@ -138,7 +169,11 @@ router.post('/run', async (req, res, next) => {
       data: {
         runId: `SIM-${Date.now()}`,
         scenarioCode,
-        isolatedSnapshotCounts: { hubsCloned: simState.hubs.length, vehiclesCloned: simState.vehicles.length, chargersCloned: simState.chargers.length },
+        isolatedSnapshotCounts: {
+          hubsCloned: simState.hubs.length,
+          vehiclesCloned: simState.vehicles.length,
+          chargersCloned: simState.chargers.length,
+        },
         paramsUsed: params,
         impactSummary,
         recommendations,
@@ -151,7 +186,10 @@ router.post('/run', async (req, res, next) => {
 
 router.post('/runs/:runId/apply-recommendation', async (req, res) => {
   const { recommendationId } = req.body;
-  res.json({ success: true, data: { runId: req.params.runId, appliedRecommendationId: recommendationId, status: 'APPLIED' } });
+  res.json({
+    success: true,
+    data: { runId: req.params.runId, appliedRecommendationId: recommendationId, status: 'APPLIED' },
+  });
 });
 
 module.exports = router;
