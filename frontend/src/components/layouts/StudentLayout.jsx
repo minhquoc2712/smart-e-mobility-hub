@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { AccountCreatedBanner } from '../common/AccountCreatedBanner';
 import { IS_MOCK_MODE } from '../../api';
 import logo from '../common/images/logo.png';
 
@@ -65,6 +66,7 @@ export function StudentLayout() {
       </header>
 
       <main className="container">
+        <AccountCreatedBanner />
         <Outlet />
       </main>
     </div>

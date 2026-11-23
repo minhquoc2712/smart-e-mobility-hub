@@ -61,6 +61,7 @@ export function LoginPage() {
   const { loginWithGoogleCredential, loginDemo } = useAuth();
   const navigate = useNavigate();
   const googleButtonRef = useRef(null);
+  const googleSignupButtonRef = useRef(null);
 
   const [selectedRole, setSelectedRole] = useState(null); // null -> Welcome, 'CUSTOMER' | 'STAFF' -> Sign in
   const [username, setUsername] = useState('');
@@ -80,8 +81,11 @@ export function LoginPage() {
           callback: async (response) => {
             try {
               setLoading(true);
-              const user = await loginWithGoogleCredential(response.credential);
-              navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs');
+              const { user, isNewUser } = await loginWithGoogleCredential(response.credential);
+              // accountCreated lets the layout greet a first-time user (see AccountCreatedBanner).
+              navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs', {
+                state: { accountCreated: isNewUser },
+              });
             } catch (err) {
               setError(err.message || 'Google Sign-In failed');
             } finally {
@@ -95,6 +99,16 @@ export function LoginPage() {
           theme: 'outline',
           size: 'large',
         });
+        // Same Google flow, labelled for first-time users: the account is created on first sign-in.
+        if (googleSignupButtonRef.current) {
+          window.google.accounts.id.renderButton(googleSignupButtonRef.current, {
+            type: 'standard',
+            text: 'signup_with',
+            shape: 'pill',
+            theme: 'outline',
+            size: 'medium',
+          });
+        }
       }
     };
 
@@ -355,7 +369,25 @@ export function LoginPage() {
 
           {/* Circular Google Sign-In Button below card matching Figma */}
           {googleClientId ? (
-            <div ref={googleButtonRef} />
+            <>
+              <div ref={googleButtonRef} />
+              {/* Bonus: create an account with Google (first Google sign-in creates it). */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginTop: 4,
+                  fontSize: 14,
+                  color: '#697663',
+                  textAlign: 'center',
+                }}
+              >
+                <span>New here? Create your account with Google.</span>
+                <div ref={googleSignupButtonRef} />
+              </div>
+            </>
           ) : (
             <button
               type="button"

@@ -98,6 +98,8 @@ router.post('/google', async (req, res, next) => {
       success: true,
       data: {
         token,
+        // true when this Google sign-in created the account (first visit), so the UI can welcome the user.
+        isNewUser: existing.length === 0,
         user: {
           id: user.id,
           email: user.email,
