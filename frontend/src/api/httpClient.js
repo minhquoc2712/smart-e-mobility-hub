@@ -7,7 +7,7 @@ const USER_KEY = 'semh_auth_user';
 export const SESSION_EXPIRED_EVENT = 'semh:session-expired';
 
 // Auth endpoints answer 401 for bad credentials; that is a login error, not an expired session.
-const AUTH_ENDPOINTS = ['/auth/google', '/auth/dev-login'];
+const AUTH_ENDPOINTS = ['/auth/google', '/auth/dev-login', '/auth/login', '/auth/register'];
 
 export function getStoredToken() {
   // Uses sessionStorage instead of localStorage so session clears automatically when browser closes (safer on shared PCs!)
