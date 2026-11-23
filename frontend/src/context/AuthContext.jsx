@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authApi } from '../api';
+import { SESSION_EXPIRED_EVENT } from '../api/httpClient';
 
 const AuthContext = createContext(null);
 
@@ -20,9 +21,12 @@ export function AuthProvider({ children }) {
     return authUser;
   };
 
+  // Returns { user, isNewUser }. The backend creates the account on the first Google sign-in,
+  // so "sign up with Google" and "log in with Google" are the same call.
   const loginWithGoogleCredential = async (credential) => {
     const result = await authApi.loginWithGoogle(credential);
-    return saveSession(result);
+    const authUser = saveSession(result);
+    return { user: authUser, isNewUser: Boolean(result.isNewUser) };
   };
 
   const loginDemo = async (email) => {
@@ -35,6 +39,14 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem(USER_KEY);
     setUser(null);
   };
+
+  // httpClient fires this when the backend rejects the token (expired or invalid).
+  // Clearing the user makes ProtectedRoute send the person back to /login.
+  useEffect(() => {
+    const handleExpired = () => setUser(null);
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+  }, []);
 
   return (
     <AuthContext.Provider

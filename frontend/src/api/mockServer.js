@@ -349,6 +349,23 @@ export const mockServer = {
     return req;
   },
 
+  // Mirrors PATCH /operator/vehicles/{vehicleId}/charging-priority (staff override for a fleet vehicle).
+  async updateVehicleChargingPriority(vehicleId, priority) {
+    await delay();
+    const db = loadDb();
+    const vehicle = (db.vehicles || []).find((v) => v.id === Number(vehicleId));
+    if (!vehicle) {
+      const error = new Error('Vehicle not found.');
+      error.code = 'NOT_FOUND';
+      error.status = 404;
+      throw error;
+    }
+    const normalized = String(priority || 'NORMAL').toUpperCase();
+    vehicle.chargingPriority = normalized;
+    saveDb(db);
+    return { vehicleId: vehicle.id, priority: normalized };
+  },
+
   async getOperatorDashboard() {
     await delay();
     const db = loadDb();
