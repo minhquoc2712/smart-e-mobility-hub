@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { operatorApi } from '../../api';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState, describeApiError } from '../../components/common/ErrorState';
 
 const STAFF_MEMBERS = ['S. Patel', 'A. Lee', 'M. Tran', 'K. Nguyen'];
 
@@ -28,12 +30,15 @@ export function DispatchPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const [loadError, setLoadError] = useState(null);
+
   const loadData = useCallback(async () => {
     try {
+      setLoadError(null);
       const data = await operatorApi.getDashboardBundle();
       setBundle(data);
     } catch (err) {
-      setError(err.message || 'Could not load hub & slot data.');
+      setLoadError(err);
     }
   }, []);
 
@@ -273,7 +278,7 @@ export function DispatchPage() {
         `${isSameHub ? 'Saved slot arrangement' : `Dispatch ${res.orderCode || ''} completed`}: ${summaryPairs} · Staff: ${assignedStaff}`
       );
     } catch (err) {
-      setError(err.message || 'Could not execute dispatch arrangement.');
+      setError(describeApiError(err, 'Could not execute dispatch arrangement.'));
     } finally {
       setSubmitting(false);
     }
@@ -388,6 +393,17 @@ export function DispatchPage() {
     <>
       <h1 className="staff-page-title">Dispatch</h1>
 
+      {!bundle && !loadError && <LoadingState message="Loading hubs, slots and vehicles…" />}
+      {loadError && (
+        <ErrorState
+          title="Unable to load hub & slot data"
+          error={loadError}
+          onRetry={loadData}
+          inline={Boolean(bundle)}
+        />
+      )}
+
+      {bundle && (
       <form onSubmit={handleSubmit} className="staff-panel staff-panel--full">
         {/* Top 2x2 Figma Controls — synced live with Slot-to-Slot Arrangement Board below */}
         <div
@@ -907,6 +923,7 @@ export function DispatchPage() {
           </button>
         </div>
       </form>
+      )}
     </>
   );
 }

@@ -18,6 +18,16 @@ export const authApi = {
       ? mockServer.demoLogin('student@hcmut.edu.vn')
       : httpRequest('/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }),
 
+  register: (payload) =>
+    IS_MOCK_MODE
+      ? mockServer.register(payload)
+      : httpRequest('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
+
+  login: (email, password) =>
+    IS_MOCK_MODE
+      ? mockServer.login(email, password)
+      : httpRequest('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+
   demoLogin: (email) =>
     IS_MOCK_MODE
       ? mockServer.demoLogin(email)
@@ -223,4 +233,4 @@ export const simulationApi = {
           method: 'POST',
           body: JSON.stringify({ recommendationId }),
         }),
-};
+};

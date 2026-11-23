@@ -1,7 +1,10 @@
 /**
  * Module: Authentication & Role-Based Access (Task 3.1c : Pham Tuan Minh)
  * Verifies Google ID token, maps configured emails to OPERATOR (others -> USER), and issues JWT.
+ * Also supports simple email + password sign up / log in (USER accounts only).
  */
+const crypto = require('crypto');
+const { promisify } = require('util');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
@@ -54,6 +57,44 @@ async function verifyGoogleCredential(credential) {
   return payload;
 }
 
+// ---------------------------------------------------------------------------
+// Email + password accounts (simple version: no email verification).
+// Passwords are hashed with Node's built-in scrypt (no extra npm package needed).
+// Stored format: scrypt$<salt hex>$<hash hex>
+// ---------------------------------------------------------------------------
+const scrypt = promisify(crypto.scrypt);
+const PASSWORD_MIN_LENGTH = 6;
+
+async function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = await scrypt(password, salt, 64);
+  return `scrypt$${salt}$${hash.toString('hex')}`;
+}
+
+async function verifyPassword(password, stored) {
+  const [scheme, salt, hashHex] = String(stored || '').split('$');
+  if (scheme !== 'scrypt' || !salt || !hashHex) return false;
+  const expected = Buffer.from(hashHex, 'hex');
+  const actual = await scrypt(password, salt, expected.length);
+  return crypto.timingSafeEqual(expected, actual);
+}
+
+function toPublicUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    fullName: user.full_name,
+    role: user.role,
+    avatarUrl: user.avatar_url,
+    privateVehiclePlate: user.private_vehicle_plate,
+    privateVehicleModel: user.private_vehicle_model,
+  };
+}
+
+function validationError(message) {
+  return new AppError(400, 'VALIDATION_ERROR', message);
+}
+
 router.post('/google', async (req, res, next) => {
   try {
     const { credential } = req.body || {};
@@ -98,16 +139,76 @@ router.post('/google', async (req, res, next) => {
       success: true,
       data: {
         token,
-        user: {
-          id: user.id,
-          email: user.email,
-          fullName: user.full_name,
-          role: user.role,
-          avatarUrl: user.avatar_url,
-          privateVehiclePlate: user.private_vehicle_plate,
-          privateVehicleModel: user.private_vehicle_model,
-        },
+        // true when this Google sign-in created the account (first visit), so the UI can welcome the user.
+        isNewUser: existing.length === 0,
+        user: toPublicUser(user),
       },
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Sign up with email + password. Always creates a USER account:
+// Operator access is only granted through Google sign-in, because these emails are not verified.
+router.post('/register', async (req, res, next) => {
+  try {
+    const fullName = String(req.body?.fullName || '').trim();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+
+    if (!fullName) throw validationError('Full name is required.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw validationError('Enter a valid email address.');
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      throw validationError(`Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
+    }
+    if (resolveRoleByEmail(email) === 'OPERATOR') {
+      throw new AppError(403, 'STAFF_USE_GOOGLE', 'Staff accounts must sign in with Google.');
+    }
+
+    const [existing] = await pool.execute('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
+    if (existing.length) {
+      throw new AppError(409, 'EMAIL_TAKEN', 'An account with this email already exists. Log in with your password or with Google.');
+    }
+
+    const passwordHash = await hashPassword(password);
+    const [result] = await pool.execute(
+      `INSERT INTO users (email, full_name, password_hash, role) VALUES (?, ?, ?, 'USER')`,
+      [email, fullName, passwordHash]
+    );
+    const [rows] = await pool.execute('SELECT * FROM users WHERE id = ? LIMIT 1', [result.insertId]);
+    const user = rows[0];
+
+    return res.status(201).json({
+      success: true,
+      data: { token: signSessionToken(user), isNewUser: true, user: toPublicUser(user) },
+    });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return next(new AppError(409, 'EMAIL_TAKEN', 'An account with this email already exists. Log in with your password or with Google.'));
+    }
+    return next(err);
+  }
+});
+
+// Log in with email + password. Accounts created through Google have no password and must use Google.
+router.post('/login', async (req, res, next) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+    if (!email || !password) throw validationError('Email and password are required.');
+
+    const [rows] = await pool.execute('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+    const user = rows[0];
+    // Same message for "no such user" and "wrong password", so emails cannot be probed.
+    const ok = user && user.password_hash && (await verifyPassword(password, user.password_hash));
+    if (!ok) {
+      throw new AppError(401, 'INVALID_CREDENTIALS', 'Wrong email or password.');
+    }
+
+    return res.json({
+      success: true,
+      data: { token: signSessionToken(user), user: toPublicUser(user) },
     });
   } catch (err) {
     return next(err);

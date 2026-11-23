@@ -57,6 +57,45 @@ export const mockServer = {
     return structuredClone(INITIAL_MOCK_DB);
   },
 
+  // Mock of POST /auth/register (same rules as the backend). Mock data lives in this browser only.
+  async register({ fullName = '', email = '', password = '' } = {}) {
+    await delay();
+    const fail = (status, code, message) => {
+      const error = new Error(message);
+      error.status = status;
+      error.code = code;
+      throw error;
+    };
+    const normalized = email.trim().toLowerCase();
+    if (!fullName.trim()) fail(400, 'VALIDATION_ERROR', 'Full name is required.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) fail(400, 'VALIDATION_ERROR', 'Enter a valid email address.');
+    if (password.length < 6) fail(400, 'VALIDATION_ERROR', 'Password must be at least 6 characters.');
+    const db = loadDb();
+    if (db.users.some((u) => u.email.toLowerCase() === normalized)) {
+      fail(409, 'EMAIL_TAKEN', 'An account with this email already exists. Log in with your password or with Google.');
+    }
+    const user = { id: Date.now(), email: normalized, fullName: fullName.trim(), role: 'USER', mockPassword: password };
+    db.users.push(user);
+    saveDb(db);
+    const { mockPassword, ...publicUser } = user;
+    return { token: `mock-jwt-token-${user.id}-USER`, isNewUser: true, user: publicUser };
+  },
+
+  // Mock of POST /auth/login.
+  async login(email = '', password = '') {
+    await delay();
+    const db = loadDb();
+    const user = db.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+    if (!user || !user.mockPassword || user.mockPassword !== password) {
+      const error = new Error('Wrong email or password.');
+      error.status = 401;
+      error.code = 'INVALID_CREDENTIALS';
+      throw error;
+    }
+    const { mockPassword, ...publicUser } = user;
+    return { token: `mock-jwt-token-${user.id}-${user.role}`, user: publicUser };
+  },
+
   async demoLogin(email) {
     await delay();
     const db = loadDb();
@@ -347,6 +386,23 @@ export const mockServer = {
     }
     saveDb(db);
     return req;
+  },
+
+  // Mirrors PATCH /operator/vehicles/{vehicleId}/charging-priority (staff override for a fleet vehicle).
+  async updateVehicleChargingPriority(vehicleId, priority) {
+    await delay();
+    const db = loadDb();
+    const vehicle = (db.vehicles || []).find((v) => v.id === Number(vehicleId));
+    if (!vehicle) {
+      const error = new Error('Vehicle not found.');
+      error.code = 'NOT_FOUND';
+      error.status = 404;
+      throw error;
+    }
+    const normalized = String(priority || 'NORMAL').toUpperCase();
+    vehicle.chargingPriority = normalized;
+    saveDb(db);
+    return { vehicleId: vehicle.id, priority: normalized };
   },
 
   async getOperatorDashboard() {

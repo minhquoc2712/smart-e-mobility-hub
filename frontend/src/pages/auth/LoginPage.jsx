@@ -58,13 +58,17 @@ function ScooterChargerIllustration() {
  * Figma Welcome & Sign in Screens (Nodes: Welcome & Sign in by Thùy Trang)
  */
 export function LoginPage() {
-  const { loginWithGoogleCredential, loginDemo } = useAuth();
+  const { loginWithGoogleCredential, loginWithPassword, registerWithPassword, loginDemo, logout } = useAuth();
   const navigate = useNavigate();
   const googleButtonRef = useRef(null);
+  const googleSignupButtonRef = useRef(null);
 
   const [selectedRole, setSelectedRole] = useState(null); // null -> Welcome, 'CUSTOMER' | 'STAFF' -> Sign in
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('••••••••');
+  const [mode, setMode] = useState('login'); // 'login' | 'register' (register: customers only)
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState(''); // the email address
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -80,8 +84,11 @@ export function LoginPage() {
           callback: async (response) => {
             try {
               setLoading(true);
-              const user = await loginWithGoogleCredential(response.credential);
-              navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs');
+              const { user, isNewUser } = await loginWithGoogleCredential(response.credential);
+              // accountCreated lets the layout greet a first-time user (see AccountCreatedBanner).
+              navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs', {
+                state: { accountCreated: isNewUser },
+              });
             } catch (err) {
               setError(err.message || 'Google Sign-In failed');
             } finally {
@@ -95,6 +102,16 @@ export function LoginPage() {
           theme: 'outline',
           size: 'large',
         });
+        // Same Google flow, labelled for first-time users: the account is created on first sign-in.
+        if (googleSignupButtonRef.current) {
+          window.google.accounts.id.renderButton(googleSignupButtonRef.current, {
+            type: 'standard',
+            text: 'signup_with',
+            shape: 'pill',
+            theme: 'outline',
+            size: 'medium',
+          });
+        }
       }
     };
 
@@ -113,11 +130,58 @@ export function LoginPage() {
 
   const chooseRole = (role) => {
     setSelectedRole(role);
+    setMode('login');
     setError('');
-    setUsername(role === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn');
+    setUsername('');
+    setPassword('');
+    setConfirmPassword('');
   };
 
+  const switchMode = (nextMode) => {
+    setMode(nextMode);
+    setError('');
+    setPassword('');
+    setConfirmPassword('');
+  };
+
+  // Email + password log in / sign up.
   const performSignIn = async (e) => {
+    if (e) e.preventDefault();
+    const email = username.trim();
+    setError('');
+
+    if (mode === 'register') {
+      if (!fullName.trim()) return setError('Please enter your full name.');
+      if (password.length < 6) return setError('Password must be at least 6 characters.');
+      if (password !== confirmPassword) return setError('Passwords do not match.');
+    } else if (!email || !password) {
+      return setError('Please enter your email and password.');
+    }
+
+    try {
+      setLoading(true);
+      if (mode === 'register') {
+        await registerWithPassword({ fullName: fullName.trim(), email, password });
+        navigate('/student/hubs', { state: { accountCreated: true } });
+        return;
+      }
+
+      const { user } = await loginWithPassword(email, password);
+      if (selectedRole === 'STAFF' && user.role !== 'OPERATOR') {
+        logout();
+        setError('This is not a staff account. Staff sign in with Google using their staff email.');
+        return;
+      }
+      navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs');
+    } catch (err) {
+      setError(err.message || (mode === 'register' ? 'Sign-up failed' : 'Sign-in failed'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Development only: used by the placeholder Google icon when VITE_GOOGLE_CLIENT_ID is not set.
+  const performDemoSignIn = async (e) => {
     if (e) e.preventDefault();
     const fallbackEmail =
       selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn';
@@ -269,6 +333,7 @@ export function LoginPage() {
 
           <form
             onSubmit={performSignIn}
+            noValidate
             style={{
               width: '100%',
               background: '#ffffff',
@@ -289,7 +354,7 @@ export function LoginPage() {
                 marginBottom: 4,
               }}
             >
-              Log In
+              {mode === 'register' ? 'Sign Up' : 'Log In'}
             </div>
 
             {error && (
@@ -306,13 +371,29 @@ export function LoginPage() {
               </div>
             )}
 
+            {mode === 'register' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label htmlFor="signup-fullname" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>Full name:</label>
+                <input
+                  id="signup-fullname"
+                  className="staff-field-green"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
+                />
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>User name:</label>
+              <label htmlFor="login-email" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>Email:</label>
               <input
+                id="login-email"
+                type="email"
                 className="staff-field-green"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder={selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn'}
+                autoComplete="email"
               />
             </div>
 
@@ -323,8 +404,46 @@ export function LoginPage() {
                 className="staff-field-green"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               />
             </div>
+
+            {mode === 'register' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label htmlFor="signup-confirm" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>Confirm password:</label>
+                <input
+                  id="signup-confirm"
+                  type="password"
+                  className="staff-field-green"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
+
+            {/* Customers can create an account; staff accounts come from the configured operator list (Google). */}
+            {selectedRole !== 'STAFF' && (
+              <div style={{ fontSize: 14, color: '#697663', textAlign: 'center' }}>
+                {mode === 'register' ? 'Already have an account? ' : "Don't have an account? "}
+                <button
+                  type="button"
+                  onClick={() => switchMode(mode === 'register' ? 'login' : 'register')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    color: '#1b7f4c',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  {mode === 'register' ? 'Log in' : 'Sign up'}
+                </button>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
               <button
@@ -348,18 +467,38 @@ export function LoginPage() {
                 className="staff-pill-btn"
                 style={{ minHeight: 42, padding: '8px 24px', fontSize: 15 }}
               >
-                {loading ? 'Signing in...' : 'Continue'}
+                {loading
+                  ? mode === 'register' ? 'Creating account...' : 'Signing in...'
+                  : mode === 'register' ? 'Create account' : 'Continue'}
               </button>
             </div>
           </form>
 
           {/* Circular Google Sign-In Button below card matching Figma */}
           {googleClientId ? (
-            <div ref={googleButtonRef} />
+            <>
+              <div ref={googleButtonRef} />
+              {/* Bonus: create an account with Google (first Google sign-in creates it). */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginTop: 4,
+                  fontSize: 14,
+                  color: '#697663',
+                  textAlign: 'center',
+                }}
+              >
+                <span>New here? Create your account with Google.</span>
+                <div ref={googleSignupButtonRef} />
+              </div>
+            </>
           ) : (
             <button
               type="button"
-              onClick={performSignIn}
+              onClick={performDemoSignIn}
               disabled={loading}
               title="Sign in with Google"
               style={{

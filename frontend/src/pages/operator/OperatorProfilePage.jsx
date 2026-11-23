@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { hubApi } from '../../api';
+import { useApi } from '../../hooks/useApi';
+import { ErrorState } from '../../components/common/ErrorState';
 
 /**
  * Staff / Personal information (Task 3.3a — Figma node 32:2486)
  */
 export function OperatorProfilePage() {
   const { user } = useAuth();
-  const [hubs, setHubs] = useState([]);
+  const hubsQuery = useApi(() => hubApi.getHubs(), [], { initialData: [] });
+  const hubs = hubsQuery.data || [];
   const [savedToast, setSavedToast] = useState('');
 
   const stored = (() => {
@@ -23,10 +26,6 @@ export function OperatorProfilePage() {
   const [email, setEmail] = useState(stored?.email || user?.email || 'operator@hcmut.edu.vn');
   const [phone, setPhone] = useState(stored?.phone || user?.phone || '');
   const [assignedHubId, setAssignedHubId] = useState(stored?.assignedHubId || '2');
-
-  useEffect(() => {
-    hubApi.getHubs().then(setHubs).catch(() => {});
-  }, []);
 
   const handleSave = (e) => {
     e.preventDefault();
@@ -97,13 +96,16 @@ export function OperatorProfilePage() {
               value={assignedHubId}
               onChange={(e) => setAssignedHubId(e.target.value)}
             >
-              <option value="">Select hub</option>
+              <option value="">{hubsQuery.loading ? 'Loading hubs…' : 'Select hub'}</option>
               {hubs.map((h) => (
                 <option key={h.id} value={h.id}>
                   {h.name}
                 </option>
               ))}
             </select>
+            {hubsQuery.error && (
+              <ErrorState inline error={hubsQuery.error} onRetry={hubsQuery.reload} />
+            )}
           </div>
         </div>
 

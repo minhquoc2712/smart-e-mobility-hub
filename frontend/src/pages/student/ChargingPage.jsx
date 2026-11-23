@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState } from '../../components/common/ErrorState';
 import { useSearchParams } from 'react-router-dom';
 import { chargingApi, hubApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
@@ -63,6 +65,8 @@ export function ChargingPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     const savedVehicles = JSON.parse(sessionStorage.getItem(VEHICLES_KEY) || 'null');
@@ -70,17 +74,21 @@ export function ChargingPage() {
       setVehicles(savedVehicles);
       setVehicleId(savedVehicles[0].id);
     }
+  }, []);
 
-    hubApi.getHubs()
+  const loadChargingData = useCallback(() => {
+    setInitialLoading(true);
+    setLoadError(null);
+
+    const hubsRequest = hubApi.getHubs()
       .then((list) => {
         setHubs(list);
         if (list[0]) {
           setHubId(String(list.find((hub) => String(hub.id) === String(initialHubId))?.id || list[0].id));
         }
-      })
-      .catch((loadError) => setError(loadError.message || 'Unable to load charging hubs.'));
+      });
 
-    chargingApi.getChargingRequests()
+    const requestsRequest = chargingApi.getChargingRequests()
       .then((requests) => {
         if (user?.id == null) return;
         const now = Date.now();
@@ -100,9 +108,16 @@ export function ChargingPage() {
             if (!Number.isNaN(savedEnd.getTime())) setDurationHours((savedEnd-savedStart)/3600000);
           }
         }
-      })
-      .catch((loadError) => setError(loadError.message || 'Unable to load charging registrations.'));
+      });
+
+    return Promise.all([hubsRequest, requestsRequest])
+      .catch((requestError) => setLoadError(requestError))
+      .finally(() => setInitialLoading(false));
   }, [user?.id, initialHubId]);
+
+  useEffect(() => {
+    loadChargingData();
+  }, [loadChargingData]);
 
   const selectedVehicle = vehicles.find((vehicle) => String(vehicle.id) === String(vehicleId)) || vehicles[0];
   const selectedHub = hubs.find((hub) => String(hub.id) === String(hubId));
@@ -193,6 +208,12 @@ export function ChargingPage() {
         <p>Reserve a charging slot for your private vehicle at a nearby hub.</p>
       </header>
 
+      {initialLoading && <LoadingState message="Loading charging hubs and your registrations…" />}
+      {loadError && (
+        <ErrorState title="Unable to load charging data" error={loadError} onRetry={loadChargingData} />
+      )}
+
+      {!initialLoading && !loadError && (
       <div className="charging-page-grid">
         <section className={`charging-details-card${registration ? ' is-registered' : ''}`}>
           <h2>Charging details</h2>
@@ -333,6 +354,7 @@ export function ChargingPage() {
           )}
         </section>
       </div>
+      )}
     </div>
   );
 }

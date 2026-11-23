@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { chargingApi, authApi, hubApi } from '../../api';
+import { useApi } from '../../hooks/useApi';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState, describeApiError } from '../../components/common/ErrorState';
+import { StatusBadge } from '../../components/common/StatusBadge';
 import vehicleImage from '../../components/common/images/vehicle.jpg';
 
 const VEHICLES_KEY = 'semh_private_vehicles';
@@ -16,9 +20,11 @@ export function MyVehiclesPage() {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initialVehicles[0].name);
   const [type, setType] = useState(initialVehicles[0].type);
-  const [requests, setRequests] = useState([]);
-  const [hubs, setHubs] = useState([]);
-  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const requestsQuery = useApi(() => chargingApi.getChargingRequests(), [], { initialData: [] });
+  const hubsQuery = useApi(() => hubApi.getHubs(), [], { initialData: [] });
+  const requests = requestsQuery.data || [];
+  const hubs = hubsQuery.data || [];
 
   useEffect(() => {
     const savedVehicles = JSON.parse(sessionStorage.getItem(VEHICLES_KEY) || 'null');
@@ -26,8 +32,6 @@ export function MyVehiclesPage() {
       setVehicles(savedVehicles);
       setVehicleId(savedVehicles[0].id);
     }
-    chargingApi.getChargingRequests().then(setRequests).catch((err) => setError(err.message));
-    hubApi.getHubs().then(setHubs).catch((err) => setError(err.message));
   }, []);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId) || vehicles[0];
@@ -46,21 +50,24 @@ export function MyVehiclesPage() {
     sessionStorage.setItem(VEHICLES_KEY, JSON.stringify(updated));
     setVehicles(updated);
     setEditing(false);
+    setActionError('');
     try {
       await authApi.updatePrivateVehicle({
         privateVehiclePlate: selectedVehicle.id,
         privateVehicleModel: `${name} (${type})`,
       });
-    } catch {
-      // Keep sessionStorage update if offline
+    } catch (err) {
+      // The local copy is kept, but tell the user the server did not save it.
+      setActionError(`Saved on this device only: ${describeApiError(err)}`);
     }
   };
 
   const cancelCharging = async (id) => {
+    setActionError('');
     try {
       await chargingApi.cancelChargingRequest(id);
-      setRequests((items) => items.map((r) => r.id === id ? {...r,status:'CANCELLED'} : r));
-    } catch (err) { setError(err.message || 'Unable to cancel charging.'); }
+      requestsQuery.setData((items) => (items || []).map((r) => r.id === id ? {...r,status:'CANCELLED'} : r));
+    } catch (err) { setActionError(describeApiError(err, 'Unable to cancel charging.')); }
   };
   const activeRequests = requests.filter((r) => ['SCHEDULED','QUEUED','CHARGING'].includes(r.status));
   const requestHistory = requests.filter((r) => !['SCHEDULED','QUEUED','CHARGING'].includes(r.status));
@@ -97,6 +104,9 @@ export function MyVehiclesPage() {
         <div>
           <section className="availability-owner-card">
             <h2>Nearby charging availability</h2>
+            {hubsQuery.loading && <LoadingState inline message="Loading charging availability…" />}
+            {hubsQuery.error && <ErrorState inline error={hubsQuery.error} onRetry={hubsQuery.reload} />}
+            {!hubsQuery.loading && !hubsQuery.error && !hubs.length && <p>No hubs found.</p>}
             {hubs.map((h) => <div key={h.id}><span>{h.name}</span><strong>{h.availableChargingPoints} currently available</strong></div>)}
             <button className="floating-action" type="button" onClick={() => navigate('/student/charging')}>
               Register for charging
@@ -105,26 +115,28 @@ export function MyVehiclesPage() {
 
           <section className="charging-status-card">
             <h2>Current charging status</h2>
+            {requestsQuery.loading && <LoadingState inline message="Loading your charging requests…" />}
+            {requestsQuery.error && <ErrorState inline error={requestsQuery.error} onRetry={requestsQuery.reload} />}
+            {actionError && <ErrorState inline error={actionError} />}
             {activeRequests.map((request) => (
               <article key={request.id} className="charging-status-row">
                 <strong>{request.requestCode ?? request.request_code}</strong>
                 <div><span>Vehicle / slot</span><strong>{request.privateVehicleLabel ?? request.private_vehicle_label ?? selectedVehicle.id}</strong></div>
                 <div><span>Charging session</span><strong>{localTime(request.scheduledStart ?? request.scheduled_start)} – {localTime(request.scheduledEnd ?? request.scheduled_end)}</strong></div>
                 <div><span>Charger</span><strong>{request.chargingPointCode ?? (request.status === 'QUEUED' ? 'Automatic queue' : 'Assigned')}</strong></div>
-                <div><span>Status</span><strong>{request.status}</strong></div>
+                <div><span>Status</span><StatusBadge status={request.status} /></div>
                 {['QUEUED','SCHEDULED'].includes(request.status) && <button type="button" onClick={() => cancelCharging(request.id)}>Cancel reservation</button>}
               </article>
             ))}
-            {!activeRequests.length && <p>No active charging reservations.</p>}
+            {!requestsQuery.loading && !requestsQuery.error && !activeRequests.length && <p>No active charging reservations.</p>}
             <h3>Charging history</h3>
             {requestHistory.map((request) => <article key={request.id} className="charging-status-row">
               <strong>{request.requestCode ?? request.request_code}</strong>
               <div><span>Vehicle</span><strong>{request.privateVehicleLabel ?? request.private_vehicle_label ?? selectedVehicle.id}</strong></div>
               <div><span>Session</span><strong>{localTime(request.scheduledStart ?? request.scheduled_start)} – {localTime(request.scheduledEnd ?? request.scheduled_end)}</strong></div>
-              <div><span>Status</span><strong>{request.status}</strong></div>
+              <div><span>Status</span><StatusBadge status={request.status} /></div>
             </article>)}
-            {!requestHistory.length && <p>No past or cancelled requests.</p>}
-            {error && <p role="alert">{error}</p>}
+            {!requestsQuery.loading && !requestsQuery.error && !requestHistory.length && <p>No past or cancelled requests.</p>}
           </section>
         </div>
       </div>

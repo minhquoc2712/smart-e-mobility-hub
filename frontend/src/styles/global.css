@@ -3054,3 +3054,105 @@ a {
     padding: 24px;
   }
 }
+/* ==========================================================================
+   Shared async state views (LoadingState / ErrorState / EmptyState)
+   ========================================================================== */
+.state-view {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.state-view--loading {
+  justify-content: flex-start;
+}
+
+.state-view--error {
+  border-color: #f3c2c2;
+  background: #fdf2f2;
+  color: #8a1c1c;
+}
+
+.state-view--empty {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2rem 1.25rem;
+  border-style: dashed;
+}
+
+.state-view--inline {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+}
+
+.state-view__title {
+  display: block;
+  color: var(--text-main);
+  font-size: 15px;
+}
+
+.state-view--error .state-view__title {
+  color: #8a1c1c;
+}
+
+.state-view__message {
+  margin: 0.25rem 0 0;
+}
+
+.state-view__action {
+  flex-shrink: 0;
+  padding: 0.45rem 1rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.state-view__action:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.state-spinner {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: state-spin 0.8s linear infinite;
+}
+
+@keyframes state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state-spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.state-view--success {
+  border-color: #b7e0c3;
+  background: var(--bg-soft-green);
+  color: #14532d;
+}
+
+.state-view--success .state-view__title {
+  color: #14532d;
+}

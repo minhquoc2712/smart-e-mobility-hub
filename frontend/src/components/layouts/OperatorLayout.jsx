@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { AccountCreatedBanner } from '../common/AccountCreatedBanner';
 
 const STAFF_NAV_ITEMS = [
   { to: '/operator/dashboard', label: 'Overview' },
@@ -73,6 +74,7 @@ export function OperatorLayout() {
       </nav>
 
       <main className="staff-workspace">
+        <AccountCreatedBanner />
         <Outlet />
       </main>
     </div>
