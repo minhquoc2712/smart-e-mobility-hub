@@ -16,6 +16,8 @@ Legend: ✅ matches · ⚠️ works but differs · ❌ missing
 | Screen | Method & path | In OpenAPI | In BE | Notes | Status |
 |---|---|---|---|---|---|
 | Login (`AuthContext`) | `POST /auth/google` | ✅ | ✅ | Spec lists 200/401 only; BE also returns 400 (missing credential) and 403 `ACCOUNT_MISMATCH`. The 200 body now also has `isNewUser` (true when this sign-in created the account) — add it to the spec. | |
+| Login – Sign up | `POST /auth/register` | ✅ | ✅ | New: email + password sign up, always creates a USER account (no email verification). | |
+| Login – Log in | `POST /auth/login` | ✅ | ✅ | New: email + password log in. Google-only accounts have no password → 401. | |
 | Login (`AuthContext`) | `POST /auth/dev-login` | ✅ | ✅ | BE returns 404 unless `NODE_ENV=development`; spec says nothing about it. | |
 | — | `GET /auth/me` | ✅ | ✅ | **Not called by any screen.** It returns `privateVehiclePlate/Model` (see §4.4). | |
 | My vehicles | `PATCH /auth/private-vehicle` | ❌ | ✅ | Missing from spec. | |
