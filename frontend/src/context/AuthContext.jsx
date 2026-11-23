@@ -29,6 +29,17 @@ export function AuthProvider({ children }) {
     return { user: authUser, isNewUser: Boolean(result.isNewUser) };
   };
 
+  // Email + password accounts. Both return { user, isNewUser } like the Google flow.
+  const registerWithPassword = async ({ fullName, email, password }) => {
+    const result = await authApi.register({ fullName, email, password });
+    return { user: saveSession(result), isNewUser: true };
+  };
+
+  const loginWithPassword = async (email, password) => {
+    const result = await authApi.login(email, password);
+    return { user: saveSession(result), isNewUser: false };
+  };
+
   const loginDemo = async (email) => {
     const result = await authApi.demoLogin(email);
     return saveSession(result);
@@ -55,6 +66,8 @@ export function AuthProvider({ children }) {
         isAuthenticated: Boolean(user),
         isOperator: user?.role === 'OPERATOR',
         loginWithGoogleCredential,
+        registerWithPassword,
+        loginWithPassword,
         loginDemo,
         logout,
       }}

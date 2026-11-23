@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(190) NOT NULL UNIQUE,
   full_name VARCHAR(120) NOT NULL,
   google_sub VARCHAR(128) NULL UNIQUE,
+  password_hash VARCHAR(255) NULL, -- email/password accounts only; NULL for Google-only accounts
   avatar_url VARCHAR(500) NULL,
   role ENUM('USER', 'OPERATOR') NOT NULL DEFAULT 'USER',
   private_vehicle_plate VARCHAR(30) NULL,
@@ -186,4 +187,4 @@ CREATE TABLE IF NOT EXISTS scenarios (
   description TEXT NOT NULL,
   default_params JSON NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+) ENGINE=InnoDB;
