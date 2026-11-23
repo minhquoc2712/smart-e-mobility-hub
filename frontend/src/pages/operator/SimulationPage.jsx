@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { operatorApi, simulationApi } from '../../api';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState, describeApiError } from '../../components/common/ErrorState';
 
 /**
  * Staff / What-if (Task 4.2a & 4.2b — Thùy Trang & Nils Bousquet)
@@ -17,9 +19,16 @@ export function SimulationPage() {
   const [engineResult, setEngineResult] = useState(null);
   const [appliedRecId, setAppliedRecId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [runError, setRunError] = useState('');
+  const [applyError, setApplyError] = useState('');
 
-  useEffect(() => {
-    operatorApi.getDashboardBundle().then((bundle) => {
+  const loadSimulationData = useCallback(() => {
+    setInitialLoading(true);
+    setLoadError(null);
+
+    const bundleRequest = operatorApi.getDashboardBundle().then((bundle) => {
       const list = bundle?.hubUtilization?.hubs || [];
       setHubs(list);
       if (list.length >= 2) {
@@ -39,16 +48,23 @@ export function SimulationPage() {
       }
     });
 
-    simulationApi
+    const scenariosRequest = simulationApi
       .getScenarios()
       .then((rows) => {
         if (Array.isArray(rows) && rows.length > 0) {
           setScenarios(rows);
           setSelectedScenarioCode(rows[0].code);
         }
-      })
-      .catch(() => {});
+      });
+
+    return Promise.all([bundleRequest, scenariosRequest])
+      .catch((err) => setLoadError(err))
+      .finally(() => setInitialLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadSimulationData();
+  }, [loadSimulationData]);
 
   const handleRunScenario = async (e) => {
     e.preventDefault();
@@ -70,6 +86,8 @@ export function SimulationPage() {
     try {
       setLoading(true);
       setAppliedRecId(null);
+      setRunError('');
+      setApplyError('');
       const res = await simulationApi.runSimulation({
         scenarioCode: selectedScenarioCode,
         params: {
@@ -82,8 +100,10 @@ export function SimulationPage() {
         },
       });
       setEngineResult(res);
-    } catch {
-      // Keep local hypothetical preview if offline
+    } catch (err) {
+      // The local before/after preview above is still shown; the engine result is not.
+      setEngineResult(null);
+      setRunError(describeApiError(err, 'The simulation engine could not run this scenario.'));
     } finally {
       setLoading(false);
     }
@@ -92,10 +112,12 @@ export function SimulationPage() {
   const handleApplyRecommendation = async (recId) => {
     if (!engineResult?.runId) return;
     try {
+      setApplyError('');
       await simulationApi.applyRecommendation(engineResult.runId, recId);
       setAppliedRecId(recId);
-    } catch {
-      setAppliedRecId(recId);
+    } catch (err) {
+      // Do not mark it as applied: live data was not changed.
+      setApplyError(describeApiError(err, 'Could not apply this recommendation.'));
     }
   };
 
@@ -104,6 +126,13 @@ export function SimulationPage() {
   return (
     <>
       <h1 className="staff-page-title">What-if</h1>
+
+      {initialLoading && <LoadingState message="Loading hubs and simulation scenarios…" />}
+      {loadError && (
+        <ErrorState title="Unable to load simulation data" error={loadError} onRetry={loadSimulationData} />
+      )}
+      {runError && <ErrorState inline error={runError} />}
+      {applyError && <ErrorState inline error={applyError} />}
 
       <form onSubmit={handleRunScenario} className="staff-panel staff-panel--narrow">
         {scenarios.length > 0 && (

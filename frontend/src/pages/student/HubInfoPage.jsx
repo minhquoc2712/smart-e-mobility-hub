@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { hubApi } from '../../api';
+import { useApi } from '../../hooks/useApi';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState } from '../../components/common/ErrorState';
 import vehicleImage from '../../components/common/images/vehicle.jpg';
 import parkingImage from '../../components/common/images/parking space.jpg';
 import chargingImage from '../../components/common/images/charging spot.jpg';
@@ -8,11 +11,25 @@ import chargingImage from '../../components/common/images/charging spot.jpg';
 export function HubInfoPage() {
   const { hubId } = useParams();
   const navigate = useNavigate();
-  const [hub, setHub] = useState(null);
+  const { data: hub, loading, error, reload } = useApi(() => hubApi.getHubById(hubId), [hubId]);
 
-  useEffect(() => {
-    hubApi.getHubById(hubId).then(setHub);
-  }, [hubId]);
+  if (loading) {
+    return (
+      <div className="hub-info-page">
+        <Link className="page-back-link" to="/student/hubs">← Back to hubs</Link>
+        <LoadingState message="Loading hub information…" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="hub-info-page">
+        <Link className="page-back-link" to="/student/hubs">← Back to hubs</Link>
+        <ErrorState title="Unable to load this hub" error={error} onRetry={reload} />
+      </div>
+    );
+  }
 
   return (
     <div className="hub-info-page">

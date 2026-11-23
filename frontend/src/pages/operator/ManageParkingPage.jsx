@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { operatorApi, parkingSlotApi, reservationApi } from '../../api';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState, describeApiError } from '../../components/common/ErrorState';
+import { EmptyState } from '../../components/common/EmptyState';
 
 function formatClock(dateStr) {
   if (!dateStr) return '—';
@@ -53,13 +56,19 @@ export function ManageParkingPage() {
   const [checkInSlotId, setCheckInSlotId] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [feedback, setFeedback] = useState('');
+  const [loadError, setLoadError] = useState(null);
 
   const loadData = useCallback(async () => {
-    const data = await operatorApi.getDashboardBundle();
-    setBundle(data);
-    const hubs = data.hubUtilization?.hubs || [];
-    if (hubs.length && !hubs.some((h) => h.id === Number(selectedHubId))) {
-      setSelectedHubId(hubs[0].id);
+    try {
+      setLoadError(null);
+      const data = await operatorApi.getDashboardBundle();
+      setBundle(data);
+      const hubs = data.hubUtilization?.hubs || [];
+      if (hubs.length && !hubs.some((h) => h.id === Number(selectedHubId))) {
+        setSelectedHubId(hubs[0].id);
+      }
+    } catch (err) {
+      setLoadError(err);
     }
   }, [selectedHubId]);
 
@@ -223,7 +232,7 @@ export function ManageParkingPage() {
       setFeedback(`Checked in vehicle at slot ${targetSlot.slotCode}.`);
       await loadData();
     } catch (err) {
-      setFeedback(err.message || 'Check-in failed.');
+      setFeedback(describeApiError(err, 'Check-in failed.'));
     }
   };
 
@@ -239,7 +248,7 @@ export function ManageParkingPage() {
       setFeedback(`Checked out slot ${slotCode} → now FREE.`);
       await loadData();
     } catch (err) {
-      setFeedback(err.message || 'Could not release slot.');
+      setFeedback(describeApiError(err, 'Could not release slot.'));
     }
   };
 
@@ -250,17 +259,33 @@ export function ManageParkingPage() {
       setFeedback(`Updated slot ${slot.slotCode} → ${nextStatus}.`);
       await loadData();
     } catch (err) {
-      setFeedback(err.message || 'Slot status transition not allowed from current state.');
+      setFeedback(describeApiError(err, 'Slot status transition not allowed from current state.'));
     }
   };
 
-  if (!bundle || !currentHub) {
+  if (loadError && !bundle) {
     return (
       <>
         <h1 className="staff-page-title">Manage parking</h1>
-        <div className="staff-panel staff-panel--full">
-          <p style={{ color: 'var(--staff-muted)', margin: 0 }}>Loading parking lot telemetry...</p>
-        </div>
+        <ErrorState title="Unable to load parking lot telemetry" error={loadError} onRetry={loadData} />
+      </>
+    );
+  }
+
+  if (!bundle) {
+    return (
+      <>
+        <h1 className="staff-page-title">Manage parking</h1>
+        <LoadingState message="Loading parking lot telemetry…" />
+      </>
+    );
+  }
+
+  if (!currentHub) {
+    return (
+      <>
+        <h1 className="staff-page-title">Manage parking</h1>
+        <EmptyState title="No hubs found" message="No mobility hubs are configured in the system yet." />
       </>
     );
   }
@@ -268,6 +293,9 @@ export function ManageParkingPage() {
   return (
     <>
       <h1 className="staff-page-title">Manage parking</h1>
+
+      {/* A refresh after an action failed: keep the last data on screen. */}
+      {loadError && <ErrorState inline error={loadError} onRetry={loadData} />}
 
       {/* Toolbar */}
       <div

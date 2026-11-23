@@ -1,5 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { operatorApi } from '../../api';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState, describeApiError } from '../../components/common/ErrorState';
+import { EmptyState } from '../../components/common/EmptyState';
+import { StatusBadge } from '../../components/common/StatusBadge';
 
 const STATUS_LABELS = {
   OPEN: 'Open',
@@ -28,18 +32,21 @@ export function IncidentsPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
-      setError('');
+      setLoadError(null);
       const [incList, dashBundle] = await Promise.all([
         operatorApi.getIncidents(),
         operatorApi.getDashboardBundle(),
       ]);
       setIncidents(incList || []);
       setBundle(dashBundle);
+      setLoaded(true);
     } catch (err) {
-      setError(err.message || 'Could not load incident records.');
+      setLoadError(err);
     }
   }, []);
 
@@ -90,13 +97,18 @@ export function IncidentsPage() {
       setReportOpen(false);
       await refresh();
     } catch (err) {
-      setError(err.message || 'Failed to record incident.');
+      setError(describeApiError(err, 'Failed to record incident.'));
     }
   };
 
   const handleAssign = async (id) => {
-    await operatorApi.assignIncident(id);
-    await refresh();
+    try {
+      setError('');
+      await operatorApi.assignIncident(id);
+      await refresh();
+    } catch (err) {
+      setError(describeApiError(err, 'Could not assign staff to this incident.'));
+    }
   };
 
   const handleConfirmResolve = async (id) => {
@@ -107,7 +119,7 @@ export function IncidentsPage() {
       setResolutionNotes('Repaired & verified by maintenance staff.');
       await refresh();
     } catch (err) {
-      setError(err.message || 'Could not resolve incident.');
+      setError(describeApiError(err, 'Could not resolve incident.'));
     }
   };
 
@@ -139,11 +151,15 @@ export function IncidentsPage() {
           </button>
         </div>
 
-        {error && (
-          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 16px', borderRadius: 12 }}>
-            {error}
-          </div>
+        {loadError && (
+          <ErrorState
+            title="Unable to load incident records"
+            error={loadError}
+            onRetry={refresh}
+            inline={loaded}
+          />
         )}
+        {error && <ErrorState inline error={error} />}
 
         {/* UC11 Record Incident Form */}
         {reportOpen && (
@@ -277,10 +293,13 @@ export function IncidentsPage() {
 
         {/* Incident List matching Figma node 32:2363 */}
         <div>
-          {visibleIncidents.length === 0 ? (
-            <p style={{ color: 'var(--staff-muted)', margin: '12px 0' }}>
-              No incidents in this view. All hub equipment is operating normally.
-            </p>
+          {!loaded ? (
+            !loadError && <LoadingState message="Loading incident records…" />
+          ) : visibleIncidents.length === 0 ? (
+            <EmptyState
+              title="No incidents in this view"
+              message="All hub equipment is operating normally."
+            />
           ) : (
             visibleIncidents.map((inc) => (
               <div key={inc.id} style={{ borderBottom: '1px solid var(--staff-divider)' }}>
@@ -304,7 +323,7 @@ export function IncidentsPage() {
                   </div>
 
                   <div style={{ width: 140, fontSize: 19, color: 'var(--staff-ink)' }}>
-                    {STATUS_LABELS[inc.status] || inc.status}
+                    <StatusBadge status={inc.status} label={STATUS_LABELS[inc.status]} />
                   </div>
 
                   <div style={{ width: 165, display: 'flex', justifyContent: 'flex-end' }}>

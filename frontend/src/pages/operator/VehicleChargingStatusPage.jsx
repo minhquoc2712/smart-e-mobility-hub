@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { operatorApi, chargingApi } from '../../api';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState, describeApiError } from '../../components/common/ErrorState';
+import { EmptyState } from '../../components/common/EmptyState';
 
 const HUMAN_STATUS = {
   AVAILABLE: 'Available',
@@ -90,22 +93,38 @@ export function VehicleChargingStatusPage() {
   const [showChargers, setShowChargers] = useState(false);
   const [showQueue, setShowQueue] = useState(true);
   const [queueNotice, setQueueNotice] = useState('');
+  const [queueError, setQueueError] = useState('');
+  const [loadError, setLoadError] = useState(null);
+  const [requestsError, setRequestsError] = useState(null);
   const transitionCharging = async (request, action) => {
     try {
       if (action === 'start') await chargingApi.startCharging(request.id);
       else await chargingApi.stopCharging(request.id);
+      setQueueError('');
       setQueueNotice(`Charging request ${request.request_code ?? request.requestCode} ${action === 'start' ? 'started' : 'completed'}.`);
       await loadStatus();
-    } catch (err) { setQueueNotice(err.message || 'Could not update charging status.'); }
+    } catch (err) {
+      setQueueNotice('');
+      setQueueError(describeApiError(err, 'Could not update charging status.'));
+    }
   };
 
   const loadStatus = useCallback(async () => {
-    const [data, requests] = await Promise.all([
-      operatorApi.getDashboardBundle(),
-      chargingApi.getChargingRequests().catch(() => []),
-    ]);
-    setBundle(data);
-    setChargingRequests(Array.isArray(requests) ? requests : []);
+    try {
+      const [data, requests] = await Promise.all([
+        operatorApi.getDashboardBundle(),
+        // The fleet table still works without the queue, so a queue failure is reported separately.
+        chargingApi.getChargingRequests().then(
+          (rows) => { setRequestsError(null); return rows; },
+          (err) => { setRequestsError(err); return null; },
+        ),
+      ]);
+      setBundle(data);
+      if (requests !== null) setChargingRequests(Array.isArray(requests) ? requests : []);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err);
+    }
   }, []);
 
   useEffect(() => {
@@ -295,10 +314,17 @@ export function VehicleChargingStatusPage() {
         await chargingApi.updatePriority(requestId, nextValue);
       }
       await loadStatus();
-    } catch {
-      // Keep local Staff override active even if backend request is not in QUEUED/SCHEDULED state
+    } catch (err) {
+      // Keep the local Staff override, but be honest that the server was not updated
+      // (e.g. the request is no longer QUEUED/SCHEDULED).
+      setQueueNotice('');
+      setQueueError(
+        `Priority for ${label} is shown on this screen only; the server did not save it: ${describeApiError(err)}`
+      );
+      return;
     }
 
+    setQueueError('');
     setQueueNotice(
       isResetToAuto
         ? `Reverted ${label} back to Auto priority (by battery %).`
@@ -364,8 +390,12 @@ export function VehicleChargingStatusPage() {
             <span style={{ flex: 1.3 }}>Charging priority (Auto / Staff)</span>
           </div>
 
-          {!bundle ? (
-            <p style={{ color: 'var(--staff-muted)', marginTop: 16 }}>Loading fleet status...</p>
+          {!bundle && loadError ? (
+            <ErrorState title="Unable to load fleet status" error={loadError} onRetry={loadStatus} />
+          ) : !bundle ? (
+            <LoadingState message="Loading fleet status…" />
+          ) : !enrichedVehicles.length ? (
+            <EmptyState title="No vehicles in this view" message="Try another hub filter." />
           ) : (
             enrichedVehicles.map((v) => {
               const badgeStyle = getPriorityBadgeStyle(v.effectivePriority, v.isManual);
@@ -599,6 +629,14 @@ export function VehicleChargingStatusPage() {
               </button>
             </div>
           </div>
+
+          {bundle && loadError && (
+            <ErrorState inline error={`Latest refresh failed, showing the last loaded data. ${loadError.message || ''}`.trim()} onRetry={loadStatus} />
+          )}
+          {requestsError && (
+            <ErrorState inline error={`Charging queue could not be loaded: ${describeApiError(requestsError)}`} onRetry={loadStatus} />
+          )}
+          {queueError && <ErrorState inline error={queueError} />}
 
           {queueNotice && (
             <div

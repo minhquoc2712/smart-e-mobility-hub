@@ -1,22 +1,25 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { operatorApi } from '../../api';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState } from '../../components/common/ErrorState';
+import { EmptyState } from '../../components/common/EmptyState';
 
 /**
  * Staff / Network overview (Task 3.3a — Figma node 32:2196)
  */
 export function OperatorDashboardPage() {
   const [bundle, setBundle] = useState(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   const loadDashboard = useCallback(async () => {
     try {
-      setError('');
       const result = await operatorApi.getDashboardBundle();
       setBundle(result);
+      setError(null);
     } catch (err) {
-      setError(err.message || 'Failed to load operator network telemetry.');
+      setError(err);
     }
   }, []);
 
@@ -26,16 +29,13 @@ export function OperatorDashboardPage() {
     return () => clearInterval(timer);
   }, [loadDashboard]);
 
-  if (error) {
+  // First load failed: nothing to show yet, so the error takes the whole page.
+  if (error && !bundle) {
     return (
-      <div className="staff-panel">
-        <p style={{ color: '#991b1b', margin: 0 }}>{error}</p>
-        <div>
-          <button type="button" className="staff-pill-btn" onClick={loadDashboard}>
-            Retry
-          </button>
-        </div>
-      </div>
+      <>
+        <h1 className="staff-page-title">Network overview</h1>
+        <ErrorState title="Unable to load network telemetry" error={error} onRetry={loadDashboard} />
+      </>
     );
   }
 
@@ -43,9 +43,7 @@ export function OperatorDashboardPage() {
     return (
       <>
         <h1 className="staff-page-title">Network overview</h1>
-        <div className="staff-panel">
-          <p style={{ color: 'var(--staff-muted)', margin: 0 }}>Loading network telemetry...</p>
-        </div>
+        <LoadingState message="Loading network telemetry…" />
       </>
     );
   }
@@ -69,6 +67,15 @@ export function OperatorDashboardPage() {
   return (
     <>
       <h1 className="staff-page-title">Network overview</h1>
+
+      {/* A background refresh failed: keep showing the last data, but say it may be stale. */}
+      {error && (
+        <ErrorState
+          inline
+          error={`Latest refresh failed, showing the last loaded data. ${error.message || ''}`.trim()}
+          onRetry={loadDashboard}
+        />
+      )}
 
       <div className="staff-panel">
         <div className="staff-kpi-grid">
@@ -98,6 +105,10 @@ export function OperatorDashboardPage() {
             <span style={{ flex: 0.9 }}>Available</span>
             <span style={{ flex: 1 }}>Status</span>
           </div>
+
+          {!hubs.length && (
+            <EmptyState title="No hubs found" message="No mobility hubs are configured in the system yet." />
+          )}
 
           {hubs.map((hub) => (
             <div

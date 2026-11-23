@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { operatorApi } from '../../api';
+import { LoadingState } from '../../components/common/LoadingState';
+import { ErrorState } from '../../components/common/ErrorState';
+import { EmptyState } from '../../components/common/EmptyState';
 
 function slotRangeLabel(codes) {
   if (!codes || codes.length === 0) return 'No spaces';
@@ -22,15 +25,16 @@ export function HubUtilizationPage() {
   const [bundle, setBundle] = useState(null);
   const [expandedHubId, setExpandedHubId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
 
   const loadUtilization = useCallback(async () => {
     try {
-      setError('');
+      setLoading(true);
+      setError(null);
       const data = await operatorApi.getDashboardBundle();
       setBundle(data);
     } catch (err) {
-      setError(err.message || 'Could not load hub utilization.');
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -112,9 +116,11 @@ export function HubUtilizationPage() {
 
       <div className="staff-panel staff-panel--narrow">
         {loading ? (
-          <p style={{ color: 'var(--staff-muted)', margin: 0 }}>Loading hub utilization...</p>
+          <LoadingState message="Loading hub utilization…" />
         ) : error ? (
-          <p style={{ color: '#991b1b', margin: 0 }}>{error}</p>
+          <ErrorState title="Unable to load hub utilization" error={error} onRetry={loadUtilization} />
+        ) : !hubs.length ? (
+          <EmptyState title="No hubs found" message="No mobility hubs are configured in the system yet." />
         ) : (
           <>
             <div className="staff-list-head" style={{ justifyContent: 'space-between' }}>

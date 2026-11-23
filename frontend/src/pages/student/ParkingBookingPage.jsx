@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { hubApi, reservationApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
+import { LoadingState } from '../../components/common/LoadingState';
 
 function toLocalDateTime(date, time) {
   return new Date(`${date}T${time}:00`).toISOString();
@@ -78,8 +79,13 @@ export function ParkingBookingPage() {
         && ['CONFIRMED','ACTIVE'].includes(reservation.status)));
   };
 
+  const [initialLoading, setInitialLoading] = useState(true);
+
   useEffect(() => {
-    loadData().catch((loadError) => setError(loadError.message || 'Unable to load parking details.'));
+    setInitialLoading(true);
+    loadData()
+      .catch((loadError) => setError(loadError.message || 'Unable to load parking details.'))
+      .finally(() => setInitialLoading(false));
   }, [hubId, user?.id]);
 
   const today = getLocalDate(new Date());
@@ -141,6 +147,7 @@ export function ParkingBookingPage() {
     <div className="booking-page parking-booking-page">
       <Link className="page-back-link" to={`/student/hubs/${hubId}/info`}>‹ Hub info</Link>
       <h1>Book parking</h1>
+      {initialLoading && <LoadingState message="Loading hub and your parking bookings…" />}
 
       <div className="booking-form-card parking-form-card">
         <form onSubmit={handleBook}>

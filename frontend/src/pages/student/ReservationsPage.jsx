@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { hubApi, reservationApi, vehicleApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
+import { LoadingState } from '../../components/common/LoadingState';
 import vehicleImage from '../../components/common/images/vehicle.jpg';
 
 const HOURLY_RATE = 3;
@@ -159,8 +160,13 @@ export function ReservationsPage() {
     return reservationData.map(normalizeReservation);
   };
 
+  const [initialLoading, setInitialLoading] = useState(true);
+
   useEffect(() => {
-    reload().catch((loadError) => setError(loadError.message || 'Unable to load reservations.'));
+    setInitialLoading(true);
+    reload()
+      .catch((loadError) => setError(loadError.message || 'Unable to load reservations.'))
+      .finally(() => setInitialLoading(false));
   }, [user?.id]);
 
   useEffect(() => {
@@ -591,6 +597,7 @@ export function ReservationsPage() {
         <p>View your bookings and continue through pickup and return.</p>
       </header>
       {error && <p className="reservation-flow-error" role="alert">{error}</p>}
+      {initialLoading && <LoadingState message="Loading your reservations…" />}
       <section className="reservation-list">
         {vehicleReservations.map((reservation) => (
           <article className="reservation-list-card" key={reservation.id}>
@@ -611,7 +618,7 @@ export function ReservationsPage() {
             )}
           </article>
         ))}
-        {!vehicleReservations.length && <p className="reservation-empty">You don’t have any vehicle reservations yet.</p>}
+        {!initialLoading && !vehicleReservations.length && <p className="reservation-empty">You don’t have any vehicle reservations yet.</p>}
       </section>
       <Link to="/student/hubs" className="reservation-back-link">Find a vehicle</Link>
     </main>
