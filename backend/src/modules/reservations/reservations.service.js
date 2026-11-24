@@ -5,7 +5,7 @@ const AppError = require('../../utils/appError');
 const { MIN_BATTERY_TO_RESERVE } = require('../../config/businessRules');
 const { assertTransition } = require('../state/stateMachine');
 const hubsService = require('../hubs/hubs.service');
-const { requiredId, windowOf, mysqlDate, battery } = require('./reservations.validation');
+const { requiredId, windowOf, battery, optionalText } = require('./reservations.validation');
 
 const fail = (status, code, message) => {
   throw new AppError(status, code, message);
@@ -114,36 +114,44 @@ async function list(user, query = {}) {
   return rows.map(mapReservationRow);
 }
 
-async function reserveVehicle(user, body) {
+// The existing users row is the mutex for all rental creation by this account.
+// A locking read sees the latest committed row even at MySQL REPEATABLE READ.
+async function assertNoOpenRental(c, uid, excludeId = 0, pickup = false) {
+  await selectOne(c, 'SELECT id FROM users WHERE id = ? FOR UPDATE', [uid], 'USER_NOT_FOUND');
+  const [open] = await c.execute(
+    `SELECT id FROM reservations WHERE user_id = ? AND reservation_type = 'VEHICLE'
+      AND status IN (${pickup ? "'ACTIVE'" : "'CONFIRMED', 'ACTIVE'"}) AND id <> ? LIMIT 1 FOR UPDATE`,
+    [uid, excludeId]
+  );
+  if (open.length) fail(409, 'USER_HAS_ACTIVE_RENTAL', 'You already have a vehicle reservation or rental. Cancel it or return the vehicle before booking another.');
+}
+
+async function reserveVehicle(user, body = {}) {
   const uid = userId(user);
   const vid = requiredId(body.vehicleId, 'vehicleId');
+  const requestedHub = body.hubId == null ? null : requiredId(body.hubId, 'hubId');
+  const startInput = body.startTime === undefined ? new Date().toISOString() : body.startTime;
+  const endInput = body.endTime === undefined && body.startTime === undefined
+    ? new Date(Date.now() + 2 * 3600000).toISOString() : body.endTime;
+  const { start: startSql, end: endSql } = windowOf(startInput, endInput);
   return withTransaction(async (c) => {
+    await assertNoOpenRental(c, uid);
     const v = await selectOne(
       c,
       'SELECT * FROM vehicles WHERE id = ? FOR UPDATE',
       [vid],
       'VEHICLE_NOT_FOUND'
     );
-    if (v.status === 'OUT_OF_SERVICE' || v.status === 'IN_USE') {
-      fail(409, 'VEHICLE_NOT_AVAILABLE', 'Vehicle is currently in use or out of service.');
+    if (!['AVAILABLE', 'RESERVED'].includes(v.status)) {
+      fail(409, 'VEHICLE_NOT_AVAILABLE', 'Vehicle is not available for reservation.');
     }
     if (v.battery_level < MIN_BATTERY_TO_RESERVE) {
-      fail(422, 'BATTERY_TOO_LOW', 'Battery is too low.');
+      fail(409, 'BATTERY_TOO_LOW', 'Battery is too low.');
     }
     if (!v.current_hub_id) fail(409, 'VEHICLE_NOT_AT_HUB', 'Vehicle is not located at a Hub.');
+    if (requestedHub !== null && requestedHub !== v.current_hub_id) fail(409, 'WRONG_PICKUP_HUB', 'Vehicle is at another hub.');
     await liveHub(c, v.current_hub_id, { allowFull: true });
 
-    const start = body.startTime ? new Date(body.startTime) : new Date();
-    const validStart = Number.isNaN(start.getTime()) ? new Date() : start;
-    const end = body.endTime
-      ? new Date(body.endTime)
-      : new Date(validStart.getTime() + 2 * 3600 * 1000);
-    const validEnd = Number.isNaN(end.getTime())
-      ? new Date(validStart.getTime() + 2 * 3600 * 1000)
-      : end;
-
-    const startSql = mysqlDate(validStart);
-    const endSql = mysqlDate(validEnd);
 
     // Check time-window overlap on this vehicle across all users
     const [overlapping] = await c.execute(
@@ -164,7 +172,7 @@ async function reserveVehicle(user, body) {
       );
     }
 
-    const isImmediateWindow = validStart.getTime() <= Date.now() + 2 * 3600 * 1000;
+    const isImmediateWindow = new Date(startSql.replace(' ', 'T')).getTime() <= Date.now() + 2 * 3600 * 1000;
     if (isImmediateWindow && v.status === 'AVAILABLE') {
       assertTransition('vehicle', v.status, 'RESERVED');
       await c.execute("UPDATE vehicles SET status = 'RESERVED' WHERE id = ?", [vid]);
@@ -189,7 +197,8 @@ async function reserveParking(user, body) {
   const uid = userId(user);
   const hubId = requiredId(body.hubId, 'hubId');
   const { start, end } = windowOf(body.startTime, body.endTime);
-  const plateNote = body.licensePlate ? String(body.licensePlate).trim() : null;
+  const plateNote = optionalText(body.licensePlate, 'licensePlate', 255);
+  const requestedSlotId = body.parkingSlotId == null ? null : requiredId(body.parkingSlotId, 'parkingSlotId');
 
   return withTransaction(async (c) => {
     // Allow booking future/non-overlapping 7-day time windows even if Hub is currently FULL right now
@@ -217,10 +226,9 @@ async function reserveParking(user, body) {
       [hubId, end, start]
     );
 
-    const requestedSlotId = body.parkingSlotId ? Number(body.parkingSlotId) : null;
     const slot = requestedSlotId
       ? slots.find((s) => Number(s.id) === requestedSlotId && (!isImmediateWindow || s.status !== 'OCCUPIED'))
-      : slots.find((s) => !isImmediateWindow || s.status === 'FREE') || slots[0];
+      : slots.find((s) => !isImmediateWindow || s.status !== 'OCCUPIED');
 
     if (!slot) {
       fail(
@@ -271,7 +279,8 @@ async function cancel(user, id) {
 
     if (r.reservation_type === 'VEHICLE' && r.vehicle_id) {
       const v = await selectOne(c, 'SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [r.vehicle_id]);
-      if (v.status === 'RESERVED') {
+      const [others] = await c.execute(`SELECT id FROM reservations WHERE vehicle_id = ? AND id <> ? AND status = 'CONFIRMED' AND start_time <= DATE_ADD(NOW(), INTERVAL 2 HOUR) AND end_time > NOW() LIMIT 1 FOR UPDATE`, [v.id, r.id]);
+      if (v.status === 'RESERVED' && !others.length) {
         assertTransition('vehicle', v.status, 'AVAILABLE');
         await c.execute("UPDATE vehicles SET status = 'AVAILABLE' WHERE id = ?", [v.id]);
       }
@@ -298,7 +307,11 @@ async function cancel(user, id) {
 
 async function pickup(user, id, body = {}) {
   return withTransaction(async (c) => {
+    // Lock the owner before the reservation (same order as reserveVehicle).
+    const ownerId = isOperator(user) ? (await authorizedReservation(c, id, user, false)).user_id : userId(user);
+    await selectOne(c, 'SELECT id FROM users WHERE id = ? FOR UPDATE', [ownerId], 'USER_NOT_FOUND');
     const r = await authorizedReservation(c, id, user);
+    await assertNoOpenRental(c, ownerId, r.id, true);
     if (r.reservation_type !== 'VEHICLE' || r.status !== 'CONFIRMED') {
       fail(409, 'INVALID_STATE_TRANSITION', 'Reservation is not ready for pickup.');
     }
@@ -309,9 +322,13 @@ async function pickup(user, id, body = {}) {
     if (body.hubId != null && requiredId(body.hubId, 'hubId') !== v.current_hub_id) {
       fail(422, 'WRONG_PICKUP_HUB', 'Vehicle is at another hub.');
     }
+    if (v.battery_level < MIN_BATTERY_TO_RESERVE) fail(409, 'BATTERY_TOO_LOW', 'Battery is too low for pickup.');
     if (v.current_hub_id !== r.hub_id) {
       fail(409, 'WRONG_PICKUP_HUB', 'Vehicle moved from reservation hub.');
     }
+    const [conflicts] = await c.execute(`SELECT id FROM reservations WHERE vehicle_id = ? AND id <> ?
+      AND reservation_type = 'VEHICLE' AND (status = 'ACTIVE' OR (status = 'CONFIRMED' AND start_time < ? AND end_time > NOW())) LIMIT 1 FOR UPDATE`, [v.id, r.id, r.end_time]);
+    if (conflicts.length) fail(409, 'VEHICLE_TIME_SLOT_BOOKED', 'Another booking conflicts with this pickup.');
     if (v.status === 'AVAILABLE') {
       assertTransition('vehicle', 'AVAILABLE', 'RESERVED');
       v.status = 'RESERVED';
@@ -352,12 +369,16 @@ async function returnVehicle(user, id, body = {}) {
     const [slots] = await c.execute(
       `SELECT * FROM parking_slots
        WHERE hub_id = ? AND slot_type IN ('SHARED_EV', 'UNIVERSAL') AND status = 'FREE'
+         AND NOT EXISTS (SELECT 1 FROM vehicles v WHERE v.parking_slot_id = parking_slots.id)
+         AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.parking_slot_id = parking_slots.id
+           AND r.status IN ('CONFIRMED', 'ACTIVE') AND r.end_time > NOW() AND r.start_time <= NOW())
        ORDER BY id FOR UPDATE`,
       [hubId]
     );
     if (!slots.length) fail(409, 'HUB_PARKING_FULL', 'No free rental-vehicle parking slot.');
     const slot = slots[0];
-    const level = body.batteryLevel === undefined ? v.battery_level : battery(body.batteryLevel);
+    const suppliedLevel = body.batteryLevel !== undefined ? body.batteryLevel : body.remainingBattery;
+    const level = suppliedLevel === undefined ? v.battery_level : battery(suppliedLevel);
     assertTransition('parkingSlot', slot.status, 'OCCUPIED');
     await c.execute("UPDATE parking_slots SET status = 'OCCUPIED' WHERE id = ?", [slot.id]);
     await c.execute(
@@ -368,7 +389,7 @@ async function returnVehicle(user, id, body = {}) {
       "UPDATE reservations SET status = 'COMPLETED', actual_return_time = NOW(), return_hub_id = ?, return_condition_note = ? WHERE id = ?",
       [
         hubId,
-        body.returnConditionNote ||
+        optionalText(body.returnConditionNote ?? body.conditionNote, 'conditionNote', 255) ||
           (level < MIN_BATTERY_TO_RESERVE ? 'LOW_BATTERY_REQUIRES_CHARGING' : null),
         r.id,
       ]
@@ -461,7 +482,8 @@ async function expireVehicleHolds() {
         const v = await selectOne(c, 'SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [
           r.vehicle_id,
         ]);
-        if (v.status === 'RESERVED') {
+        const [others] = await c.execute(`SELECT id FROM reservations WHERE vehicle_id = ? AND id <> ? AND status = 'CONFIRMED' AND start_time <= DATE_ADD(NOW(), INTERVAL 2 HOUR) AND end_time > NOW() LIMIT 1 FOR UPDATE`, [v.id, r.id]);
+        if (v.status === 'RESERVED' && !others.length) {
           await c.execute("UPDATE vehicles SET status = 'AVAILABLE' WHERE id = ?", [v.id]);
         }
         await c.execute("UPDATE reservations SET status = 'EXPIRED' WHERE id = ?", [r.id]);

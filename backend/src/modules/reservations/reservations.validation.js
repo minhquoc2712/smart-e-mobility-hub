@@ -6,8 +6,13 @@ function requiredId(value, name) {
 }
 
 function dateTime(value, name) {
-  if (typeof value !== 'string' || !/^\d{4}-\d\d-\d\d[T ]\d\d:\d\d/.test(value)) {
+  if (typeof value !== 'string' || !/^\d{4}-\d\d-\d\d[T ]\d\d:\d\d(?::\d\d(?:\.\d{1,3})?)?(?:Z|[+-]\d\d:\d\d)?$/.test(value)) {
     throw new AppError(400, 'VALIDATION_FAILED', `${name} must be a date-time string.`);
+  }
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() + 1 !== month || check.getUTCDate() !== day || Number(value.slice(11, 13)) > 23 || Number(value.slice(14, 16)) > 59) {
+    throw new AppError(400, 'VALIDATION_FAILED', `Invalid ${name}.`);
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -53,12 +58,20 @@ function windowOf(start, end, { maxAdvanceDays = 7, minMinutes = 30, maxMinutes 
   return { start: mysqlDate(s), end: mysqlDate(e) };
 }
 
+function optionalText(value, name, maxLength) {
+  if (value == null) return null;
+  if (typeof value !== 'string' || value.trim().length > maxLength) {
+    throw new AppError(400, 'VALIDATION_FAILED', `${name} must be text of at most ${maxLength} characters.`);
+  }
+  return value.trim() || null;
+}
+
 function battery(value) {
-  const n = Number(value);
+  const n = typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)) ? Number(value) : NaN;
   if (!Number.isInteger(n) || n < 0 || n > 100) {
     throw new AppError(400, 'VALIDATION_FAILED', 'batteryLevel must be an integer from 0 to 100.');
   }
   return n;
 }
 
-module.exports = { requiredId, dateTime, windowOf, mysqlDate, battery };
+module.exports = { requiredId, dateTime, windowOf, mysqlDate, battery, optionalText };

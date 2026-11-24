@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticateToken, requireRole } = require('../../middlewares/auth.middleware');
-const { pool } = require('../../config/db');
+const { withTransaction } = require('../../utils/transaction');
+const { parseId } = require('../../utils/validators');
 const wrap = require('../../utils/asyncHandler');
 const service = require('./charging.service');
 const AppError = require('../../utils/appError');
@@ -19,23 +20,25 @@ router.patch('/:requestId/priority', requireRole('OPERATOR'), wrap(async (req, r
   if (!allowed.includes(req.body.priority)) {
     throw new AppError(400, 'VALIDATION_FAILED', 'Invalid priority.');
   }
-  const [rows] = await pool.execute('SELECT id, charging_point_id FROM charging_requests WHERE id = ?', [
-    req.params.requestId,
-  ]);
-  if (!rows.length) {
-    throw new AppError(404, 'CHARGING_REQUEST_NOT_FOUND', 'Request not found.');
-  }
-  await pool.execute('UPDATE charging_requests SET priority = ? WHERE id = ?', [
-    req.body.priority,
-    req.params.requestId,
-  ]);
-  if (rows[0].charging_point_id) {
-    await pool.execute('UPDATE charging_points SET priority_level = ? WHERE id = ?', [
+  const requestId = parseId(req.params.requestId, 'requestId');
+  await withTransaction(async (c) => {
+    const [rows] = await c.execute('SELECT id, charging_point_id, status FROM charging_requests WHERE id = ? FOR UPDATE', [requestId]);
+    if (!rows.length) {
+      throw new AppError(404, 'CHARGING_REQUEST_NOT_FOUND', 'Request not found.');
+    }
+    if (!['QUEUED','SCHEDULED','CHARGING'].includes(rows[0].status)) throw new AppError(409, 'INVALID_STATE_TRANSITION', 'Request is no longer active.');
+    await c.execute('UPDATE charging_requests SET priority = ? WHERE id = ?', [
       req.body.priority,
-      rows[0].charging_point_id,
+      req.params.requestId,
     ]);
-  }
-  res.json({ success: true, data: { id: Number(req.params.requestId), priority: req.body.priority } });
+    if (rows[0].charging_point_id) {
+      await c.execute('UPDATE charging_points SET priority_level = ? WHERE id = ?', [
+        req.body.priority,
+        rows[0].charging_point_id,
+      ]);
+    }
+  });
+  res.json({ success: true, data: { id: requestId, priority: req.body.priority } });
 }));
 
 module.exports = router;

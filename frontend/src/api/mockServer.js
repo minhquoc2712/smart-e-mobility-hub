@@ -17,6 +17,9 @@ function loadDb() {
   const parsed = JSON.parse(raw);
   if (!parsed.parkingSlots) parsed.parkingSlots = structuredClone(INITIAL_MOCK_DB.parkingSlots);
   if (!parsed.chargingPoints) parsed.chargingPoints = structuredClone(INITIAL_MOCK_DB.chargingPoints);
+  for (const req of parsed.chargingRequests || []) {
+    if (['QUEUED','SCHEDULED','CHARGING'].includes(req.status)) req.targetBatteryLevel = 100;
+  }
   return parsed;
 }
 
@@ -184,6 +187,9 @@ export const mockServer = {
       );
     }
     const db = loadDb();
+    if (db.reservations.some(r => Number(r.userId) === Number(userId) && r.reservationType === 'VEHICLE' && ['CONFIRMED','ACTIVE'].includes(r.status))) {
+      throw new Error('You already have a vehicle reservation or rental. Cancel it or return the vehicle before booking another.');
+    }
     const vehicle = db.vehicles.find((v) => v.id === Number(vehicleId));
     const hub = db.hubs.find((h) => h.id === Number(hubId));
     if (!vehicle || vehicle.status !== 'AVAILABLE') {
@@ -247,6 +253,8 @@ export const mockServer = {
     const db = loadDb();
     const res = db.reservations.find((r) => r.id === Number(reservationId));
     if (!res) throw new Error('Reservation not found');
+    if (res.status !== 'CONFIRMED') throw new Error('Reservation is not ready for pickup.');
+    if (db.reservations.some(r => r.id !== res.id && r.userId === res.userId && r.reservationType === 'VEHICLE' && r.status === 'ACTIVE')) throw new Error('You already have an active rental.');
     res.status = 'ACTIVE';
     const vehicle = db.vehicles.find((v) => v.id === res.vehicleId);
     if (vehicle) vehicle.status = 'IN_USE';
@@ -259,7 +267,9 @@ export const mockServer = {
     const db = loadDb();
     const res = db.reservations.find((r) => r.id === Number(reservationId));
     if (!res) throw new Error('Reservation not found');
-    const hub = db.hubs.find((h) => h.id === Number(returnHubId)) || db.hubs[0];
+    if (res.status !== 'ACTIVE') throw new Error('No active rental for this reservation.');
+    const hub = db.hubs.find((h) => h.id === Number(returnHubId));
+    if (!hub) throw new Error('Hub not found.');
     if (hub.freeParkingSlots <= 0) {
       throw new Error(`${hub.name} has no free parking spaces!`);
     }
@@ -280,6 +290,7 @@ export const mockServer = {
     const db = loadDb();
     const res = db.reservations.find((r) => r.id === Number(reservationId));
     if (!res) throw new Error('Reservation not found');
+    if (res.status !== 'CONFIRMED') throw new Error('Only confirmed reservations can be cancelled.');
     res.status = 'CANCELLED';
     const vehicle = db.vehicles.find((v) => v.id === res.vehicleId);
     if (vehicle && vehicle.status === 'RESERVED') vehicle.status = 'AVAILABLE';
@@ -309,6 +320,7 @@ export const mockServer = {
       id: Date.now(),
       requestCode: `CHG-${String(Date.now()).slice(-5)}`,
       ...payload,
+      targetBatteryLevel: 100,
       hubName: hub?.name || 'Campus Hub',
       priority: 'NORMAL',
       queuePosition: db.chargingRequests.length + 1,

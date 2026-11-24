@@ -2,8 +2,8 @@ const AppError = require('./appError');
 const { statusesOf, isKnownStatus } = require('../modules/state/stateMachine');
 
 function parseId(value, label = 'id') {
-  const n = Number(value);
-  if (!Number.isInteger(n) || n <= 0) {
+  const n = typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)) ? Number(value) : NaN;
+  if (!Number.isSafeInteger(n) || n <= 0) {
     throw new AppError(400, 'INVALID_ID', `${label} must be a positive integer.`);
   }
   return n;

@@ -6,6 +6,34 @@ const express = require('express');
 const { pool } = require('../../config/db');
 const { authenticateToken, requireRole } = require('../../middlewares/auth.middleware');
 const hubsService = require('../hubs/hubs.service');
+const AppError = require('../../utils/appError');
+const { parseId } = require('../../utils/validators');
+const { battery, optionalText } = require('../reservations/reservations.validation');
+const { assertTransition } = require('../state/stateMachine');
+const { withTransaction } = require('../../utils/transaction');
+const { randomUUID } = require('node:crypto');
+const staffCode = () => `CHG-STAFF-${randomUUID().replace(/-/g, '').slice(0, 28)}`;
+
+// Call while the vehicle and/or charger row is locked. A future booking must not
+// be overwritten by operator actions during the estimated two-hour charge.
+async function assertFleetChargeAvailable(c, vehicle) {
+  assertTransition('vehicle', vehicle.status, 'CHARGING');
+  if (!vehicle.current_hub_id) throw new AppError(409, 'VEHICLE_NOT_AT_HUB', 'Vehicle is not at a hub.');
+  await hubsService.assertHubOperational(c, vehicle.current_hub_id);
+  const [bookings] = await c.execute(`SELECT id FROM reservations WHERE vehicle_id = ?
+    AND status IN ('CONFIRMED','ACTIVE') AND end_time > NOW()
+    AND start_time < DATE_ADD(NOW(), INTERVAL 2 HOUR) LIMIT 1 FOR UPDATE`, [vehicle.id]);
+  if (bookings.length) throw new AppError(409, 'VEHICLE_TIME_SLOT_BOOKED', 'Vehicle has a rental booking during charging.');
+}
+async function assertChargerWindowFree(c, chargerId, vehicleId, excludeVehicleId = null) {
+  const [bookings] = await c.execute(`SELECT id FROM charging_requests WHERE charging_point_id = ?
+    AND status IN ('SCHEDULED','CHARGING') AND scheduled_end > NOW()
+    AND scheduled_start < DATE_ADD(NOW(), INTERVAL 2 HOUR)
+    AND (vehicle_id IS NULL OR (vehicle_id <> ? AND vehicle_id <> COALESCE(?, 0))) LIMIT 1 FOR UPDATE`,
+    [chargerId, vehicleId, excludeVehicleId]);
+  if (bookings.length) throw new AppError(409, 'TIME_SLOT_BOOKED', 'Charger is locked by another booking.');
+}
+
 
 const router = express.Router();
 
@@ -118,25 +146,45 @@ router.get('/incidents', authenticateToken, requireRole('OPERATOR'), async (_req
 router.post('/incidents', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
   try {
     const { hubId, targetType, vehicleId = null, chargingPointId = null, parkingSlotId = null, severity = 'MEDIUM', title = null, description = null } = req.body;
-    const incidentCode = `INC-${Date.now()}`;
-    const [result] = await pool.execute(
+    parseId(hubId, 'hubId');
+    if (!['VEHICLE','CHARGING_POINT','PARKING_SLOT','HUB'].includes(targetType) || !['LOW','MEDIUM','HIGH','CRITICAL'].includes(severity)) throw new AppError(400, 'VALIDATION_FAILED', 'Invalid targetType or severity.');
+    if (!optionalText(title, 'title', 160) || !optionalText(description, 'description', 10000)) throw new AppError(400, 'VALIDATION_FAILED', 'title and description are required.');
+    const refs = { VEHICLE: vehicleId, CHARGING_POINT: chargingPointId, PARKING_SLOT: parkingSlotId };
+    for (const [type, id] of Object.entries(refs)) {
+      if (type === targetType) parseId(id, type);
+      else if (id != null) throw new AppError(400, 'VALIDATION_FAILED', 'Incident target IDs must match targetType.');
+    }
+    const incidentCode = `INC-${randomUUID().replace(/-/g, '')}`;
+    const data = await withTransaction(async (c) => {
+    const [hubs] = await c.execute('SELECT id FROM hubs WHERE id = ? FOR UPDATE', [hubId]);
+    if (!hubs.length) throw new AppError(404, 'HUB_NOT_FOUND', 'Hub not found.');
+    const targets = { VEHICLE: ['vehicles','current_hub_id'], CHARGING_POINT: ['charging_points','hub_id'], PARKING_SLOT: ['parking_slots','hub_id'] };
+    if (targetType !== 'HUB') {
+      const [table, column] = targets[targetType];
+      const [rows] = await c.execute(`SELECT id, ${column} AS hub_id FROM ${table} WHERE id = ? FOR UPDATE`, [refs[targetType]]);
+      if (!rows.length) throw new AppError(404, 'RESOURCE_NOT_FOUND', 'Incident target not found.');
+      if (rows[0].hub_id !== Number(hubId)) throw new AppError(409, 'HUB_MISMATCH', 'Incident target is not at this hub.');
+    }
+    const [result] = await c.execute(
       `INSERT INTO incidents (incident_code, reported_by, hub_id, target_type, vehicle_id, charging_point_id, parking_slot_id, severity, title, description)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [incidentCode, req.user.id, hubId, targetType, vehicleId, chargingPointId, parkingSlotId, severity, title, description]
     );
     if (targetType === 'VEHICLE' && vehicleId) {
-      await pool.execute('UPDATE vehicles SET status = "OUT_OF_SERVICE" WHERE id = ?', [vehicleId]);
+      await c.execute('UPDATE vehicles SET status = "OUT_OF_SERVICE" WHERE id = ?', [vehicleId]);
     }
     if (targetType === 'CHARGING_POINT' && chargingPointId) {
-      await pool.execute('UPDATE charging_points SET status = "OUT_OF_SERVICE" WHERE id = ?', [chargingPointId]);
+      await c.execute('UPDATE charging_points SET status = "OUT_OF_SERVICE" WHERE id = ?', [chargingPointId]);
     }
     if (targetType === "PARKING_SLOT" && parkingSlotId) {
-      await pool.execute('UPDATE parking_slots SET status = "OUT_OF_SERVICE" WHERE id = ?', [parkingSlotId]);
+      await c.execute('UPDATE parking_slots SET status = "OUT_OF_SERVICE" WHERE id = ?', [parkingSlotId]);
     }
     if (targetType === "HUB") {
-      await pool.execute('UPDATE hubs SET status = "MAINTENANCE" WHERE id = ?', [hubId]);
+      await c.execute('UPDATE hubs SET status = "MAINTENANCE" WHERE id = ?', [hubId]);
     }
-    res.status(201).json({ success: true, data: { id: result.insertId, incidentCode, status: 'OPEN' } });
+    return { id: result.insertId, incidentCode, status: 'OPEN' };
+    });
+    res.status(201).json({ success: true, data });
   } catch (err) {
     next(err);
   }
@@ -150,10 +198,7 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
       resolutionNotes = 'Repaired and verified.'
     } = req.body;
     if (!Number.isInteger(incidentId) || incidentId <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid incident ID.'
-      });
+      throw new AppError(400, 'VALIDATION_FAILED', 'Invalid incident ID.');
     }
     await connection.beginTransaction();
 
@@ -169,10 +214,7 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
     if (rows.length === 0) {
       await connection.rollback();
 
-      return res.status(404).json({
-        success: false,
-        message: 'Incident not found.'
-      });
+      throw new AppError(404, 'RESOURCE_NOT_FOUND', 'Incident not found.');
     }
 
     const incident = rows[0];
@@ -180,21 +222,15 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
     if (incident.status === 'CLOSED') {
       await connection.rollback();
 
-      return res.status(409).json({
-        success: false,
-        message: 'Incident is already closed.'
-      });
+      throw new AppError(409, 'CONFLICT', 'Incident is already closed.');
     }
 
     // 2. Restore the affected object's status
     if (incident.target_type === 'VEHICLE') {
 
       if (!incident.vehicle_id) {
-        console.log("LỖI ở vehicle_id");
-        return res.status(404).json({
-          success: false,
-          message: 'No associated vehicle found.'
-        });
+        console.log("Lá»–I á»Ÿ vehicle_id");
+        throw new AppError(404, 'RESOURCE_NOT_FOUND', 'No associated vehicle found.');
       }
       // Restore vehicle only if no other unresolved incidents related to this vehicle exist
       const [[result]] = await connection.execute(
@@ -218,11 +254,8 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
     } else if (incident.target_type === 'CHARGING_POINT') {
 
       if (!incident.charging_point_id) {
-        console.log("LỖI ở chargingpoint_ID");
-        return res.status(404).json({
-          success: false,
-          message: 'No associated charging point found.'
-        });
+        console.log("Lá»–I á»Ÿ chargingpoint_ID");
+        throw new AppError(404, 'RESOURCE_NOT_FOUND', 'No associated charging point found.');
       }
       // Restore charging point only if no other unresolved incidents exist
       const [[result]] = await connection.execute(
@@ -246,11 +279,8 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
 
     } else if (incident.target_type === 'PARKING_SLOT') {
       if (!incident.parking_slot_id) {
-        console.log("LỖI ở parkingSlot_id");
-        return res.status(404).json({
-          success: false,
-          message: 'No associated parking slot found.'
-        });
+        console.log("Lá»–I á»Ÿ parkingSlot_id");
+        throw new AppError(404, 'RESOURCE_NOT_FOUND', 'No associated parking slot found.');
       }
       // Restore parking_slot only if no other unresolved incidents related to this parking_slot exist
       const [[result]] = await connection.execute(
@@ -273,11 +303,8 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
 
     } else if (incident.target_type === 'HUB') {
       if (!incident.hub_id) {
-        console.log("LỖI ở hub_id");
-        return res.status(404).json({
-          success: false,
-          message: 'No associated parking slot found.'
-        });
+        console.log("Lá»–I á»Ÿ hub_id");
+        throw new AppError(404, 'RESOURCE_NOT_FOUND', 'No associated parking slot found.');
       }
       // Restore hub only if no other unresolved incidents related to this hub exist
       const [[result]] = await connection.execute(
@@ -335,9 +362,7 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
 const buildPlaceholders = (count) => Array(count).fill('?').join(',');
 
 const createHttpError = (statusCode, message) => {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
+  return new AppError(statusCode, statusCode === 409 ? 'DISPATCH_CONFLICT' : statusCode === 404 ? 'RESOURCE_NOT_FOUND' : 'VALIDATION_FAILED', message);
 };
 
 router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
@@ -374,13 +399,14 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
     // 1. Verify and lock source/destination hubs.
     const hubIds = [...new Set([sourceId, destinationId])];
     const [hubs] = await connection.execute(
-      `SELECT id, name
+      `SELECT id, name, status
          FROM hubs
          WHERE id IN (${buildPlaceholders(hubIds.length)})
          FOR UPDATE`,
       hubIds
     );
 
+    if (hubs.some(h => h.status === 'MAINTENANCE')) throw createHttpError(409, 'Hub is under maintenance.');
     const existingHubIds = new Set(hubs.map((hub) => Number(hub.id)));
 
     if (!existingHubIds.has(sourceId)) {
@@ -455,6 +481,7 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
       // Resolve the actual source slots.
       const resolvedAllocations = normalizedAllocations.map((item) => {
         const vehicle = vehicleMap.get(item.vehicleId);
+        if (vehicle.status !== 'AVAILABLE') throw createHttpError(409, 'Only available vehicles can be redistributed.');
 
         if (Number(vehicle.current_hub_id) !== sourceId) {
           throw createHttpError(
@@ -534,6 +561,7 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
           );
         }
 
+        if (!['SHARED_EV','UNIVERSAL'].includes(slot.slot_type)) throw createHttpError(409, 'Target slot is incompatible with fleet vehicles.');
         // A target must be FREE or be one of the slots vacated in Phase A.
         if (slot.status !== 'FREE' && !oldSlotSet.has(slotId)) {
           throw createHttpError(
@@ -624,7 +652,8 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
     // MODE 2: Legacy count-only dispatch
     // =========================================================
 
-    const count = Math.max(1, Number(vehicleCount) || 1);
+    const count = parseId(vehicleCount ?? 1, 'vehicleCount');
+    if (sourceId === destinationId) throw createHttpError(400, 'Source and destination must differ for count-only dispatch.');
 
     // 2. Get available vehicles from the source hub.
     const [movableVehicles] = await connection.execute(
@@ -639,6 +668,7 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
     );
 
     const movedCount = movableVehicles.length;
+    if (movedCount < count) throw createHttpError(409, 'Not enough available vehicles at source hub.');
 
     // 3. Get free destination slots.
     // Keep the same slot types as the mock API.
@@ -658,6 +688,7 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
       );
     }
 
+    if (freeDestSlots.length < movedCount) throw createHttpError(409, 'Destination hub lacks free parking capacity.');
     // 4. Vacate old vehicle slots.
     const oldSlotIds = [
       ...new Set(
@@ -742,13 +773,6 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
       await connection.rollback();
     }
 
-    if (err.statusCode) {
-      return res.status(err.statusCode).json({
-        success: false,
-        message: err.message,
-      });
-    }
-
     next(err);
   } finally {
     if (connection) {
@@ -762,11 +786,13 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
 // UC15: Staff manual charging priority override for Fleet Vehicles (persisted in MySQL)
 router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
   try {
-    const vehicleId = Number(req.params.vehicleId);
-    const rawPriority = String(req.body?.priority || 'NORMAL').toUpperCase();
-    const [vehicles] = await pool.execute('SELECT * FROM vehicles WHERE id = ? LIMIT 1', [vehicleId]);
+    const vehicleId = parseId(req.params.vehicleId, 'vehicleId');
+    const rawPriority = req.body?.priority;
+    if (!['AUTO','LOW','NORMAL','HIGH','URGENT'].includes(rawPriority)) throw new AppError(400, 'VALIDATION_FAILED', 'Invalid priority.');
+    const data = await withTransaction(async (c) => {
+    const [vehicles] = await c.execute('SELECT * FROM vehicles WHERE id = ? LIMIT 1 FOR UPDATE', [vehicleId]);
     if (!vehicles.length) {
-      return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+      throw new AppError(404, 'VEHICLE_NOT_FOUND', 'Vehicle not found.');
     }
     const veh = vehicles[0];
     const autoPriority =
@@ -779,22 +805,19 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
         : 'LOW';
 
     if (rawPriority === 'AUTO') {
-      await pool.execute('UPDATE charging_points SET priority_level = ? WHERE current_vehicle_id = ?', [
+      await c.execute('UPDATE charging_points SET priority_level = ? WHERE current_vehicle_id = ?', [
         autoPriority,
         vehicleId,
       ]);
-      await pool.execute(
-        `DELETE FROM charging_requests WHERE vehicle_id = ? AND request_code LIKE 'CHG-STAFF-%'`,
+      await c.execute(
+        `UPDATE charging_requests SET status = 'CANCELLED' WHERE vehicle_id = ? AND request_code LIKE 'CHG-STAFF-%' AND status = 'QUEUED'`,
         [vehicleId]
       );
-      await pool.execute(
+      await c.execute(
         `UPDATE charging_requests SET priority = ? WHERE vehicle_id = ? AND status IN ('QUEUED', 'SCHEDULED', 'CHARGING')`,
         [autoPriority, vehicleId]
       );
-      return res.json({
-        success: true,
-        data: { vehicleId, priority: autoPriority, mode: 'AUTO' },
-      });
+      return { vehicleId, priority: autoPriority, mode: 'AUTO' };
     }
 
     const effectivePriority = ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(rawPriority)
@@ -802,27 +825,27 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
       : autoPriority;
 
     // 1. Update charging_points.priority_level if vehicle is plugged into a charger
-    await pool.execute('UPDATE charging_points SET priority_level = ? WHERE current_vehicle_id = ?', [
+    await c.execute('UPDATE charging_points SET priority_level = ? WHERE current_vehicle_id = ?', [
       effectivePriority,
       vehicleId,
     ]);
 
     // 2. Update or create an active row in charging_requests so MySQL persists Staff priority override
-    const [existingReqs] = await pool.execute(
+    const [existingReqs] = await c.execute(
       `SELECT id FROM charging_requests WHERE vehicle_id = ? AND status IN ('QUEUED', 'SCHEDULED', 'CHARGING') ORDER BY id DESC LIMIT 1`,
       [vehicleId]
     );
     if (existingReqs.length > 0) {
-      await pool.execute('UPDATE charging_requests SET priority = ? WHERE id = ?', [
+      await c.execute('UPDATE charging_requests SET priority = ? WHERE id = ?', [
         effectivePriority,
         existingReqs[0].id,
       ]);
-    } else if (veh.current_hub_id) {
-      const reqCode = `CHG-STAFF-V${vehicleId}-${String(Date.now()).slice(-4)}`;
-      await pool.execute(
+    } else if (veh.current_hub_id && veh.status === 'AVAILABLE') {
+      const reqCode = staffCode();
+      await c.execute(
         `INSERT INTO charging_requests
           (request_code, user_id, ownership_type, vehicle_id, hub_id, current_battery_level, target_battery_level, priority, scheduled_start, scheduled_end, status)
-         VALUES (?, ?, 'RENTAL', ?, ?, ?, 95, ?, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), ?)`,
+         VALUES (?, ?, 'RENTAL', ?, ?, ?, 100, ?, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), ?)`,
         [
           reqCode,
           req.user.id,
@@ -835,14 +858,9 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
       );
     }
 
-    return res.json({
-      success: true,
-      data: {
-        vehicleId,
-        priority: effectivePriority,
-        mode: 'MANUAL',
-      },
+    return { vehicleId, priority: effectivePriority, mode: 'MANUAL' };
     });
+    return res.json({ success: true, data });
   } catch (err) {
     return next(err);
   }
@@ -850,8 +868,9 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
 
 router.post('/operator/charging-priority/reset-all', authenticateToken, requireRole('OPERATOR'), async (_req, res, next) => {
   try {
-    await pool.execute(`DELETE FROM charging_requests WHERE request_code LIKE 'CHG-STAFF-%'`);
-    await pool.execute(`
+    await withTransaction(async (c) => {
+    await c.execute(`UPDATE charging_requests SET status = 'CANCELLED' WHERE request_code LIKE 'CHG-STAFF-%' AND status = 'QUEUED'`);
+    await c.execute(`
       UPDATE charging_points cp
       LEFT JOIN vehicles v ON v.id = cp.current_vehicle_id
       SET cp.priority_level = CASE
@@ -862,6 +881,12 @@ router.post('/operator/charging-priority/reset-all', authenticateToken, requireR
         ELSE 'LOW'
       END
     `);
+    await c.execute(`UPDATE charging_requests cr LEFT JOIN vehicles v ON v.id = cr.vehicle_id
+      SET cr.priority = CASE WHEN COALESCE(v.battery_level, cr.current_battery_level) < 20 THEN 'URGENT'
+        WHEN COALESCE(v.battery_level, cr.current_battery_level) < 50 THEN 'HIGH'
+        WHEN COALESCE(v.battery_level, cr.current_battery_level) < 80 THEN 'NORMAL' ELSE 'LOW' END
+      WHERE cr.status IN ('QUEUED','SCHEDULED','CHARGING')`);
+    });
     return res.json({ success: true, data: { reset: true } });
   } catch (err) {
     return next(err);
@@ -873,42 +898,36 @@ router.post('/operator/charging/plug-in', authenticateToken, requireRole('OPERAT
   const connection = await pool.getConnection();
   try {
     const { vehicleId, chargerId } = req.body;
-    const vId = Number(vehicleId);
-    if (!vId) {
-      return res.status(400).json({ success: false, message: 'vehicleId is required.' });
-    }
+    const vId = parseId(vehicleId, 'vehicleId');
 
     await connection.beginTransaction();
 
     const [vehicles] = await connection.execute('SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [vId]);
     if (!vehicles.length) {
       await connection.rollback();
-      return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+      throw new AppError(404, 'RESOURCE_NOT_FOUND', 'Vehicle not found.');
     }
     const vehicle = vehicles[0];
-    if (vehicle.status === 'CHARGING') {
-      await connection.rollback();
-      return res.status(409).json({ success: false, message: 'Vehicle is already charging.' });
-    }
+    await assertFleetChargeAvailable(connection, vehicle);
 
     let targetCharger = null;
     if (chargerId) {
       const [chargers] = await connection.execute(
         'SELECT * FROM charging_points WHERE id = ? FOR UPDATE',
-        [Number(chargerId)]
+        [parseId(chargerId, 'chargerId')]
       );
       if (!chargers.length) {
         await connection.rollback();
-        return res.status(404).json({ success: false, message: 'Charging point not found.' });
+        throw new AppError(404, 'RESOURCE_NOT_FOUND', 'Charging point not found.');
       }
       targetCharger = chargers[0];
       if (targetCharger.status !== 'AVAILABLE') {
         await connection.rollback();
-        return res.status(409).json({ success: false, message: `Charger ${targetCharger.charger_code} is not available (${targetCharger.status}).` });
+        throw new AppError(409, 'CONFLICT', `Charger ${targetCharger.charger_code} is not available (${targetCharger.status}).`);
       }
       if (Number(targetCharger.hub_id) !== Number(vehicle.current_hub_id)) {
         await connection.rollback();
-        return res.status(409).json({ success: false, message: 'Vehicle and charger are at different hubs.' });
+        throw new AppError(409, 'CONFLICT', 'Vehicle and charger are at different hubs.');
       }
     } else {
       const [chargers] = await connection.execute(
@@ -917,11 +936,13 @@ router.post('/operator/charging/plug-in', authenticateToken, requireRole('OPERAT
       );
       if (!chargers.length) {
         await connection.rollback();
-        return res.status(409).json({ success: false, message: 'No available charger at this hub.' });
+        throw new AppError(409, 'CONFLICT', 'No available charger at this hub.');
       }
       targetCharger = chargers[0];
     }
 
+    await assertChargerWindowFree(connection, targetCharger.id, vId);
+    assertTransition('chargingPoint', targetCharger.status, 'CHARGING');
     const autoPriority =
       vehicle.battery_level < 20 ? 'URGENT' : vehicle.battery_level < 50 ? 'HIGH' : vehicle.battery_level < 80 ? 'NORMAL' : 'LOW';
 
@@ -941,15 +962,15 @@ router.post('/operator/charging/plug-in', authenticateToken, requireRole('OPERAT
     );
     if (reqs.length > 0) {
       await connection.execute(
-        'UPDATE charging_requests SET status = "CHARGING", charging_point_id = ? WHERE id = ?',
+        'UPDATE charging_requests SET status = "CHARGING", charging_point_id = ?, target_battery_level = 100 WHERE id = ?',
         [targetCharger.id, reqs[0].id]
       );
     } else {
-      const reqCode = `CHG-STAFF-V${vId}-${String(Date.now()).slice(-4)}`;
+      const reqCode = staffCode();
       await connection.execute(
         `INSERT INTO charging_requests
           (request_code, user_id, ownership_type, vehicle_id, hub_id, charging_point_id, current_battery_level, target_battery_level, priority, scheduled_start, scheduled_end, status)
-         VALUES (?, ?, 'RENTAL', ?, ?, ?, ?, 95, ?, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), 'CHARGING')`,
+         VALUES (?, ?, 'RENTAL', ?, ?, ?, ?, 100, ?, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), 'CHARGING')`,
         [reqCode, req.user.id, vId, vehicle.current_hub_id, targetCharger.id, vehicle.battery_level, autoPriority]
       );
     }
@@ -973,66 +994,51 @@ router.post('/operator/charging/plug-in', authenticateToken, requireRole('OPERAT
 });
 
 router.post('/operator/charging/unplug', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
-  const connection = await pool.getConnection();
   try {
-    const { vehicleId, chargerId } = req.body;
-    await connection.beginTransaction();
-
-    let targetCharger = null;
-    let targetVehicleId = vehicleId ? Number(vehicleId) : null;
-
-    if (chargerId) {
-      const [chargers] = await connection.execute('SELECT * FROM charging_points WHERE id = ? FOR UPDATE', [Number(chargerId)]);
-      if (chargers.length) {
-        targetCharger = chargers[0];
-        targetVehicleId = targetVehicleId || targetCharger.current_vehicle_id;
+    const { vehicleId, chargerId, requestId } = req.body || {};
+    const vid = vehicleId == null ? null : parseId(vehicleId, 'vehicleId');
+    const cid = chargerId == null ? null : parseId(chargerId, 'chargerId');
+    const rid = requestId == null ? null : parseId(requestId, 'requestId');
+    if (!vid && !cid) throw new AppError(400, 'VALIDATION_FAILED', 'vehicleId or chargerId is required.');
+    const data = await withTransaction(async (c) => {
+      const [chargers] = await c.execute(cid ? 'SELECT * FROM charging_points WHERE id = ? FOR UPDATE' : 'SELECT * FROM charging_points WHERE current_vehicle_id = ? FOR UPDATE', [cid ?? vid]);
+      if (!chargers.length) throw new AppError(404, 'CHARGING_POINT_NOT_FOUND', 'Charging point not found.');
+      const charger = chargers[0];
+      if (vid && charger.current_vehicle_id !== vid) throw new AppError(409, 'CHARGER_VEHICLE_MISMATCH', 'Vehicle is not assigned to this charger.');
+      const target = charger.current_vehicle_id;
+      if (target) {
+        if (charger.status !== 'CHARGING') throw new AppError(409, 'INVALID_STATE_TRANSITION', 'Charger is not charging.');
+        const [vehicles] = await c.execute('SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [target]);
+        if (!vehicles.length || vehicles[0].status !== 'CHARGING') throw new AppError(409, 'INVALID_STATE_TRANSITION', 'Vehicle is not charging.');
+        assertTransition('vehicle', vehicles[0].status, 'AVAILABLE');
+        await c.execute('UPDATE vehicles SET status = "AVAILABLE" WHERE id = ?', [target]);
+        await c.execute('UPDATE charging_requests SET status = "COMPLETED" WHERE vehicle_id = ? AND charging_point_id = ? AND status = "CHARGING"', [target, charger.id]);
+      } else {
+        if (!rid) throw new AppError(400, 'VALIDATION_FAILED', 'requestId is required for a private EV.');
+        const [requests] = await c.execute('SELECT * FROM charging_requests WHERE id = ? FOR UPDATE', [rid]);
+        const request = requests[0];
+        if (!request || request.charging_point_id !== charger.id || request.vehicle_id !== null || !['CHARGING','SCHEDULED'].includes(request.status)) throw new AppError(409, 'INVALID_STATE_TRANSITION', 'Private request is not assigned to this charger.');
+        await c.execute('UPDATE charging_requests SET status = ? WHERE id = ?', [request.status === 'CHARGING' ? 'COMPLETED' : 'CANCELLED', rid]);
       }
-    } else if (targetVehicleId) {
-      const [chargers] = await connection.execute('SELECT * FROM charging_points WHERE current_vehicle_id = ? FOR UPDATE', [targetVehicleId]);
-      if (chargers.length) {
-        targetCharger = chargers[0];
+      const [remaining] = await c.execute(`SELECT id FROM charging_requests WHERE charging_point_id = ? AND status IN ('SCHEDULED','CHARGING') AND scheduled_start <= DATE_ADD(NOW(), INTERVAL 2 HOUR) AND scheduled_end > NOW() LIMIT 1 FOR UPDATE`, [charger.id]);
+      if (target || ['RESERVED','CHARGING'].includes(charger.status)) {
+        await c.execute('UPDATE charging_points SET status = ?, current_vehicle_id = NULL, priority_level = "NORMAL" WHERE id = ?', [remaining.length ? 'RESERVED' : 'AVAILABLE', charger.id]);
       }
-    }
-
-    if (targetVehicleId) {
-      await connection.execute('UPDATE vehicles SET status = "AVAILABLE" WHERE id = ?', [targetVehicleId]);
-      await connection.execute('UPDATE charging_requests SET status = "COMPLETED" WHERE vehicle_id = ? AND status = "CHARGING"', [targetVehicleId]);
-    }
-
-    if (targetCharger) {
-      await connection.execute(
-        'UPDATE charging_points SET status = "AVAILABLE", current_vehicle_id = NULL, priority_level = "NORMAL" WHERE id = ?',
-        [targetCharger.id]
-      );
-      await connection.execute('UPDATE charging_requests SET status = "COMPLETED" WHERE charging_point_id = ? AND status = "CHARGING"', [targetCharger.id]);
-    }
-
-    await connection.commit();
-    return res.json({
-      success: true,
-      data: {
-        unplugged: true,
-        vehicleId: targetVehicleId,
-        chargerId: targetCharger?.id || null,
-      },
+      return { unplugged: true, vehicleId: target, chargerId: charger.id };
     });
-  } catch (err) {
-    if (connection) await connection.rollback();
-    return next(err);
-  } finally {
-    if (connection) connection.release();
-  }
+    return res.json({ success: true, data });
+  } catch (err) { return next(err); }
 });
 
 router.post('/operator/charging/swap', authenticateToken, requireRole('OPERATOR'), async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     const { activeVehicleId, queueVehicleId } = req.body;
-    const aId = Number(activeVehicleId);
-    const qId = Number(queueVehicleId);
+    const aId = parseId(activeVehicleId, 'activeVehicleId');
+    const qId = parseId(queueVehicleId, 'queueVehicleId');
 
-    if (!aId || !qId) {
-      return res.status(400).json({ success: false, message: 'Both activeVehicleId and queueVehicleId are required.' });
+    if (aId === qId) {
+      throw new AppError(400, 'VALIDATION_FAILED', 'The two vehicles must be different.');
     }
 
     await connection.beginTransaction();
@@ -1040,20 +1046,24 @@ router.post('/operator/charging/swap', authenticateToken, requireRole('OPERATOR'
     const [chargers] = await connection.execute('SELECT * FROM charging_points WHERE current_vehicle_id = ? FOR UPDATE', [aId]);
     if (!chargers.length) {
       await connection.rollback();
-      return res.status(404).json({ success: false, message: 'Active vehicle is not plugged into any charger.' });
+      throw new AppError(404, 'RESOURCE_NOT_FOUND', 'Active vehicle is not plugged into any charger.');
     }
     const charger = chargers[0];
 
     const [qVehicles] = await connection.execute('SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [qId]);
     if (!qVehicles.length) {
       await connection.rollback();
-      return res.status(404).json({ success: false, message: 'Queue vehicle not found.' });
+      throw new AppError(404, 'RESOURCE_NOT_FOUND', 'Queue vehicle not found.');
     }
     const qVehicle = qVehicles[0];
+    const [activeVehicles] = await connection.execute('SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [aId]);
+    if (charger.status !== 'CHARGING' || !activeVehicles.length || activeVehicles[0].status !== 'CHARGING') throw new AppError(409, 'INVALID_STATE_TRANSITION', 'Active vehicle is not charging.');
+    await assertFleetChargeAvailable(connection, qVehicle);
+    await assertChargerWindowFree(connection, charger.id, qId, aId);
 
     if (Number(qVehicle.current_hub_id) !== Number(charger.hub_id)) {
       await connection.rollback();
-      return res.status(409).json({ success: false, message: 'Vehicles must be at the same hub to swap charger.' });
+      throw new AppError(409, 'CONFLICT', 'Vehicles must be at the same hub to swap charger.');
     }
 
     // 1. Unplug active vehicle
@@ -1077,15 +1087,15 @@ router.post('/operator/charging/swap', authenticateToken, requireRole('OPERATOR'
     );
     if (reqs.length > 0) {
       await connection.execute(
-        'UPDATE charging_requests SET status = "CHARGING", charging_point_id = ? WHERE id = ?',
+        'UPDATE charging_requests SET status = "CHARGING", charging_point_id = ?, target_battery_level = 100 WHERE id = ?',
         [charger.id, reqs[0].id]
       );
     } else {
-      const reqCode = `CHG-STAFF-V${qId}-${String(Date.now()).slice(-4)}`;
+      const reqCode = staffCode();
       await connection.execute(
         `INSERT INTO charging_requests
           (request_code, user_id, ownership_type, vehicle_id, hub_id, charging_point_id, current_battery_level, target_battery_level, priority, scheduled_start, scheduled_end, status)
-         VALUES (?, ?, 'RENTAL', ?, ?, ?, ?, 95, ?, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), 'CHARGING')`,
+         VALUES (?, ?, 'RENTAL', ?, ?, ?, ?, 100, ?, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), 'CHARGING')`,
         [reqCode, req.user.id, qId, charger.hub_id, charger.id, qVehicle.battery_level, autoPriority]
       );
     }
@@ -1109,20 +1119,28 @@ router.post('/operator/charging/swap', authenticateToken, requireRole('OPERATOR'
   }
 });
 
-// UC14: A3 IoT Sensor / Data Simulator Telemetry Ingestion (Task 3.1b — Owner: Nils)
+// UC14: A3 IoT Sensor / Data Simulator Telemetry Ingestion (Task 3.1b â€” Owner: Nils)
 router.post('/telemetry/ingest', async (req, res, next) => {
   try {
     const { simulatorKey, vehicleUpdates = [] } = req.body;
     if (process.env.SIMULATOR_API_KEY && simulatorKey !== process.env.SIMULATOR_API_KEY) {
       return res.status(401).json({ success: false, error: { code: 'INVALID_SIMULATOR_KEY', message: 'Invalid simulator key.' } });
     }
-    for (const item of vehicleUpdates) {
-      await pool.execute(
+    if (!Array.isArray(vehicleUpdates) || vehicleUpdates.length > 1000) throw new AppError(400, 'VALIDATION_FAILED', 'vehicleUpdates must be an array of at most 1000 entries.');
+    const updates = vehicleUpdates.map(item => {
+      const code = optionalText(item?.vehicleCode, 'vehicleCode', 32);
+      if (!code) throw new AppError(400, 'VALIDATION_FAILED', 'vehicleCode is required.');
+      return { vehicleCode: code, batteryLevel: battery(item.batteryLevel) };
+    });
+    await withTransaction(async (c) => {
+    for (const item of updates) {
+      await c.execute(
         'UPDATE vehicles SET battery_level = ?, last_telemetry_at = NOW() WHERE code = ?',
         [item.batteryLevel, item.vehicleCode]
       );
     }
-    return res.json({ success: true, data: { updatedCount: vehicleUpdates.length } });
+    });
+    return res.json({ success: true, data: { updatedCount: updates.length } });
   } catch (err) {
     return next(err);
   }

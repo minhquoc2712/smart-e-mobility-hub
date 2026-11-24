@@ -46,9 +46,9 @@ export const hubApi = {
         id: `hub-${h.id}`,
         hubId: h.id,
         title: h.name,
-        subtitle: `${h.campusZone} · ${h.address || ''}`,
+        subtitle: `${h.campusZone} Â· ${h.address || ''}`,
         status: h.status || 'ACTIVE',
-        meta: `🚲 ${h.availableBikes} · 🛴 ${h.availableScooters} · 🅿️ ${h.freeParkingSlots ?? 0} free`,
+        meta: `ðŸš² ${h.availableBikes} Â· ðŸ›´ ${h.availableScooters} Â· ðŸ…¿ï¸ ${h.freeParkingSlots ?? 0} free`,
         searchValue: h.name,
       }));
     }
@@ -246,12 +246,12 @@ export const operatorApi = {
           body: JSON.stringify({ vehicleId, chargerId }),
         }),
 
-  unplugVehicle: ({ vehicleId, chargerId } = {}) =>
+  unplugVehicle: ({ vehicleId, chargerId, requestId } = {}) =>
     IS_MOCK_MODE
       ? mockServer.unplugVehicle(vehicleId, chargerId)
       : httpRequest('/operator/charging/unplug', {
           method: 'POST',
-          body: JSON.stringify({ vehicleId, chargerId }),
+          body: JSON.stringify({ vehicleId, chargerId, requestId }),
         }),
 
   swapVehicles: ({ activeVehicleId, queueVehicleId } = {}) =>

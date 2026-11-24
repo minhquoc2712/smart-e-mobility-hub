@@ -211,8 +211,8 @@ export function ChargingPage() {
         chargingPointId: selectedChargingPoint.id,
         slotCode,
         privateVehicleLabel: `${selectedVehicle.name} · ${selectedVehicle.id}`,
-        currentBatteryLevel: Number(selectedVehicle.battery) || 38,
-        targetBatteryLevel: 85,
+        currentBatteryLevel: Number(selectedVehicle.battery ?? 38),
+        targetBatteryLevel: 100,
         scheduledStart: toLocalStr(scheduledStart),
         scheduledEnd: toLocalStr(scheduledEnd),
       };

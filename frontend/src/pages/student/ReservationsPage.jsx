@@ -243,9 +243,11 @@ export function ReservationsPage() {
     }
   };
 
+  const hasOpenRental = reservations.some(r => r.reservationType === 'VEHICLE' && ['CONFIRMED', 'ACTIVE'].includes(r.status));
   const handleBook = async (event) => {
     event.preventDefault();
     setError('');
+    if (hasOpenRental) { setError('Cancel your existing vehicle reservation or return the vehicle before booking another.'); return; }
     if (!draftVehicle || !currentPickupHub || !bookingDate || !pickupTime) {
       setError('Choose a vehicle, pickup hub, date, and pickup time.');
       return;
@@ -443,7 +445,8 @@ export function ReservationsPage() {
                 <span>Total · {duration} {duration === 1 ? 'hour' : 'hours'} × $3</span>
                 <strong>${fee.toFixed(2)}</strong>
               </div>
-              <button className="reservation-primary-long-button" type="submit" disabled={loading || !pickupTime}>
+              {hasOpenRental && <p className="reservation-flow-error" role="alert">You already have a reservation or rental. Cancel it or return the vehicle first.</p>}
+              <button className="reservation-primary-long-button" type="submit" disabled={loading || !pickupTime || hasOpenRental}>
                 {loading ? 'Confirming...' : 'Confirm booking'}
               </button>
             </form>

@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS charging_requests (
   hub_id INT NOT NULL,
   charging_point_id INT NULL,
   current_battery_level TINYINT UNSIGNED NOT NULL DEFAULT 30,
-  target_battery_level TINYINT UNSIGNED NOT NULL DEFAULT 85,
+  target_battery_level TINYINT UNSIGNED NOT NULL DEFAULT 100,
   priority ENUM('LOW', 'NORMAL', 'HIGH', 'URGENT') NOT NULL DEFAULT 'NORMAL',
   scheduled_start DATETIME NOT NULL,
   scheduled_end DATETIME NOT NULL,

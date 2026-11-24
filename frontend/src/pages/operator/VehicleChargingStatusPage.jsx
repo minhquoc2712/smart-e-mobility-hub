@@ -194,7 +194,7 @@ export function VehicleChargingStatusPage() {
         hubName: v.currentHubName || 'Campus Hub',
         currentBattery: Number(v.batteryLevel ?? 0),
         targetBattery: Number(
-          linkedReq?.targetBatteryLevel ?? linkedReq?.target_battery_level ?? 95
+          linkedReq?.targetBatteryLevel ?? linkedReq?.target_battery_level ?? 100
         ),
         isSlotLocked: isPluggedIn,
         slotBadge: isPluggedIn
@@ -219,7 +219,7 @@ export function VehicleChargingStatusPage() {
 
       const key = `req-${req.id}`;
       const curBatt = Number(req.currentBatteryLevel ?? req.current_battery_level ?? 35);
-      const tgtBatt = Number(req.targetBatteryLevel ?? req.target_battery_level ?? 85);
+      const tgtBatt = Number(req.targetBatteryLevel ?? req.target_battery_level ?? 100);
       const autoPriority = getAutoPriorityByBattery(curBatt);
       const effectivePriority = req.priority || autoPriority;
       const isManual = effectivePriority !== autoPriority;
@@ -337,6 +337,7 @@ export function VehicleChargingStatusPage() {
       await operatorApi.unplugVehicle({
         vehicleId: item.vehicleId,
         chargerId: item.chargerId,
+        requestId: item.requestId,
       });
       await loadStatus();
       setQueueNotice(
@@ -903,7 +904,7 @@ export function VehicleChargingStatusPage() {
                     activeChargingList.map((item, idx) => {
                       const badgeStyle = getPriorityBadgeStyle(item.effectivePriority, item.isManual);
                       const isNearlyFull = item.currentBattery >= 80;
-                      const isDone = item.currentBattery >= 95;
+                      const isDone = item.currentBattery >= item.targetBattery;
                       const isBeingSaved = savingKey === item.key;
 
                       return (

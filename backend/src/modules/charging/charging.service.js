@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const { pool } = require('../../config/db');
 const { withTransaction } = require('../../utils/transaction');
 const AppError = require('../../utils/appError');
-const { requiredId, windowOf, battery } = require('../reservations/reservations.validation');
+const { requiredId, windowOf, battery, optionalText } = require('../reservations/reservations.validation');
 
 const error = (status, code, message) => {
   throw new AppError(status, code, message);
@@ -59,7 +59,7 @@ async function detail(user, id) {
 }
 
 /**
- * Charging Scheduling & Waitlist Priority (Task 3.2b & 4.1b — UC09 & UC15):
+ * Charging Scheduling & Waitlist Priority (Task 3.2b & 4.1b â€” UC09 & UC15):
  *   1. Time-Slot Lock First: Any charger already booked (SCHEDULED / CHARGING) in overlapping
  *      [start, end) is LOCKED for the earlier user and CANNOT be preempted by a later user,
  *      regardless of battery %.
@@ -72,7 +72,15 @@ async function schedule(user, body) {
   const hubId = requiredId(body.hubId, 'hubId');
   const ownershipType = body.ownershipType || 'PRIVATE';
   const current = battery(body.currentBatteryLevel ?? body.batteryAtRequest ?? 35);
-  const target = battery(body.targetBatteryLevel ?? body.targetBattery ?? 85);
+  const target = battery(body.targetBatteryLevel ?? body.targetBattery ?? 100);
+  if (target !== 100) error(422, 'TARGET_BATTERY_INVALID', 'Charging target must be 100%.');
+  if (!['PRIVATE', 'RENTAL'].includes(ownershipType)) error(400, 'VALIDATION_FAILED', 'Invalid ownershipType.');
+  const vehicleId = body.vehicleId == null ? null : requiredId(body.vehicleId, 'vehicleId');
+  const requestedPointId = body.chargingPointId == null ? null : requiredId(body.chargingPointId, 'chargingPointId');
+  const label = optionalText(body.privateVehicleLabel, 'privateVehicleLabel', 100);
+  if (body.priority != null && !['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(body.priority)) error(400, 'VALIDATION_FAILED', 'Invalid priority.');
+  if (ownershipType === 'RENTAL' && !vehicleId) error(400, 'VALIDATION_FAILED', 'vehicleId is required for RENTAL.');
+  if (ownershipType === 'PRIVATE' && vehicleId) error(400, 'VALIDATION_FAILED', 'Private charging cannot reference a fleet vehicle.');
   if (target <= current) error(422, 'TARGET_BATTERY_INVALID', 'Target must exceed current battery.');
   const { start, end } = windowOf(
     body.scheduledStart ?? body.earliestStart,
@@ -86,8 +94,20 @@ async function schedule(user, body) {
     );
     if (!users.length) error(404, 'USER_NOT_FOUND', 'User not found.');
 
-    const plate = users[0].private_vehicle_plate || body.privateVehicleLabel || 'PV-018';
-    if (!users[0].private_vehicle_plate) {
+    const plate = users[0].private_vehicle_plate || 'PV-018';
+    if (vehicleId) {
+      const [vehicles] = await c.execute('SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [vehicleId]);
+      if (!vehicles.length) error(404, 'VEHICLE_NOT_FOUND', 'Vehicle not found.');
+      if (vehicles[0].current_hub_id !== hubId || vehicles[0].status !== 'AVAILABLE') error(409, 'VEHICLE_NOT_AVAILABLE', 'Fleet vehicle must be available at this hub.');
+    }
+    const [duplicates] = await c.execute(
+      `SELECT id FROM charging_requests WHERE status IN ('QUEUED','SCHEDULED','CHARGING')
+       AND ((${ownershipType === 'RENTAL' ? 'vehicle_id = ?' : "user_id = ? AND ownership_type = 'PRIVATE'"}))
+       AND scheduled_start < ? AND scheduled_end > ? LIMIT 1 FOR UPDATE`,
+      [vehicleId ?? uid, end, start]
+    );
+    if (duplicates.length) error(409, 'CHARGING_ALREADY_BOOKED', 'This vehicle already has a charging request in this time window.');
+    if (ownershipType === 'PRIVATE' && !users[0].private_vehicle_plate) {
       await c.execute(
         'UPDATE users SET private_vehicle_plate = ?, private_vehicle_model = ? WHERE id = ?',
         [plate, 'Private electric bike', uid]
@@ -132,7 +152,7 @@ async function schedule(user, body) {
       (p) => (!isImmediateWindow || p.status !== 'CHARGING') && !lockedPointIds.has(Number(p.id))
     );
 
-    const requestedPointId = body.chargingPointId ? Number(body.chargingPointId) : null;
+    if (requestedPointId && !points.some(p => p.id === requestedPointId)) error(409, 'CHARGER_UNAVAILABLE', 'Selected charging point is not operational at this hub.');
     if (requestedPointId && lockedPointIds.has(requestedPointId)) {
       error(
         409,
@@ -148,7 +168,7 @@ async function schedule(user, body) {
 
     const autoPriority =
       current < 20 ? 'URGENT' : current < 50 ? 'HIGH' : current < 80 ? 'NORMAL' : 'LOW';
-    const priority = body.priority || autoPriority;
+    const priority = user.role === 'OPERATOR' ? body.priority || autoPriority : autoPriority;
     const requestCode = `CHG-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
     // Case A: A charger is free in [start, end) -> LOCK this interval (status = SCHEDULED)
@@ -162,8 +182,8 @@ async function schedule(user, body) {
           requestCode,
           uid,
           ownershipType,
-          body.vehicleId || null,
-          body.privateVehicleLabel || plate,
+          vehicleId,
+          ownershipType === 'PRIVATE' ? label || plate : null,
           hubId,
           assignedPoint.id,
           current,
@@ -208,8 +228,8 @@ async function schedule(user, body) {
         requestCode,
         uid,
         ownershipType,
-        body.vehicleId || null,
-        body.privateVehicleLabel || plate,
+        vehicleId,
+        ownershipType === 'PRIVATE' ? label || plate : null,
         hubId,
         current,
         target,
@@ -241,6 +261,8 @@ async function cancelRequest(user, id) {
     if (user.role !== 'OPERATOR' && reqRow.user_id !== requiredId(user.id)) {
       error(403, 'FORBIDDEN', 'Not your charging request.');
     }
+    if (reqRow.status === 'CANCELLED') return { id: reqId, status: 'CANCELLED' };
+    if (!['QUEUED','SCHEDULED'].includes(reqRow.status)) error(409, 'INVALID_STATE_TRANSITION', 'Only queued or scheduled requests can be cancelled. Unplug an active charger first.');
     await c.execute("UPDATE charging_requests SET status = 'CANCELLED' WHERE id = ?", [reqId]);
     if (reqRow.charging_point_id) {
       const [otherActive] = await c.execute(
