@@ -229,7 +229,7 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
     if (incident.target_type === 'VEHICLE') {
 
       if (!incident.vehicle_id) {
-        console.log("Lá»–I á»Ÿ vehicle_id");
+        console.log("Lỗi ở vehicle_id");
         throw new AppError(404, 'RESOURCE_NOT_FOUND', 'No associated vehicle found.');
       }
       // Restore vehicle only if no other unresolved incidents related to this vehicle exist
@@ -254,7 +254,7 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
     } else if (incident.target_type === 'CHARGING_POINT') {
 
       if (!incident.charging_point_id) {
-        console.log("Lá»–I á»Ÿ chargingpoint_ID");
+        console.log("Lỗi chargingpoint_ID");
         throw new AppError(404, 'RESOURCE_NOT_FOUND', 'No associated charging point found.');
       }
       // Restore charging point only if no other unresolved incidents exist
@@ -279,7 +279,7 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
 
     } else if (incident.target_type === 'PARKING_SLOT') {
       if (!incident.parking_slot_id) {
-        console.log("Lá»–I á»Ÿ parkingSlot_id");
+        console.log("Lỗi ở parkingSlot_id");
         throw new AppError(404, 'RESOURCE_NOT_FOUND', 'No associated parking slot found.');
       }
       // Restore parking_slot only if no other unresolved incidents related to this parking_slot exist
@@ -303,7 +303,7 @@ router.patch('/incidents/:incidentId/close', authenticateToken, requireRole('OPE
 
     } else if (incident.target_type === 'HUB') {
       if (!incident.hub_id) {
-        console.log("Lá»–I á»Ÿ hub_id");
+        console.log("Lỗi ở hub_id");
         throw new AppError(404, 'RESOURCE_NOT_FOUND', 'No associated parking slot found.');
       }
       // Restore hub only if no other unresolved incidents related to this hub exist
@@ -1119,7 +1119,7 @@ router.post('/operator/charging/swap', authenticateToken, requireRole('OPERATOR'
   }
 });
 
-// UC14: A3 IoT Sensor / Data Simulator Telemetry Ingestion (Task 3.1b â€” Owner: Nils)
+// UC14: A3 IoT Sensor / Data Simulator Telemetry Ingestion (Task 3.1b - Owner: Nils)
 router.post('/telemetry/ingest', async (req, res, next) => {
   try {
     const { simulatorKey, vehicleUpdates = [] } = req.body;

@@ -46,9 +46,9 @@ export const hubApi = {
         id: `hub-${h.id}`,
         hubId: h.id,
         title: h.name,
-        subtitle: `${h.campusZone} Â· ${h.address || ''}`,
+        subtitle: `${h.campusZone} · ${h.address || ''}`,
         status: h.status || 'ACTIVE',
-        meta: `ðŸš² ${h.availableBikes} Â· ðŸ›´ ${h.availableScooters} Â· ðŸ…¿ï¸ ${h.freeParkingSlots ?? 0} free`,
+        meta: `🚲 ${h.availableBikes} · 🛴 ${h.availableScooters} · 🅿️ ${h.freeParkingSlots ?? 0} free`,
         searchValue: h.name,
       }));
     }

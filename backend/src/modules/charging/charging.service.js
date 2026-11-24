@@ -59,7 +59,7 @@ async function detail(user, id) {
 }
 
 /**
- * Charging Scheduling & Waitlist Priority (Task 3.2b & 4.1b â€” UC09 & UC15):
+ * Charging Scheduling & Waitlist Priority (Task 3.2b & 4.1b - UC09 & UC15):
  *   1. Time-Slot Lock First: Any charger already booked (SCHEDULED / CHARGING) in overlapping
  *      [start, end) is LOCKED for the earlier user and CANNOT be preempted by a later user,
  *      regardless of battery %.
