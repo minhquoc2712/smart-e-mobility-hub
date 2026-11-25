@@ -109,16 +109,26 @@ function ScooterChargerIllustration() {
 }
 
 /**
- * Figma Welcome & Sign in Screens (with Interactive Google Account Chooser)
+ * Figma Welcome & Sign in Screens (with Real Google OAuth, Create Account & Interactive Account Chooser)
  */
 export function LoginPage() {
-  const { loginWithGoogleCredential, loginDemo } = useAuth();
+  const {
+    loginWithGoogleCredential,
+    registerWithPassword,
+    loginWithPassword,
+    loginDemo,
+    logout,
+  } = useAuth();
   const navigate = useNavigate();
   const googleButtonRef = useRef(null);
+  const googleSignupButtonRef = useRef(null);
 
   const [selectedRole, setSelectedRole] = useState(null); // null -> Welcome, 'CUSTOMER' | 'STAFF' -> Sign in
+  const [mode, setMode] = useState('login'); // 'login' | 'register' (customers only)
+  const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('••••••••');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -140,8 +150,10 @@ export function LoginPage() {
           callback: async (response) => {
             try {
               setLoading(true);
-              const user = await loginWithGoogleCredential(response.credential);
-              navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs');
+              const { user, isNewUser } = await loginWithGoogleCredential(response.credential);
+              navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs', {
+                state: { accountCreated: isNewUser },
+              });
             } catch (err) {
               setError(err.message || 'Google Sign-In failed');
             } finally {
@@ -155,6 +167,15 @@ export function LoginPage() {
           theme: 'outline',
           size: 'large',
         });
+        if (googleSignupButtonRef.current) {
+          window.google.accounts.id.renderButton(googleSignupButtonRef.current, {
+            type: 'standard',
+            text: 'signup_with',
+            shape: 'pill',
+            theme: 'outline',
+            size: 'medium',
+          });
+        }
       }
     };
 
@@ -173,21 +194,37 @@ export function LoginPage() {
 
   const chooseRole = (role) => {
     setSelectedRole(role);
+    setMode('login');
     setError('');
+    setFullName('');
     setUsername(role === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn');
+    setPassword('••••••••');
+    setConfirmPassword('');
+  };
+
+  const switchMode = (nextMode) => {
+    setMode(nextMode);
+    setError('');
+    if (nextMode === 'register') {
+      setUsername('');
+      setPassword('');
+      setConfirmPassword('');
+    } else {
+      setUsername(selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn');
+      setPassword('••••••••');
+      setConfirmPassword('');
+    }
   };
 
   const signInWithEmail = async (emailToUse) => {
     try {
       setError('');
       setLoading(true);
-      const user = await loginDemo(emailToUse);
+      const { user, isNewUser } = await loginDemo(emailToUse);
       setGoogleModalOpen(false);
-      if (user.role === 'OPERATOR') {
-        navigate('/operator/dashboard');
-      } else {
-        navigate('/student/hubs');
-      }
+      navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs', {
+        state: { accountCreated: isNewUser },
+      });
     } catch (err) {
       setError(err.message || 'Sign-in failed');
     } finally {
@@ -197,9 +234,49 @@ export function LoginPage() {
 
   const performSignIn = async (e) => {
     if (e) e.preventDefault();
+    setError('');
+
+    if (mode === 'register') {
+      const email = username.trim();
+      if (!fullName.trim()) return setError('Please enter your full name.');
+      if (!email.includes('@')) return setError('Please enter a valid email address.');
+      if (password.length < 6) return setError('Password must be at least 6 characters.');
+      if (password !== confirmPassword) return setError('Passwords do not match.');
+      try {
+        setLoading(true);
+        await registerWithPassword({ fullName: fullName.trim(), email, password });
+        navigate('/student/hubs', { state: { accountCreated: true } });
+      } catch (err) {
+        setError(err.message || 'Sign-up failed');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const fallbackEmail =
       selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn';
     const email = username.trim().includes('@') ? username.trim() : fallbackEmail;
+
+    // If user typed a real password (not the demo mask), verify via /auth/login
+    if (password && password !== '••••••••') {
+      try {
+        setLoading(true);
+        const { user } = await loginWithPassword(email, password);
+        if (selectedRole === 'STAFF' && user.role !== 'OPERATOR') {
+          logout();
+          setError('This is not a staff account. Staff sign in with Google using their staff email.');
+          return;
+        }
+        navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs');
+      } catch (err) {
+        setError(err.message || 'Sign-in failed');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     await signInWithEmail(email);
   };
 
@@ -362,7 +439,7 @@ export function LoginPage() {
                 marginBottom: 4,
               }}
             >
-              Log In
+              {mode === 'register' ? 'Create Account' : 'Log In'}
             </div>
 
             {error && (
@@ -379,27 +456,90 @@ export function LoginPage() {
               </div>
             )}
 
+            {mode === 'register' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label htmlFor="signup-fullname" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>
+                  Full name:
+                </label>
+                <input
+                  id="signup-fullname"
+                  className="staff-field-green"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Nguyen Van A"
+                  autoComplete="name"
+                />
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>User name:</label>
+              <label htmlFor="login-email" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>
+                Email:
+              </label>
               <input
+                id="login-email"
+                type="email"
                 className="staff-field-green"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder={
                   selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn'
                 }
+                autoComplete="email"
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>Password:</label>
+              <label htmlFor="login-password" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>
+                Password:
+              </label>
               <input
+                id="login-password"
                 type="password"
                 className="staff-field-green"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               />
             </div>
+
+            {mode === 'register' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label htmlFor="signup-confirm" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>
+                  Confirm password:
+                </label>
+                <input
+                  id="signup-confirm"
+                  type="password"
+                  className="staff-field-green"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
+
+            {selectedRole !== 'STAFF' && (
+              <div style={{ fontSize: 13.5, color: '#5c6e54', textAlign: 'center' }}>
+                {mode === 'register' ? 'Already have an account? ' : "Don't have an account? "}
+                <button
+                  type="button"
+                  onClick={() => switchMode(mode === 'register' ? 'login' : 'register')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    color: '#1b7f4c',
+                    fontWeight: 700,
+                    fontSize: 13.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  {mode === 'register' ? 'Log in' : 'Sign up'}
+                </button>
+              </div>
+            )}
 
             <div
               style={{
@@ -430,21 +570,33 @@ export function LoginPage() {
                 className="staff-pill-btn"
                 style={{ minHeight: 42, padding: '8px 24px', fontSize: 15 }}
               >
-                {loading ? 'Signing in...' : 'Continue'}
+                {loading
+                  ? mode === 'register'
+                    ? 'Creating account...'
+                    : 'Signing in...'
+                  : mode === 'register'
+                  ? 'Create account'
+                  : 'Continue'}
               </button>
             </div>
           </form>
 
-          {/* Circular Google Sign-In Button below card matching Figma */}
+          {/* Circular Google Sign-In / Sign-Up Button below card matching Figma */}
           {hasRealGoogleClientId ? (
-            <div ref={googleButtonRef} />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div ref={googleButtonRef} />
+              <span style={{ fontSize: 13, color: '#5c6e54' }}>
+                New here? Create your account with Google.
+              </span>
+              <div ref={googleSignupButtonRef} />
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
               <button
                 type="button"
                 onClick={() => setGoogleModalOpen(true)}
                 disabled={loading}
-                title="Sign in with Google Account"
+                title="Sign in or create an account with Google"
                 style={{
                   width: 54,
                   height: 54,
@@ -460,7 +612,9 @@ export function LoginPage() {
               >
                 <GoogleLogoSvg size={24} />
               </button>
-              <span style={{ fontSize: 12.5, color: '#5c6e54' }}>Sign in with Google</span>
+              <span style={{ fontSize: 12.5, color: '#5c6e54' }}>
+                Sign in or create account with Google
+              </span>
             </div>
           )}
         </div>

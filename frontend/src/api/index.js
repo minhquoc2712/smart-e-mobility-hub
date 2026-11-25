@@ -18,6 +18,22 @@ export const authApi = {
       ? mockServer.demoLogin('student@hcmut.edu.vn')
       : httpRequest('/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }),
 
+  register: ({ fullName, email, password }) =>
+    IS_MOCK_MODE
+      ? mockServer.register({ fullName, email, password })
+      : httpRequest('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ fullName, email, password }),
+        }),
+
+  login: (email, password) =>
+    IS_MOCK_MODE
+      ? mockServer.login(email, password)
+      : httpRequest('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        }),
+
   demoLogin: (email) =>
     IS_MOCK_MODE
       ? mockServer.demoLogin(email)

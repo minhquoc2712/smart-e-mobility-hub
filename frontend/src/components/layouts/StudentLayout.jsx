@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { IS_MOCK_MODE, reservationApi } from '../../api';
 import { UserAvatarMenu } from '../common/UserAvatarMenu';
+import { AccountCreatedBanner } from '../common/AccountCreatedBanner';
 import logo from '../common/images/logo.png';
 
 export function StudentLayout() {
@@ -132,6 +133,7 @@ export function StudentLayout() {
       )}
 
       <main className="container">
+        <AccountCreatedBanner />
         <Outlet />
       </main>
     </div>

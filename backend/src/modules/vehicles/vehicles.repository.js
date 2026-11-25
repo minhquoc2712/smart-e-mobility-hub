@@ -12,7 +12,7 @@ const VEHICLE_SELECT = `
 const toVehicle = (row) => row && { ...row, estimatedRangeKm: Number(row.estimatedRangeKm) };
 
 async function findAll({ hubId = null, type = null, minBattery = 0, status = null } = {}) {
-  const conditions = ['v.battery_level >= ?'];
+  const conditions = ["v.model <> 'Customer Private EV'", 'v.battery_level >= ?'];
   const params = [minBattery];
   if (hubId) { conditions.push('v.current_hub_id = ?'); params.push(hubId); }
   if (type) { conditions.push('v.type = ?'); params.push(type); }

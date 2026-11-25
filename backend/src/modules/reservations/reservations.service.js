@@ -142,6 +142,9 @@ async function reserveVehicle(user, body = {}) {
       [vid],
       'VEHICLE_NOT_FOUND'
     );
+    if (v.model === 'Customer Private EV') {
+      fail(409, 'VEHICLE_NOT_RENTABLE', 'Private customer vehicles cannot be rented.');
+    }
     if (!['AVAILABLE', 'RESERVED'].includes(v.status)) {
       fail(409, 'VEHICLE_NOT_AVAILABLE', 'Vehicle is not available for reservation.');
     }

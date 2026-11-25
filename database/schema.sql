@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(190) NOT NULL UNIQUE,
   full_name VARCHAR(120) NOT NULL,
   google_sub VARCHAR(128) NULL UNIQUE,
+  password_hash VARCHAR(255) NULL,
   avatar_url VARCHAR(500) NULL,
   role ENUM('USER', 'OPERATOR') NOT NULL DEFAULT 'USER',
   private_vehicle_plate VARCHAR(30) NULL,

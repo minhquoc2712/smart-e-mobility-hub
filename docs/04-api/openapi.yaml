@@ -142,6 +142,53 @@ paths:
         "401":
           description: Invalid Google token
 
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Sign up with email + password (creates a USER account, no email verification)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fullName, email, password]
+              properties:
+                fullName: { type: string, example: Nguyen Van A }
+                email: { type: string, format: email, example: a.nguyen@gmail.com }
+                password: { type: string, minLength: 6 }
+      responses:
+        "201":
+          description: Account created; returns JWT session, isNewUser = true and the user
+        "400":
+          description: VALIDATION_ERROR (missing name, invalid email, password shorter than 6)
+        "403":
+          description: STAFF_USE_GOOGLE (staff emails must sign in with Google)
+        "409":
+          description: EMAIL_TAKEN (an account with this email already exists)
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in with email + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: JWT session and the user
+        "400":
+          description: VALIDATION_ERROR (email or password missing)
+        "401":
+          description: INVALID_CREDENTIALS (wrong email or password, or the account only uses Google)
+
   /auth/dev-login:
     post:
       tags: [Auth]

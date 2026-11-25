@@ -64,6 +64,7 @@ export const mockServer = {
     await delay();
     const db = loadDb();
     let user = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const isNewUser = !user;
     if (!user) {
       user = {
         id: Date.now(),
@@ -76,7 +77,50 @@ export const mockServer = {
     }
     return {
       token: `mock-jwt-token-${user.id}-${user.role}`,
+      isNewUser,
       user,
+    };
+  },
+
+  async register({ fullName, email, password }) {
+    await delay();
+    const db = loadDb();
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanName = String(fullName || '').trim();
+    if (!cleanName) throw new Error('Full name is required.');
+    if (!cleanEmail.includes('@')) throw new Error('Enter a valid email address.');
+    if (String(password || '').length < 6) throw new Error('Password must be at least 6 characters.');
+    if (db.users.some((u) => u.email.toLowerCase() === cleanEmail)) {
+      throw new Error('An account with this email already exists.');
+    }
+    const user = {
+      id: Date.now(),
+      email: cleanEmail,
+      fullName: cleanName,
+      password: String(password),
+      role: 'USER',
+    };
+    db.users.push(user);
+    saveDb(db);
+    return {
+      token: `mock-jwt-token-${user.id}-${user.role}`,
+      isNewUser: true,
+      user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role },
+    };
+  },
+
+  async login(email, password) {
+    await delay();
+    const db = loadDb();
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (!user || !user.password || user.password !== String(password || '')) {
+      throw new Error('Wrong email or password.');
+    }
+    return {
+      token: `mock-jwt-token-${user.id}-${user.role}`,
+      isNewUser: false,
+      user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role },
     };
   },
 
@@ -155,6 +199,15 @@ export const mockServer = {
     const db = loadDb();
     const slot = db.parkingSlots.find((s) => s.id === Number(slotId));
     if (!slot) throw new Error('Parking slot not found');
+    if (
+      status === 'OCCUPIED' &&
+      (extra.ownershipType === 'PRIVATE' || extra.vehiclePlate) &&
+      slot.slotType === 'SHARED_EV'
+    ) {
+      throw new Error(
+        'Cannot check in a private customer vehicle into a SHARED_EV (rental) slot. Please choose a PRIVATE_EV or UNIVERSAL slot.'
+      );
+    }
     slot.status = status;
     slot.updatedAt = new Date().toISOString();
     if (status === 'FREE') {

@@ -74,7 +74,7 @@ router.get('/operator/dashboard', authenticateToken, requireRole('OPERATOR'), as
       [incidents],
     ] = await Promise.all([
       pool.execute('SELECT * FROM hubs ORDER BY id ASC'),
-      pool.execute('SELECT * FROM vehicles ORDER BY id ASC'),
+      pool.execute("SELECT * FROM vehicles WHERE model <> 'Customer Private EV' ORDER BY id ASC"),
       pool.execute('SELECT * FROM parking_slots ORDER BY id ASC'),
       pool.execute('SELECT * FROM charging_points ORDER BY id ASC'),
       pool.execute('SELECT status FROM incidents'),
@@ -661,6 +661,7 @@ router.post('/dispatch/redistribute', authenticateToken, requireRole('OPERATOR')
          FROM vehicles
          WHERE current_hub_id = ?
            AND status = 'AVAILABLE'
+           AND model <> 'Customer Private EV'
          ORDER BY id
          LIMIT ?
          FOR UPDATE`,

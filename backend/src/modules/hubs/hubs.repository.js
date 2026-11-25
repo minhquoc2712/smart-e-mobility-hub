@@ -9,8 +9,8 @@ const HUB_SELECT = `
     h.status,
     (SELECT COUNT(*) FROM parking_slots ps WHERE ps.hub_id = h.id AND ps.status = 'FREE') AS freeParkingSlots,
     (SELECT COUNT(*) FROM charging_points cp WHERE cp.hub_id = h.id AND cp.status = 'AVAILABLE') AS availableChargingPoints,
-    (SELECT COUNT(*) FROM vehicles v WHERE v.current_hub_id = h.id AND v.type = 'ELECTRIC_BIKE' AND v.status = 'AVAILABLE') AS availableBikes,
-    (SELECT COUNT(*) FROM vehicles v WHERE v.current_hub_id = h.id AND v.type = 'ELECTRIC_SCOOTER' AND v.status = 'AVAILABLE') AS availableScooters
+    (SELECT COUNT(*) FROM vehicles v WHERE v.current_hub_id = h.id AND v.model <> 'Customer Private EV' AND v.type = 'ELECTRIC_BIKE' AND v.status = 'AVAILABLE') AS availableBikes,
+    (SELECT COUNT(*) FROM vehicles v WHERE v.current_hub_id = h.id AND v.model <> 'Customer Private EV' AND v.type = 'ELECTRIC_SCOOTER' AND v.status = 'AVAILABLE') AS availableScooters
   FROM hubs h`;
 
 function toHub(row) {
@@ -35,14 +35,14 @@ async function findAll({ search = '', vehicleType = '' } = {}) {
     const like = `%${search}%`;
     conditions.push(
       `(h.name LIKE ? OR h.campus_zone LIKE ? OR h.address LIKE ? OR h.code LIKE ?
-        OR EXISTS (SELECT 1 FROM vehicles v WHERE v.current_hub_id = h.id AND (v.code LIKE ? OR v.model LIKE ?)))`
+        OR EXISTS (SELECT 1 FROM vehicles v WHERE v.current_hub_id = h.id AND v.model <> 'Customer Private EV' AND (v.code LIKE ? OR v.model LIKE ?)))`
     );
     params.push(like, like, like, like, like, like);
   }
 
   if (vehicleType === 'ELECTRIC_BIKE' || vehicleType === 'ELECTRIC_SCOOTER') {
     conditions.push(
-      `EXISTS (SELECT 1 FROM vehicles v WHERE v.current_hub_id = h.id AND v.type = ? AND v.status = 'AVAILABLE')`
+      `EXISTS (SELECT 1 FROM vehicles v WHERE v.current_hub_id = h.id AND v.model <> 'Customer Private EV' AND v.type = ? AND v.status = 'AVAILABLE')`
     );
     params.push(vehicleType);
   }
@@ -71,6 +71,7 @@ async function findSuggestions(query = '') {
      FROM vehicles v
      JOIN hubs h ON h.id = v.current_hub_id
      WHERE v.status = 'AVAILABLE'
+       AND v.model <> 'Customer Private EV'
        AND (v.code LIKE ? OR v.model LIKE ?)
      ORDER BY v.battery_level DESC
      LIMIT 6`,

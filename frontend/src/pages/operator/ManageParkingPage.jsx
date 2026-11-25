@@ -100,9 +100,10 @@ export function ManageParkingPage() {
   const parkingRecords = useMemo(() => {
     const rows = [];
     const slotById = new Map(hubSlots.map((s) => [s.id, s]));
+    const fleetVehicles = hubVehicles.filter((v) => v.model !== 'Customer Private EV');
 
     // Zone A & B fleet vehicles located at this hub
-    hubVehicles.forEach((v) => {
+    fleetVehicles.forEach((v) => {
       if (v.status === 'CHARGING') {
         const charger = hubChargers.find((c) => c.currentVehicleId === v.id) || hubChargers[0];
         rows.push({
@@ -144,7 +145,7 @@ export function ManageParkingPage() {
     customerSlots
       .filter((s) => s.status === 'OCCUPIED' || s.status === 'RESERVED')
       .forEach((s, idx) => {
-        const linkedFleet = hubVehicles.some((v) => v.parkingSlotId === s.id);
+        const linkedFleet = fleetVehicles.some((v) => v.parkingSlotId === s.id);
         if (linkedFleet) return;
         rows.push({
           key: `slot-${s.id}`,
@@ -178,13 +179,15 @@ export function ManageParkingPage() {
     });
   }, [parkingRecords, zoneFilter, searchText]);
 
-  const freeCustomerSlots = hubSlots.filter((s) => s.status === 'FREE');
+  // Only allow private customer check-in on Zone C slots (PRIVATE_EV / UNIVERSAL), never Zone A (SHARED_EV)
+  const freeCustomerSlots = customerSlots.filter((s) => s.status === 'FREE');
 
   const handleHubChange = (e) => {
     const nextId = Number(e.target.value);
     setSelectedHubId(nextId);
     setSearchParams({ hubId: String(nextId) });
     setSelectedRecord(null);
+    setCheckInSlotId('');
   };
 
   const handleCheckInSubmit = async (e) => {
@@ -197,10 +200,12 @@ export function ManageParkingPage() {
     try {
       await parkingSlotApi.updateStatus(targetSlot.id, 'OCCUPIED', {
         vehiclePlate: checkInPlate.trim() || '59X1-889.20',
+        ownershipType: 'PRIVATE',
       });
       setCheckInPlate('');
+      setCheckInSlotId('');
       setCheckInOpen(false);
-      setFeedback(`Checked in vehicle at slot ${targetSlot.slotCode}.`);
+      setFeedback(`Checked in customer vehicle at slot ${targetSlot.slotCode}.`);
       await loadData();
     } catch (err) {
       setFeedback(err.message || 'Check-in failed.');
@@ -326,7 +331,7 @@ export function ManageParkingPage() {
             />
           </div>
           <div style={{ flex: '1 1 200px' }}>
-            <div style={{ fontSize: 14, color: 'var(--staff-olive)', marginBottom: 6 }}>Free slot at {currentHub.name}</div>
+            <div style={{ fontSize: 14, color: 'var(--staff-olive)', marginBottom: 6 }}>Free customer slot (Zone C) at {currentHub.name}</div>
             <select
               className="staff-pill-select"
               style={{ width: '100%' }}

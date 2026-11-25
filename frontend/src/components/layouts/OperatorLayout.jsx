@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { UserAvatarMenu } from '../common/UserAvatarMenu';
+import { AccountCreatedBanner } from '../common/AccountCreatedBanner';
 import logo from '../common/images/logo.png';
 
 const STAFF_NAV_ITEMS = [
@@ -65,6 +66,7 @@ export function OperatorLayout() {
       </nav>
 
       <main className="staff-workspace">
+        <AccountCreatedBanner />
         <Outlet />
       </main>
     </div>

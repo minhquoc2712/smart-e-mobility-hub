@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authApi } from '../api';
+import { SESSION_EXPIRED_EVENT } from '../api/httpClient';
 
 const AuthContext = createContext(null);
 
@@ -20,14 +21,27 @@ export function AuthProvider({ children }) {
     return authUser;
   };
 
+  // Returns { user, isNewUser }. First Google sign-in creates the account automatically.
   const loginWithGoogleCredential = async (credential) => {
     const result = await authApi.loginWithGoogle(credential);
-    return saveSession(result);
+    const authUser = saveSession(result);
+    return { user: authUser, isNewUser: Boolean(result.isNewUser) };
+  };
+
+  const registerWithPassword = async ({ fullName, email, password }) => {
+    const result = await authApi.register({ fullName, email, password });
+    return { user: saveSession(result), isNewUser: true };
+  };
+
+  const loginWithPassword = async (email, password) => {
+    const result = await authApi.login(email, password);
+    return { user: saveSession(result), isNewUser: false };
   };
 
   const loginDemo = async (email) => {
     const result = await authApi.demoLogin(email);
-    return saveSession(result);
+    const authUser = saveSession(result);
+    return { user: authUser, isNewUser: Boolean(result.isNewUser) };
   };
 
   const logout = () => {
@@ -36,6 +50,13 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  // Clear local session automatically if backend rejects an expired/invalid JWT.
+  useEffect(() => {
+    const handleExpired = () => setUser(null);
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -43,6 +64,8 @@ export function AuthProvider({ children }) {
         isAuthenticated: Boolean(user),
         isOperator: user?.role === 'OPERATOR',
         loginWithGoogleCredential,
+        registerWithPassword,
+        loginWithPassword,
         loginDemo,
         logout,
       }}

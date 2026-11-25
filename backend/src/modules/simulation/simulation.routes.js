@@ -21,7 +21,9 @@ router.post('/run', async (req, res, next) => {
 
     // 1. Snapshot operational state in memory (read-only)
     const [hubsSnapshot] = await pool.execute('SELECT id, code, name, total_parking_slots, total_charging_points FROM hubs');
-    const [vehiclesSnapshot] = await pool.execute('SELECT id, code, current_hub_id, battery_level, status FROM vehicles');
+    const [vehiclesSnapshot] = await pool.execute(
+      "SELECT id, code, current_hub_id, battery_level, status FROM vehicles WHERE model <> 'Customer Private EV'"
+    );
     const [chargersSnapshot] = await pool.execute('SELECT id, hub_id, status FROM charging_points');
 
     // Deep copy for simulation

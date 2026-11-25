@@ -33,19 +33,35 @@ async function changeParkingSlotStatus(slotId, toStatus, conn = null, extra = {}
       await hubsService.assertHubOperational(c, slot.hub_id);
     }
 
-    await repo.updateStatus(c, slotId, toStatus);
-    if (toStatus === 'FREE' || toStatus === 'OUT_OF_SERVICE') {
-      await repo.detachVehicles(c, slotId);
-    } else if (toStatus === 'OCCUPIED' && (extra.vehiclePlate || extra.vehicleCode)) {
-      await repo.attachOrCreateVehicle(c, {
+    if (toStatus === 'OCCUPIED' && extra.ownershipType === 'PRIVATE' && slot.slot_type === 'SHARED_EV') {
+      throw new AppError(
+        409,
+        'INVALID_SLOT_FOR_PRIVATE_VEHICLE',
+        'Cannot check in a private customer vehicle into a SHARED_EV (rental) slot. Please choose a PRIVATE_EV or UNIVERSAL slot.'
+      );
+    }
+
+    let previousHubId = null;
+    if (toStatus === 'OCCUPIED' && (extra.vehiclePlate || extra.vehicleCode)) {
+      previousHubId = await repo.attachOrCreateVehicle(c, {
         slotId,
         hubId: slot.hub_id,
         slotType: slot.slot_type,
         vehiclePlate: extra.vehiclePlate || extra.vehicleCode,
         vehicleType: extra.vehicleType,
+        ownershipType: extra.ownershipType,
       });
     }
+
+    await repo.updateStatus(c, slotId, toStatus);
+    if (toStatus === 'FREE' || toStatus === 'OUT_OF_SERVICE') {
+      await repo.detachVehicles(c, slotId);
+    }
+
     await hubsService.syncHubStatus(c, slot.hub_id);
+    if (previousHubId && Number(previousHubId) !== Number(slot.hub_id)) {
+      await hubsService.syncHubStatus(c, previousHubId);
+    }
   };
 
   if (conn) await work(conn);

@@ -25,6 +25,7 @@ const changeStatus = asyncHandler(async (req, res) => {
   const extra = {
     vehiclePlate: req.body?.vehiclePlate || req.body?.vehicleCode || null,
     vehicleType: req.body?.vehicleType || null,
+    ownershipType: req.body?.ownershipType ? String(req.body.ownershipType).toUpperCase() : null,
   };
   res.json({ success: true, data: await service.changeParkingSlotStatus(slotId, status, null, extra) });
 });
