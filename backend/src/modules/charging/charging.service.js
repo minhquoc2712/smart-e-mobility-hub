@@ -94,17 +94,25 @@ async function schedule(user, body) {
     );
     if (!users.length) error(404, 'USER_NOT_FOUND', 'User not found.');
 
-    const plate = users[0].private_vehicle_plate || 'PV-018';
+    const plate = users[0].private_vehicle_plate || `PV-${String(uid).padStart(3, '0')}`;
+    const effectivePrivateLabel = ownershipType === 'PRIVATE' ? label || plate : null;
     if (vehicleId) {
       const [vehicles] = await c.execute('SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [vehicleId]);
       if (!vehicles.length) error(404, 'VEHICLE_NOT_FOUND', 'Vehicle not found.');
       if (vehicles[0].current_hub_id !== hubId || vehicles[0].status !== 'AVAILABLE') error(409, 'VEHICLE_NOT_AVAILABLE', 'Fleet vehicle must be available at this hub.');
     }
     const [duplicates] = await c.execute(
-      `SELECT id FROM charging_requests WHERE status IN ('QUEUED','SCHEDULED','CHARGING')
-       AND ((${ownershipType === 'RENTAL' ? 'vehicle_id = ?' : "user_id = ? AND ownership_type = 'PRIVATE'"}))
-       AND scheduled_start < ? AND scheduled_end > ? LIMIT 1 FOR UPDATE`,
-      [vehicleId ?? uid, end, start]
+      ownershipType === 'RENTAL'
+        ? `SELECT id FROM charging_requests WHERE status IN ('QUEUED','SCHEDULED','CHARGING')
+           AND vehicle_id = ?
+           AND scheduled_start < ? AND scheduled_end > ? LIMIT 1 FOR UPDATE`
+        : `SELECT id FROM charging_requests WHERE status IN ('QUEUED','SCHEDULED','CHARGING')
+           AND user_id = ? AND ownership_type = 'PRIVATE'
+           AND COALESCE(private_vehicle_label, '') = COALESCE(?, '')
+           AND scheduled_start < ? AND scheduled_end > ? LIMIT 1 FOR UPDATE`,
+      ownershipType === 'RENTAL'
+        ? [vehicleId, end, start]
+        : [uid, effectivePrivateLabel, end, start]
     );
     if (duplicates.length) error(409, 'CHARGING_ALREADY_BOOKED', 'This vehicle already has a charging request in this time window.');
     if (ownershipType === 'PRIVATE' && !users[0].private_vehicle_plate) {

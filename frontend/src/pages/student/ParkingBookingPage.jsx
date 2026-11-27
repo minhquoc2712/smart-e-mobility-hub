@@ -52,6 +52,49 @@ function formatDateTime(value) {
   return str.replace(' ', 'T');
 }
 
+function cleanParkingPlate(reservation) {
+  const explicit = reservation.licensePlate ?? reservation.license_plate;
+  if (explicit) return String(explicit).trim();
+  const rawNote = String(reservation.return_condition_note || '').trim();
+  if (
+    !rawNote ||
+    /^(REJECTED_BY_OPERATOR|DECLINED_BY_STUDENT|CANCELLED_BY_STUDENT):/i.test(rawNote)
+  ) {
+    return '';
+  }
+  return rawNote;
+}
+
+function computeAllSlotsBusyIntervals(slots, bookings) {
+  if (!slots.length) return [];
+  const intervals = [];
+  const baseDay = new Date();
+  baseDay.setHours(0, 0, 0, 0);
+  const startBaseMs = baseDay.getTime();
+
+  for (let d = 0; d < 8; d += 1) {
+    for (let h = 6; h <= 22; h += 1) {
+      const hStart = startBaseMs + (d * 24 + h) * 3600 * 1000;
+      const hEnd = hStart + 3600 * 1000;
+      const isImmediate = hStart <= Date.now() + 2 * 3600 * 1000;
+      const allBusy = slots.every((slot) => {
+        if (isImmediate && String(slot.status || '').toUpperCase() === 'OCCUPIED') {
+          return true;
+        }
+        const slotBookings = bookings.filter((b) => Number(b.parkingSlotId) === Number(slot.id));
+        return isWindowBooked(hStart, hEnd, slotBookings);
+      });
+      if (allBusy) {
+        intervals.push({
+          startTime: new Date(hStart).toISOString(),
+          endTime: new Date(hEnd).toISOString(),
+        });
+      }
+    }
+  }
+  return intervals;
+}
+
 function normalizeParkingReservation(reservation) {
   return {
     ...reservation,
@@ -60,11 +103,7 @@ function normalizeParkingReservation(reservation) {
     reservationType: reservation.reservationType ?? reservation.reservation_type,
     startTime: formatDateTime(reservation.startTime ?? reservation.start_time),
     endTime: formatDateTime(reservation.endTime ?? reservation.end_time),
-    licensePlate:
-      reservation.licensePlate ??
-      reservation.license_plate ??
-      reservation.return_condition_note ??
-      '',
+    licensePlate: cleanParkingPlate(reservation),
     parkingSlotCode:
       reservation.parkingSlotCode ??
       reservation.parking_slot_code ??
@@ -81,7 +120,7 @@ export function ParkingBookingPage() {
 
   const [hub, setHub] = useState(null);
   const [customerSlots, setCustomerSlots] = useState([]);
-  const [selectedSlotId, setSelectedSlotId] = useState('');
+  const [selectedSlotId, setSelectedSlotId] = useState('AUTO');
   const [parkingBookings, setParkingBookings] = useState([]);
 
   const [date, setDate] = useState(today);
@@ -109,8 +148,9 @@ export function ParkingBookingPage() {
     );
     setCustomerSlots(compatibleSlots);
     setSelectedSlotId((prev) => {
+      if (prev === 'AUTO' && compatibleSlots.length > 0) return 'AUTO';
       if (prev && compatibleSlots.some((s) => String(s.id) === String(prev))) return prev;
-      return compatibleSlots[0] ? String(compatibleSlots[0].id) : '';
+      return compatibleSlots.length > 0 ? 'AUTO' : '';
     });
     setParkingBookings(windows?.parkingBookings || []);
 
@@ -120,10 +160,9 @@ export function ParkingBookingPage() {
         .filter(
           (reservation) =>
             reservation.hubId === Number(hubId) &&
-            reservation.reservationType === 'PARKING' &&
-            (reservation.status !== 'CANCELLED' ||
-              reservation.cancellationSource === 'OPERATOR_REJECTED')
+            reservation.reservationType === 'PARKING'
         )
+        .slice(0, 6)
     );
   }, [hubId, user?.id]);
 
@@ -146,11 +185,14 @@ export function ParkingBookingPage() {
     };
   }, [loadData]);
 
-  // Booked intervals ONLY for the selected parking slot
+  // Booked intervals: in AUTO mode, an hour is shaded only when ALL customer bays are busy
   const bookedIntervalsForSlot = useMemo(() => {
-    if (!selectedSlotId) return [];
+    if (!selectedSlotId || !customerSlots.length) return [];
+    if (selectedSlotId === 'AUTO') {
+      return computeAllSlotsBusyIntervals(customerSlots, parkingBookings);
+    }
     return parkingBookings.filter((b) => Number(b.parkingSlotId) === Number(selectedSlotId));
-  }, [parkingBookings, selectedSlotId]);
+  }, [parkingBookings, selectedSlotId, customerSlots]);
 
   useEffect(() => {
     if (!date) return;
@@ -208,7 +250,7 @@ export function ParkingBookingPage() {
       await reservationApi.reserveParking({
         userId: user?.id,
         hubId: Number(hubId),
-        parkingSlotId: Number(selectedSlotId),
+        parkingSlotId: selectedSlotId === 'AUTO' ? null : Number(selectedSlotId),
         startTime: toLocalStr(start),
         endTime: toLocalStr(end),
         licensePlate: licensePlate.trim() || null,
@@ -297,6 +339,11 @@ export function ParkingBookingPage() {
               required
             >
               {customerSlots.length === 0 && <option value="">No customer parking spaces</option>}
+              {customerSlots.length > 0 && (
+                <option value="AUTO">
+                  Auto-assign free space ({customerSlots.filter((s) => String(s.status).toUpperCase() === 'FREE').length} free now)
+                </option>
+              )}
               {customerSlots.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.slotCode || s.slot_code} ({(s.slotType || s.slot_type || '').replace('_', ' ')})

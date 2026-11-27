@@ -74,7 +74,9 @@ export function LifecycleStepper({
   let terminatedLabel = 'Cancelled by student';
   if (upper === 'EXPIRED') terminatedLabel = 'Hold expired (15m timeout)';
   else if (cancellationSource === 'OPERATOR_REJECTED') terminatedLabel = 'Declined by operator';
-  else if (cancellationSource === 'STUDENT_DECLINED') terminatedLabel = 'Declined pickup by student';
+  else if (cancellationSource === 'STUDENT_DECLINED' && !isParking) {
+    terminatedLabel = 'Declined pickup by student';
+  }
 
   return (
     <div className="lifecycle-stepper-wrap">
@@ -133,11 +135,14 @@ export function getReadableStatusMeta(reservation) {
   if (st === 'EXPIRED') {
     return { label: 'EXPIRED', tone: 'expired', hint: '15-minute pickup hold expired' };
   }
+  const isParking =
+    String(reservation?.reservationType || reservation?.reservation_type || '').toUpperCase() ===
+    'PARKING';
   if (src === 'OPERATOR_REJECTED') {
     return { label: 'REJECTED BY OPERATOR', tone: 'rejected', hint: reservation?.statusNote || 'Declined by hub staff' };
   }
-  if (src === 'STUDENT_DECLINED') {
+  if (src === 'STUDENT_DECLINED' && !isParking) {
     return { label: 'DECLINED AT PICKUP', tone: 'cancelled', hint: 'Student declined vehicle after approval' };
   }
-  return { label: 'CANCELLED', tone: 'cancelled', hint: 'Cancelled by student' };
+  return { label: 'CANCELLED BY STUDENT', tone: 'cancelled', hint: 'Cancelled by student' };
 }

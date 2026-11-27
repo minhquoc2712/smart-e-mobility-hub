@@ -126,3 +126,72 @@ test('cannot cancel charging in progress or a completed request', async()=>{
     await assert.rejects(charging.cancelRequest(user,1),errorCode('INVALID_STATE_TRANSITION'));
   }
 });
+test('student parking cancellation always records STUDENT_CANCELLED, never OPERATOR_REJECTED', async () => {
+  let savedNote = null;
+  const operatorInStudentView = { id: 4, role: 'OPERATOR' };
+  execute = async (sql, params) => {
+    if (sql.includes('SELECT * FROM reservations')) {
+      return [[{ id: 88, user_id: 4, hub_id: 1, parking_slot_id: 5, reservation_type: 'PARKING', status: 'CONFIRMED' }]];
+    }
+    if (sql.includes("UPDATE reservations SET status = 'CANCELLED'")) {
+      savedNote = params[0];
+      return [{ affectedRows: 1 }];
+    }
+    if (sql.includes('FROM reservations')) return [[]];
+    if (sql.includes('SELECT * FROM parking_slots')) return [[{ id: 5, status: 'RESERVED' }]];
+    if (sql.includes("UPDATE parking_slots SET status = 'FREE'")) return [{ affectedRows: 1 }];
+    assert.fail(sql);
+  };
+  const cancelled = await reservations.cancel(operatorInStudentView, 88, {});
+  assert.equal(cancelled.cancellationSource, 'STUDENT_CANCELLED');
+  assert.match(savedNote, /^CANCELLED_BY_STUDENT:/);
+});
+test('two different students can book charging in the exact same time window on a 2-free-charger hub', async () => {
+  const { startTime, endTime } = range();
+  const student1 = { id: 10, role: 'USER' };
+  const student2 = { id: 11, role: 'USER' };
+  const bookedOnHub = [];
+
+  execute = async (sql, params) => {
+    if (sql.includes('FROM users')) return [[{ private_vehicle_plate: `PV-0${params[0]}` }]];
+    if (sql.includes('FROM hubs')) return [[{ id: 1, status: 'ACTIVE' }]];
+    if (sql.includes('FROM charging_points')) {
+      return [[
+        { id: 1, status: 'CHARGING', charger_code: 'BK-C01' },
+        { id: 2, status: bookedOnHub.includes(2) ? 'RESERVED' : 'AVAILABLE', charger_code: 'BK-C02' },
+        { id: 3, status: bookedOnHub.includes(3) ? 'RESERVED' : 'AVAILABLE', charger_code: 'BK-C03' },
+      ]];
+    }
+    if (sql.includes('SELECT id FROM charging_requests')) return [[]];
+    if (sql.includes('SELECT charging_point_id')) {
+      return [bookedOnHub.map((id) => ({ charging_point_id: id }))];
+    }
+    if (sql.includes('INSERT INTO charging_requests')) {
+      const assignedId = params[6];
+      if (assignedId) bookedOnHub.push(assignedId);
+      return [{ insertId: 100 + bookedOnHub.length }];
+    }
+    if (sql.includes('UPDATE charging_points')) return [{ affectedRows: 1 }];
+    assert.fail(sql);
+  };
+
+  const res1 = await charging.schedule(student1, {
+    hubId: 1,
+    chargingPointId: null,
+    currentBatteryLevel: 35,
+    scheduledStart: startTime,
+    scheduledEnd: endTime,
+  });
+  const res2 = await charging.schedule(student2, {
+    hubId: 1,
+    chargingPointId: null,
+    currentBatteryLevel: 40,
+    scheduledStart: startTime,
+    scheduledEnd: endTime,
+  });
+
+  assert.equal(res1.status, 'SCHEDULED');
+  assert.equal(res1.chargerCode, 'BK-C02');
+  assert.equal(res2.status, 'SCHEDULED');
+  assert.equal(res2.chargerCode, 'BK-C03');
+});

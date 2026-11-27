@@ -43,6 +43,47 @@ function getChargingPointCode(point) {
   return point?.chargerCode ?? point?.charger_code ?? '';
 }
 
+function getBusyIntervalsForPoint(point, chargerBookings) {
+  const explicit = chargerBookings.filter(
+    (b) => Number(b.chargingPointId) === Number(point.id)
+  );
+  if (String(point.status || '').toUpperCase() === 'CHARGING' && explicit.length === 0) {
+    const now = Date.now();
+    return [
+      ...explicit,
+      {
+        startTime: new Date(now - 15 * 60 * 1000).toISOString(),
+        endTime: new Date(now + 2 * 3600 * 1000).toISOString(),
+      },
+    ];
+  }
+  return explicit;
+}
+
+function computeAllChargersBusyIntervals(points, chargerBookings) {
+  if (!points.length) return [];
+  const perPoint = points.map((p) => getBusyIntervalsForPoint(p, chargerBookings));
+  const intervals = [];
+  const baseDay = new Date();
+  baseDay.setHours(0, 0, 0, 0);
+  const startBaseMs = baseDay.getTime();
+
+  for (let d = 0; d < 8; d += 1) {
+    for (let h = 6; h <= 22; h += 1) {
+      const hStart = startBaseMs + (d * 24 + h) * 3600 * 1000;
+      const hEnd = hStart + 3600 * 1000;
+      const allBusy = perPoint.every((pointBusy) => isWindowBooked(hStart, hEnd, pointBusy));
+      if (allBusy) {
+        intervals.push({
+          startTime: new Date(hStart).toISOString(),
+          endTime: new Date(hEnd).toISOString(),
+        });
+      }
+    }
+  }
+  return intervals;
+}
+
 function displayDate(date) {
   if (!date) return '—';
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
@@ -63,7 +104,7 @@ export function ChargingPage() {
   const [chargerBookings, setChargerBookings] = useState([]);
   const [myRegistrations, setMyRegistrations] = useState([]);
 
-  const [slotCode, setSlotCode] = useState('');
+  const [slotCode, setSlotCode] = useState('AUTO');
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState('');
   const [durationHours, setDurationHours] = useState(1);
@@ -100,12 +141,11 @@ export function ChargingPage() {
     setChargingPoints(operational);
     setChargerBookings(windows?.chargerBookings || []);
     setSlotCode((prev) => {
+      if (prev === 'AUTO' && operational.length > 0) return 'AUTO';
       if (prev && operational.some((p) => getChargingPointCode(p) === prev)) {
         return prev;
       }
-      const firstAvail =
-        operational.find((p) => String(p.status).toUpperCase() !== 'CHARGING') || operational[0];
-      return firstAvail ? getChargingPointCode(firstAvail) : '';
+      return operational.length > 0 ? 'AUTO' : '';
     });
   }, []);
 
@@ -132,22 +172,30 @@ export function ChargingPage() {
     refreshHubChargersAndBookings(hubId).catch((err) =>
       setError(err.message || 'Unable to load charging slots.')
     );
-  }, [hubId, refreshHubChargersAndBookings]);
+    const poll = setInterval(() => {
+      refreshHubChargersAndBookings(hubId).catch(() => {});
+      refreshMyRegistrations();
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [hubId, refreshHubChargersAndBookings, refreshMyRegistrations]);
 
   const selectedVehicle =
     vehicles.find((vehicle) => String(vehicle.id) === String(vehicleId)) || vehicles[0];
   const selectedHub = hubs.find((hub) => String(hub.id) === String(hubId));
-  const selectedChargingPoint = chargingPoints.find(
-    (point) => getChargingPointCode(point) === slotCode
-  );
+  const selectedChargingPoint =
+    slotCode === 'AUTO'
+      ? null
+      : chargingPoints.find((point) => getChargingPointCode(point) === slotCode);
 
-  // Booked intervals ONLY for the currently selected charger!
+  // In AUTO mode, an hour is shaded ONLY when every operational charger at this hub is booked!
   const bookedIntervalsForCharger = useMemo(() => {
+    if (!chargingPoints.length) return [];
+    if (slotCode === 'AUTO') {
+      return computeAllChargersBusyIntervals(chargingPoints, chargerBookings);
+    }
     if (!selectedChargingPoint) return [];
-    return chargerBookings.filter(
-      (b) => Number(b.chargingPointId) === Number(selectedChargingPoint.id)
-    );
-  }, [chargerBookings, selectedChargingPoint]);
+    return getBusyIntervalsForPoint(selectedChargingPoint, chargerBookings);
+  }, [chargerBookings, chargingPoints, slotCode, selectedChargingPoint]);
 
   // Auto-select first free hour when date or charger changes if current startTime is empty or booked
   useEffect(() => {
@@ -184,7 +232,15 @@ export function ChargingPage() {
     setError('');
     setSuccess('');
 
-    if (!date || !startTime || !duration || !hubId || !selectedVehicle || !selectedChargingPoint) {
+    if (
+      !date ||
+      !startTime ||
+      !duration ||
+      !hubId ||
+      !selectedVehicle ||
+      !chargingPoints.length ||
+      (slotCode !== 'AUTO' && !selectedChargingPoint)
+    ) {
       setError('Please select a charger and an available (unshaded) start time.');
       return;
     }
@@ -212,17 +268,19 @@ export function ChargingPage() {
         hubId: Number(hubId),
         ownershipType: 'PRIVATE',
         vehicleId: null,
-        chargingPointId: selectedChargingPoint.id,
-        slotCode,
+        chargingPointId: slotCode === 'AUTO' ? null : selectedChargingPoint.id,
+        slotCode: slotCode === 'AUTO' ? null : slotCode,
         privateVehicleLabel: `${selectedVehicle.name} · ${selectedVehicle.id}`,
         currentBatteryLevel: Number(selectedVehicle.battery ?? 38),
         targetBatteryLevel: 100,
         scheduledStart: toLocalStr(scheduledStart),
         scheduledEnd: toLocalStr(scheduledEnd),
       };
-      await chargingApi.createChargingRequest(payload);
+      const created = await chargingApi.createChargingRequest(payload);
       await Promise.all([refreshHubChargersAndBookings(hubId), refreshMyRegistrations()]);
-      setSuccess(`Booked ${slotCode} on ${displayDate(date)} (${startTime}–${endTime}).`);
+      const assignedLabel =
+        created?.chargerCode || created?.slotCode || (slotCode === 'AUTO' ? 'Available Charger' : slotCode);
+      setSuccess(`Booked ${assignedLabel} on ${displayDate(date)} (${startTime}–${endTime}).`);
     } catch (requestError) {
       setError(requestError.message || 'Unable to register for charging.');
     } finally {
@@ -315,11 +373,17 @@ export function ChargingPage() {
                   required
                 >
                   {chargingPoints.length === 0 && <option value="">No chargers at hub</option>}
+                  {chargingPoints.length > 0 && (
+                    <option value="AUTO">
+                      Auto-assign free charger ({chargingPoints.filter((p) => String(p.status).toUpperCase() === 'AVAILABLE').length} open now)
+                    </option>
+                  )}
                   {chargingPoints.map((point) => {
                     const code = getChargingPointCode(point);
+                    const st = String(point.status || '').toUpperCase();
                     return (
                       <option key={point.id} value={code}>
-                        {code} ({point.maxPowerKw || 3.5} kW)
+                        {code} ({point.maxPowerKw || 3.5} kW{st === 'CHARGING' ? ' · In use' : ''})
                       </option>
                     );
                   })}
@@ -341,7 +405,7 @@ export function ChargingPage() {
               durationHours={durationHours}
               onDurationChange={setDurationHours}
               bookedIntervals={bookedIntervalsForCharger}
-              disabled={submitting || !selectedChargingPoint}
+              disabled={submitting || !chargingPoints.length}
             />
 
             <p className="charging-form-note">
@@ -365,7 +429,7 @@ export function ChargingPage() {
             <span>Hub / slot</span>
             <strong className="charging-summary-hub-slot">
               <span>{selectedHub?.name?.replace(/\s+Hub$/i, '') || 'Select a hub'} ·</span>
-              <span>{slotCode || 'No slot'}</span>
+              <span>{slotCode === 'AUTO' ? 'Auto free port' : slotCode || 'No slot'}</span>
             </strong>
           </div>
           <div className="charging-summary-row">

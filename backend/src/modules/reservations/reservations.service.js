@@ -200,7 +200,7 @@ async function reserveVehicle(user, body = {}) {
       assertTransition('vehicle', v.status, 'RESERVED');
       await c.execute("UPDATE vehicles SET status = 'RESERVED' WHERE id = ?", [vid]);
     }
-    const initialStatus = isOperator(user) ? 'CONFIRMED' : 'PENDING';
+    const initialStatus = body.autoConfirm === true && isOperator(user) ? 'CONFIRMED' : 'PENDING';
     const reservationCode = code('RES-V');
     const [result] = await c.execute(
       `INSERT INTO reservations (reservation_code, user_id, reservation_type, hub_id, vehicle_id, start_time, end_time, status)
@@ -268,7 +268,7 @@ async function reserveParking(user, body) {
       await c.execute("UPDATE parking_slots SET status = 'RESERVED' WHERE id = ?", [slot.id]);
     }
 
-    const initialStatus = isOperator(user) ? 'CONFIRMED' : 'PENDING';
+    const initialStatus = body.autoConfirm === true && isOperator(user) ? 'CONFIRMED' : 'PENDING';
     const [result] = await c.execute(
       `INSERT INTO reservations
         (reservation_code, user_id, reservation_type, hub_id, parking_slot_id, start_time, end_time, status, return_condition_note)
@@ -365,13 +365,11 @@ async function cancel(user, id, body = {}) {
     if (!['PENDING', 'CONFIRMED'].includes(r.status)) {
       fail(409, 'INVALID_STATE_TRANSITION', 'Only pending or confirmed reservations can be cancelled.');
     }
-    const wasApproved = r.status === 'CONFIRMED';
+    const isVehicleDecline = r.status === 'CONFIRMED' && r.reservation_type === 'VEHICLE';
     const customReason = optionalText(body?.reason, 'reason', 180);
-    const note = isOperator(user)
-      ? `REJECTED_BY_OPERATOR: ${customReason || 'Cancelled by operator'}`
-      : wasApproved
+    const note = isVehicleDecline
       ? `DECLINED_BY_STUDENT: ${customReason || 'Declined pickup after approval'}`
-      : `CANCELLED_BY_STUDENT: ${customReason || 'Cancelled while pending approval'}`;
+      : `CANCELLED_BY_STUDENT: ${customReason || 'Cancelled by student'}`;
 
     await c.execute(
       "UPDATE reservations SET status = 'CANCELLED', return_condition_note = ? WHERE id = ?",
@@ -382,11 +380,7 @@ async function cancel(user, id, body = {}) {
     return {
       id: r.id,
       status: 'CANCELLED',
-      cancellationSource: isOperator(user)
-        ? 'OPERATOR_REJECTED'
-        : wasApproved
-        ? 'STUDENT_DECLINED'
-        : 'STUDENT_CANCELLED',
+      cancellationSource: isVehicleDecline ? 'STUDENT_DECLINED' : 'STUDENT_CANCELLED',
     };
   });
 }

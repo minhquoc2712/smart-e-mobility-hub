@@ -405,15 +405,38 @@ export const mockServer = {
     }
     const db = loadDb();
     const hub = db.hubs.find((h) => h.id === Number(payload.hubId));
+    const hubPoints = (db.chargingPoints || []).filter(
+      (c) => Number(c.hubId) === Number(payload.hubId) && c.status !== 'OUT_OF_SERVICE'
+    );
+    const reqStart = new Date(payload.scheduledStart).getTime();
+    const reqEnd = new Date(payload.scheduledEnd).getTime();
+    const lockedIds = new Set(
+      (db.chargingRequests || [])
+        .filter(
+          (r) =>
+            Number(r.hubId) === Number(payload.hubId) &&
+            r.chargingPointId != null &&
+            ['SCHEDULED', 'CHARGING'].includes(r.status) &&
+            new Date(r.scheduledStart).getTime() < reqEnd &&
+            new Date(r.scheduledEnd).getTime() > reqStart
+        )
+        .map((r) => Number(r.chargingPointId))
+    );
+    const assignedPoint = payload.chargingPointId
+      ? hubPoints.find((p) => Number(p.id) === Number(payload.chargingPointId) && !lockedIds.has(Number(p.id)))
+      : hubPoints.find((p) => p.status !== 'CHARGING' && !lockedIds.has(Number(p.id)));
     const item = {
       id: Date.now(),
       requestCode: `CHG-${String(Date.now()).slice(-5)}`,
       ...payload,
+      chargingPointId: assignedPoint ? assignedPoint.id : null,
+      chargerCode: assignedPoint ? assignedPoint.chargerCode || assignedPoint.charger_code : 'Waitlist (Priority Queue)',
+      slotCode: assignedPoint ? assignedPoint.chargerCode || assignedPoint.charger_code : 'Waitlist',
       targetBatteryLevel: 100,
       hubName: hub?.name || 'Campus Hub',
       priority: 'NORMAL',
       queuePosition: db.chargingRequests.length + 1,
-      status: 'SCHEDULED',
+      status: assignedPoint ? 'SCHEDULED' : 'QUEUED',
     };
     db.chargingRequests.push(item);
     saveDb(db);
