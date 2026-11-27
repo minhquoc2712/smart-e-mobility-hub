@@ -6,12 +6,9 @@ import 'leaflet/dist/leaflet.css';
 const VNU_CENTER = [10.8754, 106.8005];
 const DEFAULT_ZOOM = 14;
 
-// Akamai Global CDN (Esri ArcGIS World Street Map) — 100% free, no API key required,
-// and never blocked/throttled by Vietnamese ISPs (unlike tile.openstreetmap.org).
-const ARCGIS_STREET_TILES =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
-const ARCGIS_TOPO_FALLBACK =
-  'https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
+// Primary: Original lush green/blue OpenStreetMap tiles (HTTP/2 single endpoint + auto-retry on packet drop)
+const OSM_PRIMARY_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const OSM_SUBDOMAIN_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 const FALLBACK_COORDS = {
   'HUB-BK-GATE1': [10.88052, 106.80531],
@@ -52,22 +49,17 @@ function attachTileFallback(tileLayer) {
     const coords = event?.coords;
     if (!img || !coords) return;
     const attempt = Number(img.dataset.retryCount || '0');
-    if (attempt === 0) {
-      img.dataset.retryCount = '1';
+    if (attempt < 3) {
+      const next = attempt + 1;
+      img.dataset.retryCount = String(next);
+      const sub = ['a', 'b', 'c'][attempt % 3];
       setTimeout(() => {
-        img.src = ARCGIS_TOPO_FALLBACK
+        img.src = `${OSM_SUBDOMAIN_TILES
+          .replace('{s}', sub)
           .replace('{z}', coords.z)
-          .replace('{y}', coords.y)
-          .replace('{x}', coords.x);
-      }, 200);
-    } else if (attempt === 1) {
-      img.dataset.retryCount = '2';
-      setTimeout(() => {
-        img.src = `${ARCGIS_STREET_TILES
-          .replace('{z}', coords.z)
-          .replace('{y}', coords.y)
-          .replace('{x}', coords.x)}?retry=1`;
-      }, 500);
+          .replace('{x}', coords.x)
+          .replace('{y}', coords.y)}?retry=${next}`;
+      }, 350 * next);
     }
   });
 }
@@ -136,8 +128,8 @@ export function CampusHubMap({
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    const tileLayer = L.tileLayer(ARCGIS_STREET_TILES, {
-      attribution: '&copy; Esri, OpenStreetMap contributors · VNU-HCM Urban Area',
+    const tileLayer = L.tileLayer(OSM_PRIMARY_TILES, {
+      attribution: '&copy; OpenStreetMap contributors · VNU-HCM Urban Area',
       maxZoom: 19,
       keepBuffer: 4,
       updateWhenIdle: false,
