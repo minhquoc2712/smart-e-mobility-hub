@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi, chargingApi } from '../../api';
+import { useAuth } from '../../context/AuthContext';
 import { EvIllustration } from '../../components/common/EvIllustration';
 import { QuickGuideStrip } from '../../components/common/QuickGuideStrip';
+import {
+  loadPrivateVehiclesForUser,
+  savePrivateVehiclesForUser,
+} from '../../utils/privateVehicle';
 
 const PRIVATE_EV_GUIDE = [
   {
@@ -19,54 +24,56 @@ const PRIVATE_EV_GUIDE = [
   },
 ];
 
-const VEHICLES_KEY = 'semh_private_vehicles';
 const CANCELLED_CHARGING_KEY = 'semh_cancelled_charging_requests';
-
-const initialVehicles = [
-  { id: 'PV-018', name: 'My e-bike', type: 'Private electric bike', battery: 38 },
-];
 
 export function MyVehiclesPage() {
   const navigate = useNavigate();
-  const [vehicles, setVehicles] = useState(initialVehicles);
-  const [vehicleId, setVehicleId] = useState(initialVehicles[0].id);
+  const { user } = useAuth();
+  const [vehicles, setVehicles] = useState(() => loadPrivateVehiclesForUser(user));
+  const [vehicleId, setVehicleId] = useState(() => loadPrivateVehiclesForUser(user)[0].id);
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(initialVehicles[0].name);
-  const [type, setType] = useState(initialVehicles[0].type);
+  const [name, setName] = useState('');
+  const [type, setType] = useState('Private electric bike');
+  const [plateId, setPlateId] = useState('');
   const [requests, setRequests] = useState([]);
 
   useEffect(() => {
-    const savedVehicles = JSON.parse(sessionStorage.getItem(VEHICLES_KEY) || 'null');
-    if (savedVehicles) {
-      setVehicles(savedVehicles);
-      setVehicleId(savedVehicles[0].id);
-    }
+    const userVehicles = loadPrivateVehiclesForUser(user);
+    setVehicles(userVehicles);
+    setVehicleId(userVehicles[0].id);
+
     const cancelled = JSON.parse(sessionStorage.getItem(CANCELLED_CHARGING_KEY) || '[]');
     chargingApi.getChargingRequests().then((items) => {
       setRequests(items.filter((item) => !cancelled.includes(item.id)));
     });
-  }, []);
+  }, [user?.id, user?.privateVehiclePlate, user?.privateVehicleModel]);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId) || vehicles[0];
 
   const openEditor = () => {
     setName(selectedVehicle.name);
     setType(selectedVehicle.type);
+    setPlateId(selectedVehicle.id);
     setEditing(true);
   };
 
   const saveVehicle = async (event) => {
     event.preventDefault();
-    const updated = vehicles.map((vehicle) => vehicle.id === selectedVehicle.id
-      ? { ...vehicle, name, type }
-      : vehicle);
-    sessionStorage.setItem(VEHICLES_KEY, JSON.stringify(updated));
+    const cleanName = name.trim() || selectedVehicle.name;
+    const cleanId = plateId.trim() || selectedVehicle.id;
+    const updated = vehicles.map((vehicle) =>
+      vehicle.id === selectedVehicle.id
+        ? { ...vehicle, id: cleanId, name: cleanName, type }
+        : vehicle
+    );
+    savePrivateVehiclesForUser(user, updated);
     setVehicles(updated);
+    setVehicleId(cleanId);
     setEditing(false);
     try {
       await authApi.updatePrivateVehicle({
-        privateVehiclePlate: selectedVehicle.id,
-        privateVehicleModel: `${name} (${type})`,
+        privateVehiclePlate: cleanId,
+        privateVehicleModel: `${cleanName} (${type})`,
       });
     } catch {
       // Keep sessionStorage update if offline
@@ -151,7 +158,16 @@ export function MyVehiclesPage() {
                 <option>Private electric car</option>
               </select>
             </label>
-            <label>Vehicle ID<input value={selectedVehicle.id} disabled /></label>
+            <label>
+              Vehicle ID / License plate
+              <input
+                value={plateId}
+                maxLength={30}
+                required
+                placeholder="e.g. 59-MĐ1 123.45 or PV-005"
+                onChange={(event) => setPlateId(event.target.value)}
+              />
+            </label>
             <button className="primary-action" type="submit">Save details</button>
             <button className="secondary-action" type="button" onClick={() => setEditing(false)}>Cancel</button>
           </form>

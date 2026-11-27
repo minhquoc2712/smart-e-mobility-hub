@@ -10,6 +10,7 @@ import {
 import { CHARGING_HOURLY_VND, formatVnd } from '../../utils/currency';
 import { EvIllustration } from '../../components/common/EvIllustration';
 import { QuickGuideStrip } from '../../components/common/QuickGuideStrip';
+import { loadPrivateVehiclesForUser } from '../../utils/privateVehicle';
 
 const CHARGING_GUIDE = [
   {
@@ -55,9 +56,9 @@ export function ChargingPage() {
   const { user } = useAuth();
   const today = useMemo(() => getLocalDateStr(new Date()), []);
   const [hubs, setHubs] = useState([]);
-  const [vehicles, setVehicles] = useState(DEFAULT_VEHICLES);
+  const [vehicles, setVehicles] = useState(() => loadPrivateVehiclesForUser(user));
   const [hubId, setHubId] = useState('');
-  const [vehicleId, setVehicleId] = useState(DEFAULT_VEHICLES[0].id);
+  const [vehicleId, setVehicleId] = useState(() => loadPrivateVehiclesForUser(user)[0].id);
   const [chargingPoints, setChargingPoints] = useState([]);
   const [chargerBookings, setChargerBookings] = useState([]);
   const [myRegistrations, setMyRegistrations] = useState([]);
@@ -109,22 +110,9 @@ export function ChargingPage() {
   }, []);
 
   useEffect(() => {
-    const savedVehicles = JSON.parse(sessionStorage.getItem(VEHICLES_KEY) || 'null');
-    if (Array.isArray(savedVehicles) && savedVehicles.length > 0) {
-      setVehicles(savedVehicles);
-      setVehicleId(savedVehicles[0].id);
-    } else if (user?.privateVehiclePlate) {
-      const fromDb = [
-        {
-          id: user.privateVehiclePlate,
-          name: user.privateVehicleModel || 'My e-bike',
-          type: 'Private electric bike',
-          battery: 38,
-        },
-      ];
-      setVehicles(fromDb);
-      setVehicleId(fromDb[0].id);
-    }
+    const userVehicles = loadPrivateVehiclesForUser(user);
+    setVehicles(userVehicles);
+    setVehicleId(userVehicles[0].id);
 
     hubApi
       .getHubs()
