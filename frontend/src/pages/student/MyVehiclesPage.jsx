@@ -1,7 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { chargingApi } from '../../api';
-import vehicleImage from '../../components/common/images/vehicle.jpg';
+import { authApi, chargingApi } from '../../api';
+import { EvIllustration } from '../../components/common/EvIllustration';
+import { QuickGuideStrip } from '../../components/common/QuickGuideStrip';
+
+const PRIVATE_EV_GUIDE = [
+  {
+    title: 'Manage Personal EV',
+    desc: 'Keep your e-bike or e-scooter profile and connector type saved for fast booking.',
+  },
+  {
+    title: 'Check Live Charger Slots',
+    desc: 'Inspect nearby VNU-HCM hubs with open AC/DC charging ports.',
+  },
+  {
+    title: 'Lock Charging Window',
+    desc: 'Reserve a guaranteed charging time slot at student rate (5.000 ₫/h).',
+  },
+];
 
 const VEHICLES_KEY = 'semh_private_vehicles';
 const CANCELLED_CHARGING_KEY = 'semh_cancelled_charging_requests';
@@ -72,6 +88,7 @@ export function MyVehiclesPage() {
     <div className="my-vehicles-page">
       <h1>Private vehicle owners</h1>
       <p className="page-description">Manage your vehicle and reserve a charging slot—no vehicle rental needed.</p>
+      <QuickGuideStrip steps={PRIVATE_EV_GUIDE} />
 
       <div className="my-vehicles-grid">
         <section className="vehicle-owner-card">
@@ -84,7 +101,7 @@ export function MyVehiclesPage() {
             </select>
           </div>
           <div className="private-vehicle-image">
-            <img src={vehicleImage} alt={selectedVehicle.name} />
+            <EvIllustration variant={selectedVehicle.type.toLowerCase().includes('scooter') ? 'scooter' : 'bike'} />
           </div>
           <strong>{selectedVehicle.name} - {selectedVehicle.id}</strong>
           <div className="battery-row">

@@ -21,7 +21,7 @@ async function assertFleetChargeAvailable(c, vehicle) {
   if (!vehicle.current_hub_id) throw new AppError(409, 'VEHICLE_NOT_AT_HUB', 'Vehicle is not at a hub.');
   await hubsService.assertHubOperational(c, vehicle.current_hub_id);
   const [bookings] = await c.execute(`SELECT id FROM reservations WHERE vehicle_id = ?
-    AND status IN ('CONFIRMED','ACTIVE') AND end_time > NOW()
+    AND status IN ('PENDING','CONFIRMED','ACTIVE') AND end_time > NOW()
     AND start_time < DATE_ADD(NOW(), INTERVAL 2 HOUR) LIMIT 1 FOR UPDATE`, [vehicle.id]);
   if (bookings.length) throw new AppError(409, 'VEHICLE_TIME_SLOT_BOOKED', 'Vehicle has a rental booking during charging.');
 }
@@ -811,11 +811,17 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
         vehicleId,
       ]);
       await c.execute(
-        `UPDATE charging_requests SET status = 'CANCELLED' WHERE vehicle_id = ? AND request_code LIKE 'CHG-STAFF-%' AND status = 'QUEUED'`,
+        `UPDATE charging_requests SET status = 'CANCELLED' WHERE vehicle_id = ? AND request_code LIKE 'CHG-STAFF-%' AND status IN ('QUEUED', 'SCHEDULED')`,
         [vehicleId]
       );
       await c.execute(
-        `UPDATE charging_requests SET priority = ? WHERE vehicle_id = ? AND status IN ('QUEUED', 'SCHEDULED', 'CHARGING')`,
+        `UPDATE charging_requests
+         SET priority = ?,
+             request_code = CASE
+               WHEN request_code LIKE 'CHG-STAFF-%' THEN CONCAT('CHG-AUTO-', id)
+               ELSE request_code
+             END
+         WHERE vehicle_id = ? AND status IN ('QUEUED', 'SCHEDULED', 'CHARGING')`,
         [autoPriority, vehicleId]
       );
       return { vehicleId, priority: autoPriority, mode: 'AUTO' };
@@ -831,28 +837,41 @@ router.patch('/operator/vehicles/:vehicleId/charging-priority', authenticateToke
       vehicleId,
     ]);
 
-    // 2. Update or create an active row in charging_requests so MySQL persists Staff priority override
+    // 2. Update or create an active row in charging_requests so Staff priority override persists for ALL statuses
     const [existingReqs] = await c.execute(
-      `SELECT id FROM charging_requests WHERE vehicle_id = ? AND status IN ('QUEUED', 'SCHEDULED', 'CHARGING') ORDER BY id DESC LIMIT 1`,
+      `SELECT id, request_code, ownership_type FROM charging_requests WHERE vehicle_id = ? AND status IN ('QUEUED', 'SCHEDULED', 'CHARGING') ORDER BY id DESC LIMIT 1`,
       [vehicleId]
     );
     if (existingReqs.length > 0) {
-      await c.execute('UPDATE charging_requests SET priority = ? WHERE id = ?', [
+      const existing = existingReqs[0];
+      const nextCode =
+        existing.ownership_type === 'RENTAL' && !String(existing.request_code || '').startsWith('CHG-STAFF-')
+          ? staffCode()
+          : existing.request_code;
+      await c.execute('UPDATE charging_requests SET priority = ?, request_code = ? WHERE id = ?', [
         effectivePriority,
-        existingReqs[0].id,
+        nextCode,
+        existing.id,
       ]);
-    } else if (veh.current_hub_id && veh.status === 'AVAILABLE') {
+    } else if (veh.current_hub_id && ['AVAILABLE', 'RESERVED', 'CHARGING'].includes(veh.status)) {
+      const [cpRows] = await c.execute(
+        'SELECT id FROM charging_points WHERE current_vehicle_id = ? LIMIT 1',
+        [vehicleId]
+      );
+      const linkedChargerId = cpRows[0]?.id || null;
       const reqCode = staffCode();
+      const currentBatt = Math.min(99, Number(veh.battery_level ?? 50));
       await c.execute(
         `INSERT INTO charging_requests
-          (request_code, user_id, ownership_type, vehicle_id, hub_id, current_battery_level, target_battery_level, priority, scheduled_start, scheduled_end, status)
-         VALUES (?, ?, 'RENTAL', ?, ?, ?, 100, ?, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), ?)`,
+          (request_code, user_id, ownership_type, vehicle_id, hub_id, charging_point_id, current_battery_level, target_battery_level, priority, scheduled_start, scheduled_end, status)
+         VALUES (?, ?, 'RENTAL', ?, ?, ?, ?, 100, ?, NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), ?)`,
         [
           reqCode,
           req.user.id,
           vehicleId,
           veh.current_hub_id,
-          veh.battery_level,
+          linkedChargerId,
+          currentBatt,
           effectivePriority,
           veh.status === 'CHARGING' ? 'CHARGING' : 'QUEUED',
         ]

@@ -1,19 +1,21 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { ThemeToggleButton } from '../../context/ThemeContext';
 import { UserAvatarMenu } from '../common/UserAvatarMenu';
 import { AccountCreatedBanner } from '../common/AccountCreatedBanner';
+import { VnuLogo } from '../common/VnuLogo';
 import logo from '../common/images/logo.png';
 
 const STAFF_NAV_ITEMS = [
-  { to: '/operator/dashboard', label: '📊 Overview' },
-  { to: '/operator/hub-utilization', label: '🏢 Hub utilization' },
-  { to: '/operator/manage-parking', label: '🅿️ Manage parking' },
-  { to: '/operator/vehicles-charging', label: '⚡ Vehicle & charging' },
-  { to: '/operator/incidents', label: '⚠️ Incidents' },
-  { to: '/operator/dispatch', label: '🚚 Dispatch' },
-  { to: '/operator/simulation', label: '🧪 What-if' },
-  { to: '/operator/profile', label: '👤 Personal info' },
+  { to: '/operator/dashboard', label: 'Overview' },
+  { to: '/operator/hub-utilization', label: 'Hub utilization' },
+  { to: '/operator/manage-parking', label: 'Manage parking' },
+  { to: '/operator/vehicles-charging', label: 'Vehicle & charging' },
+  { to: '/operator/incidents', label: 'Incidents' },
+  { to: '/operator/dispatch', label: 'Dispatch' },
+  { to: '/operator/simulation', label: 'What-if' },
+  { to: '/operator/profile', label: 'Personal info' },
 ];
 
 export function OperatorLayout() {
@@ -35,16 +37,20 @@ export function OperatorLayout() {
   return (
     <div className="staff-shell">
       <header className="staff-header">
-        <NavLink
-          to="/operator/dashboard"
-          className="staff-brand"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}
-        >
-          <img src={logo} alt="" style={{ height: 38, width: 'auto' }} />
-          <span>Smart E-MOBILITY HUB</span>
+        <NavLink to="/operator/dashboard" className="brand-dual">
+          <VnuLogo height={32} />
+          <span className="brand-dual__divider" aria-hidden="true" />
+          <div className="brand-dual__project">
+            <img src={logo} alt="Smart E-Mobility Hub" />
+            <div>
+              <strong>Smart E-Mobility Hub</strong>
+              <span>Operator Control Center</span>
+            </div>
+          </div>
         </NavLink>
 
         <div className="staff-account-bar">
+          <ThemeToggleButton compact />
           <UserAvatarMenu
             variant="operator"
             displayNameOverride={displayName}

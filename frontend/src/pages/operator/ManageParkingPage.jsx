@@ -1,6 +1,22 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { operatorApi, parkingSlotApi } from '../../api';
+import { QuickGuideStrip } from '../../components/common/QuickGuideStrip';
+
+const MANAGE_PARKING_GUIDE = [
+  {
+    title: 'Compare Zones A · B · C',
+    desc: 'Swipe across parallel zone cards to inspect Rental, Charging, and Customer bays.',
+  },
+  {
+    title: 'Check In / Check Out EVs',
+    desc: 'Log walk-in customer vehicles into Zone C or release occupied bays in one tap.',
+  },
+  {
+    title: 'Toggle Slot Maintenance',
+    desc: 'Open Manage spaces to mark individual bays Out of Service or restore to FREE.',
+  },
+];
 
 function formatClock(dateStr) {
   if (!dateStr) return '08:30';
@@ -237,6 +253,10 @@ export function ManageParkingPage() {
     return (
       <>
         <h1 className="staff-page-title">Manage parking</h1>
+
+      <div style={{ width: '100%', maxWidth: 1240 }}>
+        <QuickGuideStrip steps={MANAGE_PARKING_GUIDE} variant="operator" />
+      </div>
         <div className="staff-panel staff-panel--full">
           <p style={{ color: 'var(--staff-muted)', margin: 0 }}>Loading parking lot telemetry...</p>
         </div>
@@ -247,6 +267,10 @@ export function ManageParkingPage() {
   return (
     <>
       <h1 className="staff-page-title">Manage parking</h1>
+
+      <div style={{ width: '100%', maxWidth: 1240 }}>
+        <QuickGuideStrip steps={MANAGE_PARKING_GUIDE} variant="operator" />
+      </div>
 
       {/* Toolbar */}
       <div
@@ -292,7 +316,7 @@ export function ManageParkingPage() {
           style={{
             width: '100%',
             maxWidth: 1240,
-            background: '#eff9eb',
+            background: 'var(--staff-pill)',
             color: 'var(--staff-forest)',
             padding: '10px 18px',
             borderRadius: 12,
@@ -485,7 +509,7 @@ export function ManageParkingPage() {
                 <button
                   type="button"
                   className="staff-mini-link"
-                  style={{ background: '#cdf4cf', fontWeight: 600 }}
+                  style={{ background: '#cdf4cf', color: '#182b20', fontWeight: 600 }}
                   onClick={() => handleToggleSlotMaintenance(s)}
                 >
                   {s.status === 'OUT_OF_SERVICE' ? 'Restore FREE' : 'Out of service'}
@@ -535,7 +559,7 @@ export function ManageParkingPage() {
             {selectedRecord && (
               <div
                 style={{
-                  background: '#eff9eb',
+                  background: 'var(--staff-pill)',
                   borderRadius: 12,
                   padding: '12px 16px',
                   display: 'flex',

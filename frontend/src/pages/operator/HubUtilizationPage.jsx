@@ -209,7 +209,7 @@ export function HubUtilizationPage() {
                           display: 'flex',
                           flexDirection: 'column',
                           gap: 12,
-                          border: '1px solid #d5ecd4',
+                          border: '1px solid var(--staff-divider)',
                         }}
                       >
                         <div
@@ -230,8 +230,8 @@ export function HubUtilizationPage() {
                             type="button"
                             onClick={() => navigate(`/operator/manage-parking?hubId=${hub.id}`)}
                             style={{
-                              background: '#ffffff',
-                              border: '1px solid #cde8cc',
+                              background: 'var(--staff-card)',
+                              border: '1px solid var(--staff-divider)',
                               borderRadius: 8,
                               padding: '4px 10px',
                               fontSize: 13,
@@ -250,7 +250,7 @@ export function HubUtilizationPage() {
                             <div
                               key={z.code}
                               style={{
-                                background: '#ffffff',
+                                background: 'var(--staff-card)',
                                 borderRadius: 11,
                                 padding: '11px 14px',
                                 display: 'flex',
@@ -288,7 +288,7 @@ export function HubUtilizationPage() {
                                     fontWeight: 700,
                                     fontSize: 16,
                                     color: zoneWarn ? '#854d0e' : 'var(--staff-forest)',
-                                    background: zoneWarn ? '#fff7db' : '#eff9eb',
+                                    background: zoneWarn ? '#fff7db' : 'var(--staff-pill)',
                                     padding: '3px 10px',
                                     borderRadius: 8,
                                     whiteSpace: 'nowrap',

@@ -240,8 +240,8 @@ export const mockServer = {
       );
     }
     const db = loadDb();
-    if (db.reservations.some(r => Number(r.userId) === Number(userId) && r.reservationType === 'VEHICLE' && ['CONFIRMED','ACTIVE'].includes(r.status))) {
-      throw new Error('You already have a vehicle reservation or rental. Cancel it or return the vehicle before booking another.');
+    if (db.reservations.some(r => Number(r.userId) === Number(userId) && r.reservationType === 'VEHICLE' && ['PENDING','CONFIRMED','ACTIVE'].includes(r.status))) {
+      throw new Error('You already have a pending or active vehicle reservation. Cancel it or return the vehicle before booking another.');
     }
     const vehicle = db.vehicles.find((v) => v.id === Number(vehicleId));
     const hub = db.hubs.find((h) => h.id === Number(hubId));
@@ -264,7 +264,7 @@ export const mockServer = {
       parkingSlotCode: slot?.slotCode || vehicle.parkingSlotCode || null,
       startTime,
       endTime,
-      status: 'CONFIRMED',
+      status: 'PENDING',
     };
     db.reservations.unshift(newReservation);
     saveDb(db);
@@ -294,7 +294,7 @@ export const mockServer = {
       startTime,
       endTime,
       licensePlate,
-      status: 'CONFIRMED',
+      status: 'PENDING',
     };
     db.reservations.unshift(reservation);
     saveDb(db);
@@ -338,12 +338,48 @@ export const mockServer = {
     return res;
   },
 
-  async cancelReservation(reservationId) {
+  async approveReservation(reservationId) {
     await delay();
     const db = loadDb();
     const res = db.reservations.find((r) => r.id === Number(reservationId));
     if (!res) throw new Error('Reservation not found');
-    if (res.status !== 'CONFIRMED') throw new Error('Only confirmed reservations can be cancelled.');
+    if (res.status !== 'PENDING') throw new Error('Only pending reservations can be approved.');
+    res.status = 'CONFIRMED';
+    saveDb(db);
+    return res;
+  },
+
+  async rejectReservation(reservationId, reason = 'Declined by hub operator') {
+    await delay();
+    const db = loadDb();
+    const res = db.reservations.find((r) => r.id === Number(reservationId));
+    if (!res) throw new Error('Reservation not found');
+    if (!['PENDING', 'CONFIRMED'].includes(res.status)) {
+      throw new Error('Only pending or confirmed reservations can be rejected.');
+    }
+    res.status = 'CANCELLED';
+    res.cancellationSource = 'OPERATOR_REJECTED';
+    res.statusNote = reason;
+    const vehicle = db.vehicles.find((v) => v.id === res.vehicleId);
+    if (vehicle && vehicle.status === 'RESERVED') vehicle.status = 'AVAILABLE';
+    if (res.reservationType === 'PARKING') {
+      const hub = db.hubs.find((item) => item.id === res.hubId);
+      if (hub) hub.freeParkingSlots = Math.min(hub.totalParkingSlots, hub.freeParkingSlots + 1);
+    }
+    saveDb(db);
+    return res;
+  },
+
+  async cancelReservation(reservationId, reason = '') {
+    await delay();
+    const db = loadDb();
+    const res = db.reservations.find((r) => r.id === Number(reservationId));
+    if (!res) throw new Error('Reservation not found');
+    if (!['PENDING', 'CONFIRMED'].includes(res.status)) {
+      throw new Error('Only pending or confirmed reservations can be cancelled.');
+    }
+    res.cancellationSource = res.status === 'CONFIRMED' ? 'STUDENT_DECLINED' : 'STUDENT_CANCELLED';
+    res.statusNote = reason || null;
     res.status = 'CANCELLED';
     const vehicle = db.vehicles.find((v) => v.id === res.vehicleId);
     if (vehicle && vehicle.status === 'RESERVED') vehicle.status = 'AVAILABLE';

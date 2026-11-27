@@ -40,18 +40,18 @@ test('error mapping returns 409 for lock/deadlock, hides internal SQL, preserves
   assert.equal(normalizeError(new AppError(409,'USER_HAS_ACTIVE_RENTAL','existing')).code,'USER_HAS_ACTIVE_RENTAL');
   assert.equal(normalizeError(new Error('secret query')).message,'An unexpected server error occurred.');
 });
-for (const status of ['CONFIRMED','ACTIVE']) test(`existing ${status} rental blocks any other vehicle before writes`, async () => {
+for (const status of ['PENDING','CONFIRMED','ACTIVE']) test(`existing ${status} rental blocks any other vehicle before writes`, async () => {
   const calls=[];
   execute = async (sql,params) => {
     calls.push(sql);
     if (sql.includes('FROM users')) { assert.match(sql,/FOR UPDATE/); assert.deepEqual(params,[1]); return [[{id:1}]]; }
-    if (sql.includes('FROM reservations')) { assert.match(sql,/CONFIRMED.*ACTIVE/); assert.match(sql,/FOR UPDATE/); return [[{id:99,status}]]; }
+    if (sql.includes('FROM reservations')) { assert.match(sql,/PENDING.*CONFIRMED.*ACTIVE/); assert.match(sql,/FOR UPDATE/); return [[{id:99,status}]]; }
     assert.fail('Unexpected read/write after conflict');
   };
   await assert.rejects(reservations.reserveVehicle(user,{vehicleId:2,...range()}),errorCode('USER_HAS_ACTIVE_RENTAL'));
   assert.equal(calls.length,2);
 });
-test('valid reservation locks user then checks same vehicle overlap and inserts', async () => {
+test('valid reservation locks user then checks same vehicle overlap and inserts PENDING', async () => {
   const calls=[];
   execute=async (sql,params)=>{
     calls.push(sql);
@@ -60,13 +60,31 @@ test('valid reservation locks user then checks same vehicle overlap and inserts'
     if(sql.includes('FROM vehicles')) return [[{id:2,status:'AVAILABLE',battery_level:80,current_hub_id:1}]];
     if(sql.includes('FROM hubs')) return [[{id:1,status:'ACTIVE'}]];
     if(sql.includes('UPDATE vehicles')) return [{affectedRows:1}];
-    if(sql.includes('INSERT INTO reservations')) {assert.equal(params[1],1);return [{insertId:42}];}
+    if(sql.includes('INSERT INTO reservations')) {assert.equal(params[1],1);assert.equal(params[6],'PENDING');return [{insertId:42}];}
     assert.fail(sql);
   };
   const result=await reservations.reserveVehicle(user,{vehicleId:2,hubId:1,...range()});
-  assert.equal(result.status,'CONFIRMED');assert.equal(result.id,42);
+  assert.equal(result.status,'PENDING');assert.equal(result.id,42);
   assert.match(calls[0],/users.*FOR UPDATE/);assert.match(calls[1],/user_id/);
   assert.match(calls[4],/start_time < \?/); assert.match(calls[4],/end_time > \?/);
+});
+test('operator approves PENDING reservation into CONFIRMED and pickup requires approval', async () => {
+  const operator = { id: 9, role: 'OPERATOR' };
+  execute = async (sql) => {
+    if (sql.includes('SELECT * FROM reservations')) return [[{ id: 42, user_id: 1, reservation_type: 'VEHICLE', status: 'PENDING' }]];
+    if (sql.includes('UPDATE reservations SET status = \'CONFIRMED\'')) return [{ affectedRows: 1 }];
+    assert.fail(sql);
+  };
+  const approved = await reservations.approve(operator, 42);
+  assert.equal(approved.status, 'CONFIRMED');
+
+  execute = async (sql) => {
+    if (sql.includes('FROM users')) return [[{ id: 1 }]];
+    if (sql.includes('SELECT * FROM reservations')) return [[{ id: 42, user_id: 1, reservation_type: 'VEHICLE', status: 'PENDING' }]];
+    if (sql.includes('FROM reservations WHERE user_id')) return [[]];
+    assert.fail(sql);
+  };
+  await assert.rejects(reservations.pickup(user, 42), errorCode('AWAITING_OPERATOR_APPROVAL'));
 });
 test('other user overlapping same vehicle is blocked before insert',async()=>{
   execute=async sql=>{

@@ -280,7 +280,7 @@ export function SimulationPage() {
         {engineResult && (
           <div
             style={{
-              background: '#ffffff',
+              background: 'var(--staff-card)',
               border: '1.5px solid #34c759',
               borderRadius: 16,
               padding: '20px 24px',
@@ -361,7 +361,7 @@ export function SimulationPage() {
                       <button
                         type="button"
                         className="staff-mini-link"
-                        style={{ background: '#cdf4cf', fontWeight: 600 }}
+                        style={{ background: '#cdf4cf', color: '#182b20', fontWeight: 600 }}
                         onClick={() => handleApplyRecommendation(rec.id)}
                         disabled={isApplied}
                       >

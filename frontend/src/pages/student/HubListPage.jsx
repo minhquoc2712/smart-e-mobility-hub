@@ -1,10 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { hubApi } from '../../api';
+import { CampusHubMap } from '../../components/common/CampusHubMap';
 
-/**
- * Highlights matched query substring inside suggestion text
- */
 function HighlightMatch({ text = '', query = '' }) {
   const q = query.trim();
   if (!q || !text) return <>{text}</>;
@@ -14,16 +12,7 @@ function HighlightMatch({ text = '', query = '' }) {
     <>
       {parts.map((part, i) =>
         part.toLowerCase() === q.toLowerCase() ? (
-          <mark
-            key={i}
-            style={{
-              background: '#cdf4cf',
-              color: '#18381d',
-              fontWeight: 700,
-              borderRadius: 4,
-              padding: '0 2px',
-            }}
-          >
+          <mark key={i} className="search-highlight">
             {part}
           </mark>
         ) : (
@@ -39,17 +28,16 @@ export function HubListPage() {
   const [hubs, setHubs] = useState([]);
   const [search, setSearch] = useState('');
   const [vehicleType, setVehicleType] = useState('ALL');
+  const [selectedHubId, setSelectedHubId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // AJAX Live Autocomplete state
   const [suggestions, setSuggestions] = useState([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const searchBoxRef = useRef(null);
 
-  // Close suggestion dropdown when clicking outside
   useEffect(() => {
     const handleOutside = (e) => {
       if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
@@ -60,7 +48,6 @@ export function HubListPage() {
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
 
-  // AJAX Live Search for Hub List (debounced + AbortController)
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
@@ -89,7 +76,6 @@ export function HubListPage() {
     };
   }, [search, vehicleType]);
 
-  // AJAX Live Autocomplete Suggestions as user types (even 1 character like "a")
   useEffect(() => {
     const q = search.trim();
     if (!q) {
@@ -127,6 +113,7 @@ export function HubListPage() {
       navigate(`/student/hubs/${item.hubId}/vehicles`);
       return;
     }
+    if (item.hubId) setSelectedHubId(item.hubId);
     setSearch(item.searchValue || item.title);
   };
 
@@ -150,6 +137,7 @@ export function HubListPage() {
     setDropdownOpen(false);
     if (search) {
       setSearch('');
+      setSelectedHubId(null);
       return;
     }
     if (navigator.geolocation) {
@@ -164,83 +152,69 @@ export function HubListPage() {
   return (
     <div className="find-hub-page">
       <div className="find-hub-heading">
-        <h1>Where are you? We’ll find the nearest hub.</h1>
-        <p>Search your campus zone and choose a vehicle, parking spot, or charger in seconds.</p>
+        <h1>VNU-HCM Mobility Hub Network</h1>
+        <p>Explore live hub locations on the campus map, inspect slot capacity, and reserve in seconds.</p>
       </div>
 
-      {/* Beginner-friendly 3-step onboarding strip matching Figma mint palette */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
+      {/* 3-step Futuristic Onboarding Strip */}
+      <div className="onboarding-steps-grid">
         {[
           {
-            step: '1',
-            title: 'Select a Campus Hub',
-            desc: 'Check live bikes, scooters, free parking & chargers below.',
+            step: '01',
+            title: 'Locate a Campus Hub',
+            desc: 'Tap any hub pin on the map or search below for live availability.',
           },
           {
-            step: '2',
-            title: 'Reserve in 1 Click',
-            desc: 'Hold a vehicle for 15 mins, or lock a parking/charging time window.',
+            step: '02',
+            title: 'Reserve Instantly',
+            desc: 'Hold an electric bike or scooter for 15 minutes, or lock parking/charging slots.',
           },
           {
-            step: '3',
-            title: 'Scan QR & Ride / Return',
-            desc: 'Unlock at the Hub rack and return to any Hub with free slots.',
+            step: '03',
+            title: 'Scan QR & Ride',
+            desc: 'Unlock via optical QR scan at the rack and return to any VNU-HCM hub.',
           },
         ].map((item) => (
-          <div
-            key={item.step}
-            style={{
-              background: '#eff9eb',
-              border: '1px solid #d4edd6',
-              borderRadius: 14,
-              padding: '12px 16px',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 12,
-            }}
-          >
-            <span
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: '#cdf4cf',
-                color: '#2b581c',
-                fontWeight: 700,
-                fontSize: 14,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              {item.step}
-            </span>
+          <div key={item.step} className="onboarding-step-card">
+            <span className="onboarding-step-num">{item.step}</span>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14.5, color: '#1f3b24' }}>{item.title}</div>
-              <div style={{ fontSize: 12.5, color: '#556b5d', marginTop: 2 }}>{item.desc}</div>
+              <div className="onboarding-step-title">{item.title}</div>
+              <div className="onboarding-step-desc">{item.desc}</div>
             </div>
           </div>
         ))}
       </div>
 
+      {/* Interactive VNU-HCM Campus Map */}
+      <CampusHubMap
+        hubs={hubs}
+        mode="student"
+        selectedHubId={selectedHubId}
+        onSelectHub={(h) => setSelectedHubId(h?.id || null)}
+      />
+
       {/* AJAX Live Search Box + Instant Autocomplete Dropdown */}
-      <div ref={searchBoxRef} style={{ position: 'relative' }}>
+      <div ref={searchBoxRef} className="hub-search-wrap">
         <div className="hub-location-search">
-          <span className="hub-location-search-icon" aria-hidden="true">
-            ⌕
-          </span>
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="hub-location-search-svg"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
           <input
             aria-label="Search location"
             autoComplete="off"
-            placeholder="Type any letter to search hubs, zones, or vehicle codes (e.g. a, b, Metro, EB-102)..."
+            placeholder="Search hubs, campus zones, or vehicle codes (e.g. Metro, Library, EB-102)..."
             value={search}
             onFocus={() => {
               if (search.trim()) setDropdownOpen(true);
@@ -251,53 +225,21 @@ export function HubListPage() {
             }}
             onKeyDown={handleKeyDown}
           />
-          {suggestLoading && (
-            <span style={{ fontSize: 12.5, color: '#5c6e54', whiteSpace: 'nowrap', marginRight: 8 }}>
-              Searching...
-            </span>
-          )}
+          {suggestLoading && <span className="hub-search-loading">Searching...</span>}
           <button type="button" onClick={useCurrentLocation}>
-            {search ? 'Clear filter' : 'Use my location'}
+            {search ? 'Clear' : 'Reset view'}
           </button>
         </div>
 
         {dropdownOpen && search.trim() && (
-          <div
-            role="listbox"
-            aria-label="Search suggestions"
-            style={{
-              position: 'absolute',
-              top: 'calc(100% + 6px)',
-              left: 0,
-              right: 0,
-              background: '#ffffff',
-              borderRadius: 14,
-              border: '1.5px solid #bde5bf',
-              boxShadow: '0 14px 32px rgba(24, 43, 32, 0.16)',
-              padding: 8,
-              zIndex: 80,
-              maxHeight: 360,
-              overflowY: 'auto',
-            }}
-          >
-            <div
-              style={{
-                padding: '4px 10px 6px',
-                fontSize: 11.5,
-                fontWeight: 700,
-                color: '#5c6e54',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-                display: 'flex',
-                justifyContent: 'space-between',
-              }}
-            >
-              <span>Live AJAX suggestions for &ldquo;{search.trim()}&rdquo;</span>
+          <div role="listbox" aria-label="Search suggestions" className="hub-suggestions-popover">
+            <div className="hub-suggestions-head">
+              <span>Live matches for &ldquo;{search.trim()}&rdquo;</span>
               <span>{suggestions.length} found</span>
             </div>
 
             {suggestions.length === 0 && !suggestLoading ? (
-              <div style={{ padding: '12px 10px', fontSize: 14, color: '#6b7280' }}>
+              <div className="hub-suggestions-empty">
                 No matching hubs, campus zones, or available vehicles found.
               </div>
             ) : (
@@ -311,100 +253,34 @@ export function HubListPage() {
                     aria-selected={isActive}
                     onMouseEnter={() => setActiveIndex(idx)}
                     onClick={() => handleSelectSuggestion(item)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      padding: '10px 12px',
-                      borderRadius: 10,
-                      cursor: 'pointer',
-                      background: isActive ? '#eff9eb' : 'transparent',
-                      flexWrap: 'wrap',
-                    }}
+                    className={`hub-suggestion-row ${isActive ? 'is-active' : ''}`}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <span
-                        style={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: 10,
-                          background: item.kind === 'VEHICLE' ? '#e0f2fe' : '#eff9eb',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 17,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {item.kind === 'VEHICLE'
-                          ? item.vehicleType === 'ELECTRIC_SCOOTER'
-                            ? '🛴'
-                            : '🚲'
-                          : '🏢'}
+                    <div className="hub-suggestion-main">
+                      <span className={`hub-suggestion-tag ${item.kind === 'VEHICLE' ? 'is-ev' : 'is-hub'}`}>
+                        {item.kind === 'VEHICLE' ? 'EV' : 'HUB'}
                       </span>
                       <div>
-                        <div
-                          style={{
-                            fontSize: 14.5,
-                            fontWeight: 600,
-                            color: '#1f3b24',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            flexWrap: 'wrap',
-                          }}
-                        >
+                        <div className="hub-suggestion-title">
                           <span>
                             <HighlightMatch text={item.title} query={search} />
                           </span>
                           {item.kind === 'HUB' && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                padding: '1px 7px',
-                                borderRadius: 999,
-                                background:
-                                  status === 'FULL'
-                                    ? '#fee2e2'
-                                    : status === 'NEAR_FULL'
-                                    ? '#fef3c7'
-                                    : '#dcfce7',
-                                color:
-                                  status === 'FULL'
-                                    ? '#991b1b'
-                                    : status === 'NEAR_FULL'
-                                    ? '#92400e'
-                                    : '#166534',
-                              }}
-                            >
+                            <span className={`hub-status-pill status-${status.toLowerCase()}`}>
                               {status.replace('_', ' ')}
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: 12.5, color: '#556b5d', marginTop: 1 }}>
+                        <div className="hub-suggestion-sub">
                           <HighlightMatch text={item.subtitle} query={search} />
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span
-                        style={{
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          color: '#2b581c',
-                          background: '#f5fbf5',
-                          border: '1px solid #d7ead7',
-                          padding: '3px 9px',
-                          borderRadius: 999,
-                        }}
-                      >
-                        {item.meta}
-                      </span>
+                    <div className="hub-suggestion-right">
+                      <span className="hub-suggestion-meta">{item.meta}</span>
                       <button
                         type="button"
+                        className="hub-suggestion-btn"
                         onClick={(e) => {
                           e.stopPropagation();
                           setDropdownOpen(false);
@@ -414,18 +290,8 @@ export function HubListPage() {
                               : `/student/hubs/${item.hubId}/info`
                           );
                         }}
-                        style={{
-                          background: '#cdf4cf',
-                          color: '#1f3b24',
-                          border: 'none',
-                          borderRadius: 8,
-                          padding: '5px 10px',
-                          fontSize: 12.5,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
                       >
-                        {item.kind === 'VEHICLE' ? 'Rent →' : 'Open →'}
+                        {item.kind === 'VEHICLE' ? 'Rent' : 'Open'}
                       </button>
                     </div>
                   </div>
@@ -437,28 +303,28 @@ export function HubListPage() {
       </div>
 
       <div className="vehicle-type-filter">
-        <span>Choose vehicle</span>
-        <div>
+        <span>Filter fleet</span>
+        <div className="vehicle-type-filter__group">
           <button
             type="button"
             className={vehicleType === 'ALL' ? 'active' : ''}
             onClick={() => setVehicleType('ALL')}
           >
-            All hubs {vehicleType === 'ALL' && '✓'}
+            All hubs
           </button>
           <button
             type="button"
             className={vehicleType === 'ELECTRIC_BIKE' ? 'active' : ''}
             onClick={() => setVehicleType('ELECTRIC_BIKE')}
           >
-            🚲 Electric bike {vehicleType === 'ELECTRIC_BIKE' && '✓'}
+            Electric bike
           </button>
           <button
             type="button"
             className={vehicleType === 'ELECTRIC_SCOOTER' ? 'active' : ''}
             onClick={() => setVehicleType('ELECTRIC_SCOOTER')}
           >
-            🛴 Electric scooter {vehicleType === 'ELECTRIC_SCOOTER' && '✓'}
+            Electric scooter
           </button>
         </div>
       </div>
@@ -468,45 +334,31 @@ export function HubListPage() {
       <h2 className="nearby-hubs-title">
         {search.trim()
           ? `Matching hubs for "${search.trim()}" (${hubs.length})`
-          : `Available hubs nearby (${hubs.length})`}
+          : `Campus hubs (${hubs.length})`}
       </h2>
       {loading ? (
-        <p>Loading Mobility Hubs...</p>
+        <p className="muted-loading">Loading mobility hubs...</p>
       ) : (
         <div className="nearby-hub-list">
           {hubs.map((hub) => {
             const status = String(hub.status || 'ACTIVE').toUpperCase();
+            const isSelected = Number(selectedHubId) === Number(hub.id);
             return (
-              <article key={hub.id} className="nearby-hub-row">
+              <article
+                key={hub.id}
+                className={`nearby-hub-row ${isSelected ? 'is-selected' : ''}`}
+                onClick={() => setSelectedHubId(hub.id)}
+              >
                 <div className="nearby-hub-info">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <h3 style={{ margin: 0 }}>
+                  <div className="nearby-hub-title-row">
+                    <h3>
                       <HighlightMatch text={hub.name} query={search} />
                     </h3>
-                    <span
-                      style={{
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        padding: '2px 9px',
-                        borderRadius: 999,
-                        background:
-                          status === 'FULL'
-                            ? '#fee2e2'
-                            : status === 'NEAR_FULL'
-                            ? '#fef3c7'
-                            : '#dcfce7',
-                        color:
-                          status === 'FULL'
-                            ? '#991b1b'
-                            : status === 'NEAR_FULL'
-                            ? '#92400e'
-                            : '#166534',
-                      }}
-                    >
+                    <span className={`hub-status-pill status-${status.toLowerCase()}`}>
                       {status.replace('_', ' ')}
                     </span>
                   </div>
-                  <p style={{ marginTop: 4 }}>
+                  <p>
                     <HighlightMatch
                       text={`${hub.campusZone}${hub.address ? ` · ${hub.address}` : ''}`}
                       query={search}
@@ -514,28 +366,30 @@ export function HubListPage() {
                   </p>
                 </div>
 
-                <div
-                  className="nearby-hub-availability"
-                  style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}
-                >
-                  <span style={pillBadgeStyle}>🚲 {hub.availableBikes} bikes</span>
-                  <span style={pillBadgeStyle}>🛴 {hub.availableScooters} scooters</span>
-                  <span style={pillBadgeStyle}>🅿️ {hub.freeParkingSlots ?? 0} free parking</span>
-                  <span style={pillBadgeStyle}>
-                    ⚡ {hub.availableChargingPoints ?? 0} free chargers
+                <div className="nearby-hub-availability">
+                  <span className="metric-pill">
+                    <strong>{hub.availableBikes}</strong> bikes
+                  </span>
+                  <span className="metric-pill">
+                    <strong>{hub.availableScooters}</strong> scooters
+                  </span>
+                  <span className="metric-pill">
+                    <strong>{hub.freeParkingSlots ?? 0}</strong> free parking
+                  </span>
+                  <span className="metric-pill">
+                    <strong>{hub.availableChargingPoints ?? 0}</strong> free chargers
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <div className="nearby-hub-actions" onClick={(e) => e.stopPropagation()}>
                   <Link
                     to={`/student/hubs/${hub.id}/vehicles`}
-                    className="view-vehicles-button"
-                    style={{ background: '#cdf4cf', color: '#1f3b24', fontWeight: 700 }}
+                    className="view-vehicles-button view-vehicles-button--primary"
                   >
                     Rent vehicle
                   </Link>
                   <Link to={`/student/hubs/${hub.id}/info`} className="view-vehicles-button">
-                    Hub services →
+                    Hub services
                   </Link>
                 </div>
               </article>
@@ -549,13 +403,3 @@ export function HubListPage() {
     </div>
   );
 }
-
-const pillBadgeStyle = {
-  background: '#ffffff',
-  border: '1px solid #d7ead7',
-  borderRadius: 999,
-  padding: '4px 10px',
-  fontSize: 13,
-  fontWeight: 600,
-  color: '#1f3b24',
-};

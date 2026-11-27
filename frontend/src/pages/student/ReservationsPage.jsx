@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { hubApi, reservationApi, vehicleApi } from '../../api';
 import { useAuth } from '../../context/AuthContext';
@@ -7,9 +7,28 @@ import {
   findFirstFreeHour,
   isWindowBooked,
 } from '../../components/common/TimeSlotWeekPicker';
-import vehicleImage from '../../components/common/images/vehicle.jpg';
+import { formatVnd, getRentalHourlyRateVnd } from '../../utils/currency';
+import { EvIllustration } from '../../components/common/EvIllustration';
+import {
+  QuickGuideStrip,
+  LifecycleStepper,
+  getReadableStatusMeta,
+} from '../../components/common/QuickGuideStrip';
 
-const HOURLY_RATE = 3;
+const RESERVATION_GUIDE = [
+  {
+    title: 'Request EV Hold',
+    desc: 'Submit your booking — vehicle is held immediately while awaiting operator review.',
+  },
+  {
+    title: 'Operator Approval & QR',
+    desc: 'Once approved, unlock via optical QR scan or decline/cancel free of charge.',
+  },
+  {
+    title: 'Live Ride & Hub Return',
+    desc: 'Track elapsed ride time and return to any VNU-HCM hub with free spaces.',
+  },
+];
 
 function getLocalDate(date) {
   const year = date.getFullYear();
@@ -39,15 +58,19 @@ function normalizeReservation(reservation) {
     hubName: reservation.hubName ?? reservation.hub_name ?? '',
     vehicleId: Number(reservation.vehicleId ?? reservation.vehicle_id),
     vehicleCode: reservation.vehicleCode ?? reservation.vehicle_code ?? '',
-    parkingSlotCode: reservation.parkingSlotCode
-      ?? reservation.parking_slot_code
-      ?? reservation.slotCode
-      ?? reservation.rackPositionCode
-      ?? '',
+    parkingSlotCode:
+      reservation.parkingSlotCode ??
+      reservation.parking_slot_code ??
+      reservation.slotCode ??
+      reservation.rackPositionCode ??
+      '',
     startTime: reservation.startTime ?? reservation.start_time ?? '',
     endTime: reservation.endTime ?? reservation.end_time ?? '',
-    reservationType: String(reservation.reservationType ?? reservation.reservation_type ?? 'VEHICLE').toUpperCase(),
-    status: String(reservation.status ?? 'CONFIRMED').toUpperCase(),
+    actualPickupTime: reservation.actualPickupTime ?? reservation.actual_pickup_time ?? '',
+    reservationType: String(
+      reservation.reservationType ?? reservation.reservation_type ?? 'VEHICLE'
+    ).toUpperCase(),
+    status: String(reservation.status ?? 'PENDING').toUpperCase(),
   };
 }
 
@@ -55,7 +78,7 @@ function formatTime(value) {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function formatDate(value) {
@@ -73,21 +96,23 @@ function reservationHours(reservation) {
 }
 
 function getPositionCode(reservation, vehicle) {
-  return reservation.parkingSlotCode
-    || reservation.rackCode
-    || reservation.rackId
-    || reservation.positionCode
-    || vehicle?.parkingSlotCode
-    || vehicle?.rackCode
-    || vehicle?.rackId
-    || vehicle?.positionCode
-    || vehicle?.slotCode
-    || vehicle?.rackPositionCode
-    || 'B-04';
+  return (
+    reservation.parkingSlotCode ||
+    reservation.rackCode ||
+    reservation.rackId ||
+    reservation.positionCode ||
+    vehicle?.parkingSlotCode ||
+    vehicle?.rackCode ||
+    vehicle?.rackId ||
+    vehicle?.positionCode ||
+    vehicle?.slotCode ||
+    vehicle?.rackPositionCode ||
+    'A-02'
+  );
 }
 
 function getVehicleKind(vehicle, vehicleCode) {
-  const type = String(vehicle?.type || '').toUpperCase();
+  const type = String(vehicle?.type || vehicle?.vehicleType || '').toUpperCase();
   return type === 'ELECTRIC_SCOOTER' || String(vehicleCode || '').startsWith('ES-')
     ? 'scooter'
     : 'bike';
@@ -97,11 +122,25 @@ function getPickupLocation(hubName, campusZone) {
   const shortName = String(hubName || 'HCMUT Main Gate').replace(/\s+Hub$/i, '');
   const zone = /^HCMUT Main Gate$/i.test(shortName)
     ? 'Campus main gate'
-    : campusZone || 'Campus main gate';
-  return `${shortName} hub, ${zone}`;
+    : campusZone || 'VNU-HCM Campus';
+  return `${shortName} Hub (${zone})`;
 }
 
-function StaticQrCode() {
+function formatElapsedRide(startIso, nowMs) {
+  const baseMs = startIso ? new Date(startIso).getTime() : NaN;
+  const diffSec = Number.isFinite(baseMs)
+    ? Math.max(0, Math.floor((nowMs - baseMs) / 1000))
+    : 0;
+  const hrs = Math.floor(diffSec / 3600);
+  const mins = Math.floor((diffSec % 3600) / 60);
+  const secs = diffSec % 60;
+  if (hrs > 0) {
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+function AnimatedQrScanner({ codeLabel = 'SEMH-QR' }) {
   const cells = [];
   for (let y = 0; y < 21; y += 1) {
     for (let x = 0; x < 21; x += 1) {
@@ -115,8 +154,12 @@ function StaticQrCode() {
         const [left, top] = finder;
         const localX = x - left;
         const localY = y - top;
-        isDark = localX === 0 || localX === 6 || localY === 0 || localY === 6
-          || (localX >= 2 && localX <= 4 && localY >= 2 && localY <= 4);
+        isDark =
+          localX === 0 ||
+          localX === 6 ||
+          localY === 0 ||
+          localY === 6 ||
+          (localX >= 2 && localX <= 4 && localY >= 2 && localY <= 4);
       } else {
         isDark = (x * 11 + y * 17 + x * y * 3) % 7 < 3;
       }
@@ -125,10 +168,27 @@ function StaticQrCode() {
   }
 
   return (
-    <svg className="reservation-qr-svg" viewBox="0 0 23 23" role="img" aria-label="Static QR code">
-      <rect width="23" height="23" fill="#fff" />
-      <g fill="#111">{cells}</g>
-    </svg>
+    <div className="qr-scanner-frame" aria-label={`QR unlock scanner for ${codeLabel}`}>
+      <div className="qr-scanner-reticle">
+        <span className="qr-corner qr-corner--tl" aria-hidden="true" />
+        <span className="qr-corner qr-corner--tr" aria-hidden="true" />
+        <span className="qr-corner qr-corner--bl" aria-hidden="true" />
+        <span className="qr-corner qr-corner--br" aria-hidden="true" />
+
+        <div className="qr-scanner-viewport">
+          <svg className="reservation-qr-svg" viewBox="0 0 23 23" role="img" aria-label="Vehicle unlock QR code">
+            <rect width="23" height="23" fill="#ffffff" />
+            <g fill="#0f172a">{cells}</g>
+          </svg>
+          <div className="qr-laser-beam" aria-hidden="true" />
+        </div>
+      </div>
+
+      <div className="qr-scanner-status">
+        <span className="live-pulse-dot" />
+        <span>OPTICAL SCAN ACTIVE · {codeLabel}</span>
+      </div>
+    </div>
   );
 }
 
@@ -148,38 +208,75 @@ export function ReservationsPage() {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [returnHubId, setReturnHubId] = useState('');
   const [vehicleBookings, setVehicleBookings] = useState([]);
+  const [listFilter, setListFilter] = useState('ACTIVE');
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const reload = async () => {
+  // Live 1-second ticker for active rides
+  useEffect(() => {
+    const tick = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, []);
+
+  const reload = useCallback(async () => {
     const [reservationData, hubData] = await Promise.all([
       reservationApi.getMyReservations(user?.id),
       hubApi.getHubs(),
     ]);
-    setReservations(reservationData.map(normalizeReservation));
-    setHubs(hubData);
-    if (hubData[0]) {
-      setReturnHubId((current) => current || String(hubData[0].id));
-      setPickupHubId((current) => current || String(hubData[0].id));
+    const normalized = (reservationData || []).map(normalizeReservation);
+    setReservations(normalized);
+    setHubs(hubData || []);
+
+    setSelectedReservation((prev) => {
+      if (!prev) return prev;
+      const fresh = normalized.find((item) => item.id === prev.id);
+      return fresh ? { ...prev, ...fresh, vehicle: prev.vehicle || null } : prev;
+    });
+
+    if (!pickupHubId && hubData?.length) {
+      setPickupHubId(String(location.state?.hub?.id || hubData[0].id));
     }
-    return reservationData.map(normalizeReservation);
-  };
+    return { reservations: normalized, hubs: hubData || [] };
+  }, [user?.id, pickupHubId, location.state?.hub?.id]);
 
   useEffect(() => {
-    reload().catch((loadError) => setError(loadError.message || 'Unable to load reservations.'));
+    setLoading(true);
+    setError('');
+    reload()
+      .then(({ reservations: loaded }) => {
+        const hasOpen = loaded.some(
+          (r) => r.reservationType === 'VEHICLE' && ['PENDING', 'CONFIRMED', 'ACTIVE'].includes(r.status)
+        );
+        if (!hasOpen) setListFilter('ALL');
+      })
+      .catch((loadError) => setError(loadError.message || 'Unable to load reservations.'))
+      .finally(() => setLoading(false));
   }, [user?.id]);
 
+  // Poll every 6 seconds so Operator Approve / Reject updates Student screen automatically!
   useEffect(() => {
-    if (draftVehicle && draftHub) setPickupHubId(String(draftHub.id));
-  }, [draftVehicle, draftHub]);
+    const poll = setInterval(() => {
+      reload().catch(() => {});
+    }, 6000);
+    return () => clearInterval(poll);
+  }, [reload]);
 
   useEffect(() => {
-    if (!pickupHubId) return;
+    if (!location.state?.vehicle) return;
+    setDraftVehicle(location.state.vehicle);
+    setDraftHub(location.state.hub || null);
+    setPickupHubId(String(location.state.hub?.id || location.state.vehicle.currentHubId || ''));
+    setStage('booking');
+  }, [location.state]);
+
+  useEffect(() => {
+    if (stage !== 'booking' || !pickupHubId) return;
     hubApi
       .getBookedWindows(pickupHubId)
-      .then((w) => setVehicleBookings(w?.vehicleBookings || []))
+      .then((res) => setVehicleBookings(res?.vehicleBookings || []))
       .catch(() => setVehicleBookings([]));
-  }, [pickupHubId]);
+  }, [stage, pickupHubId]);
 
   const bookedIntervalsForDraftVehicle = useMemo(() => {
     if (!draftVehicle?.id) return [];
@@ -187,7 +284,7 @@ export function ReservationsPage() {
   }, [vehicleBookings, draftVehicle?.id]);
 
   useEffect(() => {
-    if (!draftVehicle || !bookingDate) return;
+    if (stage !== 'booking' || !bookingDate) return;
     const curStartMs = pickupTime ? new Date(`${bookingDate}T${pickupTime}:00`).getTime() : NaN;
     const curEndMs = curStartMs + Number(durationHours || 1) * 3600 * 1000;
     const isInvalid =
@@ -201,66 +298,78 @@ export function ReservationsPage() {
       setPickupTime(nextFree);
       if (nextFree) setDurationHours(1);
     }
-  }, [bookingDate, draftVehicle, bookedIntervalsForDraftVehicle]);
+  }, [stage, bookingDate, bookedIntervalsForDraftVehicle]);
 
-  const currentPickupHub = hubs.find((hub) => String(hub.id) === String(pickupHubId)) || draftHub;
-  const duration = Number(durationHours);
+  const vehicleReservations = useMemo(
+    () => reservations.filter((item) => item.reservationType === 'VEHICLE'),
+    [reservations]
+  );
+
+  const openVehicleReservations = useMemo(
+    () => vehicleReservations.filter((item) => ['PENDING', 'CONFIRMED', 'ACTIVE'].includes(item.status)),
+    [vehicleReservations]
+  );
+
+  const historyVehicleReservations = useMemo(
+    () => vehicleReservations.filter((item) => !['PENDING', 'CONFIRMED', 'ACTIVE'].includes(item.status)),
+    [vehicleReservations]
+  );
+
+  const hasOpenRental = openVehicleReservations.length > 0;
+  const duration = Math.max(1, Number(durationHours) || 1);
+  const draftHourlyRateVnd = getRentalHourlyRateVnd(draftVehicle);
+  const feeVnd = duration * draftHourlyRateVnd;
+
   const endTime = useMemo(() => {
     if (!pickupTime) return '';
-    const [hours, minutes] = pickupTime.split(':').map(Number);
-    const end = new Date(2000, 0, 1, hours, minutes + duration * 60);
+    const [hh, mm] = pickupTime.split(':').map(Number);
+    const end = new Date(2000, 0, 1, hh, mm + duration * 60);
     return `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
   }, [pickupTime, duration]);
-  const fee = duration * HOURLY_RATE;
-  const today = getLocalDate(new Date());
-  const nowTime = `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
 
-  const openReservation = async (item, nextStage) => {
+  const findReturnHub = (hubList, preferredHubId) => {
+    const withParking = hubList.find(
+      (hub) => hub.id === Number(preferredHubId) && Number(hub.freeParkingSlots) > 0
+    );
+    if (withParking) return String(withParking.id);
+    const firstAvailable = hubList.find((hub) => Number(hub.freeParkingSlots) > 0);
+    return String(firstAvailable?.id || hubList[0]?.id || '');
+  };
+
+  const openReservation = async (reservation, nextStage) => {
+    setError('');
+    setLoading(true);
     try {
-      setError('');
-      setLoading(true);
-      let reservation = normalizeReservation(item);
-      let vehicle = item.vehicle || null;
-      if (!vehicle && reservation.hubId && reservation.vehicleId) {
-        const vehicles = await vehicleApi.getVehicles({ hubId: reservation.hubId });
-        vehicle = vehicles.find((entry) => Number(entry.id) === reservation.vehicleId) || null;
-        reservation = {
-          ...reservation,
-          parkingSlotCode: reservation.parkingSlotCode || getPositionCode(reservation, vehicle),
-        };
-      }
-      setSelectedReservation({
-        ...reservation,
-        vehicle,
-        parkingSlotCode: reservation.parkingSlotCode || getPositionCode(reservation, vehicle),
-      });
-      setReturnHubId(String(reservation.hubId || hubs[0]?.id || ''));
+      const vehicles = reservation.hubId
+        ? await vehicleApi.getVehicles({ hubId: reservation.hubId }).catch(() => [])
+        : [];
+      const vehicle = vehicles.find(
+        (item) => item.id === reservation.vehicleId || item.code === reservation.vehicleCode
+      );
+      const merged = { ...reservation, vehicle: vehicle || null };
+      setSelectedReservation(merged);
+      setReturnHubId(findReturnHub(hubs, reservation.hubId));
       setStage(nextStage);
-    } catch (loadError) {
-      setError(loadError.message || 'Unable to load vehicle pickup details.');
     } finally {
       setLoading(false);
     }
   };
 
-  const hasOpenRental = reservations.some(r => r.reservationType === 'VEHICLE' && ['CONFIRMED', 'ACTIVE'].includes(r.status));
   const handleBook = async (event) => {
     event.preventDefault();
-    setError('');
-    if (hasOpenRental) { setError('Cancel your existing vehicle reservation or return the vehicle before booking another.'); return; }
-    if (!draftVehicle || !currentPickupHub || !bookingDate || !pickupTime) {
-      setError('Choose a vehicle, pickup hub, date, and pickup time.');
+    if (!draftVehicle) return;
+    if (!bookingDate || !pickupTime) {
+      setError('Please select an available (unshaded) pickup hour.');
       return;
     }
 
-    const start = new Date(`${bookingDate}T${pickupTime}`);
+    const [hh, mm] = pickupTime.split(':').map(Number);
+    const [yy, mo, dd] = bookingDate.split('-').map(Number);
+    const start = new Date(yy, mo - 1, dd, hh, mm, 0);
     const end = new Date(start.getTime() + duration * 60 * 60 * 1000);
-    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
-      setError('Enter a valid pickup date and time.');
-      return;
-    }
-    if (start.getTime() < Date.now() - 60000) {
-      setError('Pickup date and time cannot be in the past.');
+
+    if (isWindowBooked(start.getTime(), end.getTime(), bookedIntervalsForDraftVehicle)) {
+      setError('Selected range overlaps a booked slot. Please choose free hours.');
       return;
     }
 
@@ -269,39 +378,38 @@ export function ReservationsPage() {
       `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
         d.getHours()
       )}:${pad(d.getMinutes())}:00`;
-    const localStartStr = toLocalStr(start);
-    const localEndStr = toLocalStr(end);
 
+    setError('');
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await reservationApi.reserveVehicle({
+      const created = await reservationApi.reserveVehicle({
         userId: user?.id,
-        hubId: Number(currentPickupHub.id),
-        vehicleId: Number(draftVehicle.id),
-        startTime: localStartStr,
-        endTime: localEndStr,
+        hubId: Number(pickupHubId || draftHub?.id || draftVehicle.currentHubId),
+        vehicleId: draftVehicle.id,
+        startTime: toLocalStr(start),
+        endTime: toLocalStr(end),
       });
-      const createdReservation = normalizeReservation({
-        ...response,
-        userId: user?.id,
-        reservationType: 'VEHICLE',
-        hubId: Number(currentPickupHub.id),
-        hubName: currentPickupHub.name,
-        vehicleId: Number(draftVehicle.id),
-        vehicleCode: draftVehicle.code,
-        parkingSlotCode: getPositionCode({}, draftVehicle),
-        startTime: localStartStr,
-        endTime: localEndStr,
-        status: response.status || 'CONFIRMED',
-      });
-      setSelectedReservation({ ...createdReservation, vehicle: draftVehicle });
+      const { reservations: latest } = await reload();
+      const matched =
+        latest.find((item) => item.id === created.id) ||
+        normalizeReservation({
+          ...created,
+          hubId: Number(pickupHubId || draftHub?.id || draftVehicle.currentHubId),
+          hubName:
+            hubs.find((hub) => String(hub.id) === String(pickupHubId))?.name ||
+            draftHub?.name ||
+            draftVehicle.currentHubName,
+          vehicleId: draftVehicle.id,
+          vehicleCode: draftVehicle.code,
+          parkingSlotCode: getPositionCode({}, draftVehicle),
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+        });
+      setSelectedReservation({ ...matched, vehicle: draftVehicle });
+      setListFilter('ACTIVE');
       setStage('pickup');
-      setDraftVehicle(null);
-      setDraftHub(null);
-      navigate(location.pathname, { replace: true, state: null });
-      await reload();
     } catch (requestError) {
-      setError(requestError.message || 'Unable to confirm this booking.');
+      setError(requestError.message || 'Unable to confirm vehicle reservation.');
     } finally {
       setLoading(false);
     }
@@ -309,14 +417,20 @@ export function ReservationsPage() {
 
   const handlePickup = async () => {
     if (!selectedReservation) return;
+    setError('');
+    setLoading(true);
     try {
-      setError('');
-      setLoading(true);
-      const result = await reservationApi.pickupReservation(selectedReservation.id);
-      const updated = { ...selectedReservation, ...result, status: 'ACTIVE' };
-      setSelectedReservation(updated);
+      await reservationApi.pickupReservation(selectedReservation.id);
+      const { reservations: latest, hubs: latestHubs } = await reload();
+      const active =
+        latest.find((item) => item.id === selectedReservation.id) || {
+          ...selectedReservation,
+          status: 'ACTIVE',
+          actualPickupTime: new Date().toISOString(),
+        };
+      setSelectedReservation({ ...active, vehicle: selectedReservation.vehicle });
+      setReturnHubId(findReturnHub(latestHubs, active.hubId));
       setStage('return');
-      await reload();
     } catch (requestError) {
       setError(requestError.message || 'Unable to confirm pickup.');
     } finally {
@@ -324,30 +438,18 @@ export function ReservationsPage() {
     }
   };
 
-  const handleReturn = async () => {
-    if (!selectedReservation) return;
+  const handleCancelOrDecline = async (targetRes = selectedReservation, reason = '') => {
+    if (!targetRes) return;
+    setError('');
+    setLoading(true);
     try {
-      setError('');
-      setLoading(true);
-      const result = await reservationApi.returnReservation(selectedReservation.id, {
-        returnHubId: Number(returnHubId),
-      });
-      setSelectedReservation({ ...selectedReservation, ...result, status: 'COMPLETED' });
+      await reservationApi.cancelReservation(targetRes.id, reason);
       await reload();
-    } catch (requestError) {
-      setError(requestError.message || 'Unable to confirm return.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!selectedReservation) return;
-    try {
-      setError('');
-      setLoading(true);
-      await reservationApi.cancelReservation(selectedReservation.id);
-      navigate(`/student/hubs/${selectedReservation.hubId}/vehicles`);
+      if (selectedReservation && targetRes.id === selectedReservation.id) {
+        setSelectedReservation(null);
+        setDraftVehicle(null);
+        setStage('list');
+      }
     } catch (requestError) {
       setError(requestError.message || 'Unable to cancel reservation.');
     } finally {
@@ -355,18 +457,46 @@ export function ReservationsPage() {
     }
   };
 
-  const handleBackToList = () => {
-    setSelectedReservation(null);
-    setStage('list');
-    reload().catch((loadError) => setError(loadError.message || 'Unable to refresh reservations.'));
+  const handleReturn = async () => {
+    if (!selectedReservation || !returnHubId) return;
+    setError('');
+    setLoading(true);
+    try {
+      await reservationApi.returnReservation(selectedReservation.id, {
+        hubId: Number(returnHubId),
+        returnHubId: Number(returnHubId),
+      });
+      const { reservations: latest } = await reload();
+      const completed =
+        latest.find((item) => item.id === selectedReservation.id) || {
+          ...selectedReservation,
+          status: 'COMPLETED',
+        };
+      setSelectedReservation({ ...completed, vehicle: selectedReservation.vehicle });
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to confirm vehicle return.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const vehicleReservations = reservations.filter((reservation) =>
-    reservation.reservationType === 'VEHICLE');
+  const handleBackToList = () => {
+    setError('');
+    setDraftVehicle(null);
+    setSelectedReservation(null);
+    setStage('list');
+    navigate('/student/reservations', { replace: true });
+  };
+
   const selectedReturnHub = hubs.find((hub) => String(hub.id) === String(returnHubId));
-  const positionCode = selectedReservation ? getPositionCode(selectedReservation, selectedReservation.vehicle) : 'B-04';
+  const positionCode = selectedReservation
+    ? getPositionCode(selectedReservation, selectedReservation.vehicle)
+    : 'A-02';
   const selectedDuration = selectedReservation ? reservationHours(selectedReservation) : duration;
-  const selectedFee = selectedDuration * HOURLY_RATE;
+  const selectedHourlyRateVnd = getRentalHourlyRateVnd(
+    selectedReservation?.vehicle || selectedReservation?.vehicleCode
+  );
+  const selectedFeeVnd = selectedDuration * selectedHourlyRateVnd;
   const selectedVehicleKind = selectedReservation
     ? getVehicleKind(selectedReservation.vehicle, selectedReservation.vehicleCode)
     : 'bike';
@@ -376,27 +506,36 @@ export function ReservationsPage() {
   const pickupLocation = selectedReservation
     ? getPickupLocation(selectedReservation.hubName || selectedHub?.name, selectedHub?.campusZone)
     : '';
-  const batteryLevel = Number(selectedReservation?.vehicle?.batteryLevel);
+  const batteryLevel = Number(
+    selectedReservation?.vehicle?.batteryLevel ?? selectedReservation?.batteryLevel
+  );
 
+  // ============================================================================
+  // STAGE 1: NEW VEHICLE BOOKING
+  // ============================================================================
   if (stage === 'booking' && draftVehicle) {
     return (
       <main className="reservation-flow-page reservation-flow-page--booking">
         <header className="reservation-flow-heading">
-          <h1>Reserve your electric {draftVehicle.type === 'ELECTRIC_SCOOTER' ? 'scooter' : 'bike'}</h1>
-          <p>Choose your pickup time.</p>
+          <h1>Reserve electric {draftVehicle.type === 'ELECTRIC_SCOOTER' ? 'scooter' : 'bike'}</h1>
+          <p>Select your pickup window. Once submitted, hub staff will approve your QR unlock.</p>
         </header>
+
+        <QuickGuideStrip steps={RESERVATION_GUIDE} />
+
         {error && <p className="reservation-flow-error" role="alert">{error}</p>}
         <div className="reservation-booking-grid">
           <section className="reservation-vehicle-card">
             <h2>Chosen vehicle</h2>
             <div className="reservation-vehicle-image">
-              <img src={vehicleImage} alt="Electric rental vehicle" />
+              <EvIllustration variant={draftVehicle.type === 'ELECTRIC_SCOOTER' ? 'scooter' : 'bike'} />
             </div>
             <p className="reservation-vehicle-name">
-              {draftVehicle.model || 'Electric vehicle'} {draftVehicle.code}
+              {draftVehicle.model || 'Electric vehicle'} · {draftVehicle.code}
             </p>
             <div className="reservation-battery-label">
-              <span>Battery: {draftVehicle.batteryLevel ?? 0}%</span>
+              <span>Battery level</span>
+              <strong>{draftVehicle.batteryLevel ?? 0}%</strong>
             </div>
             <div className="reservation-battery-track">
               <span style={{ width: `${Math.min(100, Math.max(0, Number(draftVehicle.batteryLevel) || 0))}%` }} />
@@ -404,14 +543,16 @@ export function ReservationsPage() {
             <p className="reservation-vehicle-location">
               {getPickupLocation(draftHub?.name || draftVehicle.currentHubName, draftHub?.campusZone)}
             </p>
-            <p className="reservation-vehicle-rate">Available <span>·</span> $3 / hour</p>
+            <p className="reservation-vehicle-rate">
+              Student rate · <strong>{formatVnd(draftHourlyRateVnd)} / hour</strong>
+            </p>
           </section>
 
           <section className="reservation-details-card">
-            <h2>Reservation details</h2>
-            <form onSubmit={handleBook} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <label>
-                Pickup hub
+            <h2>Select window</h2>
+            <form onSubmit={handleBook} className="reservation-booking-form">
+              <label className="reservation-hub-select-label">
+                <span>Pickup hub</span>
                 <select value={pickupHubId} onChange={(event) => setPickupHubId(event.target.value)} required>
                   {hubs.map((hub) => (
                     <option key={hub.id} value={hub.id}>{hub.name.replace(/\s+Hub$/i, '')}</option>
@@ -436,181 +577,322 @@ export function ReservationsPage() {
                 disabled={loading}
               />
 
-              <h3>Booking summary</h3>
               <div className="reservation-summary-row">
-                <span>Ride / return time</span>
-                <strong>{pickupTime ? `${pickupTime} – ${endTime}` : 'No free slot on this day'}</strong>
+                <span>Window</span>
+                <strong>{pickupTime ? `${pickupTime} – ${endTime}` : 'No free slot'}</strong>
               </div>
               <div className="reservation-summary-row">
-                <span>Total · {duration} {duration === 1 ? 'hour' : 'hours'} × $3</span>
-                <strong>${fee.toFixed(2)}</strong>
+                <span>Estimated total ({duration}h × {formatVnd(draftHourlyRateVnd)})</span>
+                <strong>{formatVnd(feeVnd)}</strong>
               </div>
-              {hasOpenRental && <p className="reservation-flow-error" role="alert">You already have a reservation or rental. Cancel it or return the vehicle first.</p>}
-              <button className="reservation-primary-long-button" type="submit" disabled={loading || !pickupTime || hasOpenRental}>
-                {loading ? 'Confirming...' : 'Confirm booking'}
+              {hasOpenRental && (
+                <p className="reservation-flow-error" role="alert">
+                  You already have an open reservation or active ride. Complete or cancel it first.
+                </p>
+              )}
+              <button
+                className="reservation-primary-long-button"
+                type="submit"
+                disabled={loading || !pickupTime || hasOpenRental}
+              >
+                {loading ? 'Submitting request...' : 'Submit booking request'}
               </button>
             </form>
           </section>
         </div>
         <button className="reservation-back-link" type="button" onClick={() => navigate(-1)}>
-          ← Back to vehicle availability
+          ← Back to vehicles
         </button>
       </main>
     );
   }
 
+  // ============================================================================
+  // STAGE 2: PENDING APPROVAL OR APPROVED QR PICKUP
+  // ============================================================================
   if (stage === 'pickup' && selectedReservation) {
+    const isPending = selectedReservation.status === 'PENDING';
+    const isRejectedOrCancelled = ['CANCELLED', 'EXPIRED'].includes(selectedReservation.status);
+    const statusMeta = getReadableStatusMeta(selectedReservation);
+
     return (
       <main className="reservation-flow-page reservation-flow-page--pickup">
         <header className="reservation-flow-heading">
-          <h1>Pick up your electric {selectedVehicleKind}</h1>
-          <p>Follow the instructions below to pick up your vehicle.</p>
+          <h1>
+            {isPending
+              ? 'Awaiting operator approval'
+              : isRejectedOrCancelled
+              ? 'Booking closed'
+              : `Unlock your electric ${selectedVehicleKind}`}
+          </h1>
+          <p>
+            {isPending
+              ? 'Your vehicle is held. This page updates automatically as soon as hub staff approves.'
+              : isRejectedOrCancelled
+              ? statusMeta.hint
+              : 'Align the optical QR scanner at the rack to start your ride, or decline free of charge.'}
+          </p>
         </header>
+
+        <div className="reservation-stepper-card">
+          <LifecycleStepper
+            status={selectedReservation.status}
+            cancellationSource={selectedReservation.cancellationSource}
+            reservationType="VEHICLE"
+          />
+        </div>
+
         {error && <p className="reservation-flow-error" role="alert">{error}</p>}
+
         <div className="reservation-pickup-layout">
           <section className="reservation-step-card reservation-pickup-vehicle">
-            <h2>Vehicle details</h2>
+            <div className="reservation-card-head-inline">
+              <h2>Vehicle summary</h2>
+              <span className={`status-tone-pill tone-${statusMeta.tone}`}>{statusMeta.label}</span>
+            </div>
             <div className="reservation-vehicle-image">
-              <img src={vehicleImage} alt={`Electric ${selectedVehicleKind}`} />
+              <EvIllustration variant={selectedVehicleKind} />
             </div>
             <div className="reservation-pickup-vehicle-name">
-              <span>{selectedReservation.vehicle?.model || `Electric ${selectedVehicleKind}`}</span>
+              <span>{selectedReservation.vehicle?.model || `Campus Electric ${selectedVehicleKind}`}</span>
               <strong>{selectedReservation.vehicleCode || '—'}</strong>
             </div>
             <div className="reservation-pickup-details">
-              <div className="reservation-summary-row">
-                <span>Battery level</span>
-                <strong>{Number.isFinite(batteryLevel) ? `${batteryLevel}%` : '—'}</strong>
-              </div>
               {Number.isFinite(batteryLevel) && (
-                <div className="reservation-battery-track">
-                  <span style={{ width: `${Math.min(100, Math.max(0, batteryLevel))}%` }} />
-                </div>
+                <>
+                  <div className="reservation-summary-row">
+                    <span>Battery</span>
+                    <strong>{batteryLevel}%</strong>
+                  </div>
+                  <div className="reservation-battery-track">
+                    <span style={{ width: `${Math.min(100, Math.max(0, batteryLevel))}%` }} />
+                  </div>
+                </>
               )}
               <div className="reservation-summary-row">
-                <span>Pickup hub</span>
-                <strong>{selectedReservation.hubName || 'HCMUT Main Gate Hub'}</strong>
+                <span>Hub &amp; rack</span>
+                <strong>{selectedReservation.hubName || 'Campus Hub'} · {positionCode}</strong>
               </div>
               <div className="reservation-summary-row">
-                <span>Pickup time</span>
-                <strong>{formatDate(selectedReservation.startTime)} · {formatTime(selectedReservation.startTime)}</strong>
+                <span>Window</span>
+                <strong>{formatDate(selectedReservation.startTime)} · {formatTime(selectedReservation.startTime)}–{formatTime(selectedReservation.endTime)}</strong>
               </div>
               <div className="reservation-summary-row">
-                <span>Reservation ID</span>
-                <strong>{selectedReservation.reservationCode || `#${selectedReservation.id}`}</strong>
+                <span>Estimated fee</span>
+                <strong>{formatVnd(selectedFeeVnd)}</strong>
               </div>
             </div>
           </section>
+
           <section className="reservation-step-card reservation-pickup-code-card">
-            <div className="reservation-pickup-instructions">
-              <h3>Pickup instructions</h3>
-              <ol>
-                <li>Go to {pickupLocation}.</li>
-                <li>Find {selectedVehicleKind} {selectedReservation.vehicleCode || 'EB-024'} at rack {positionCode}.</li>
-                <li>Check the {selectedVehicleKind}, then scan its code.</li>
-              </ol>
-            </div>
-            <div className="reservation-pickup-code-content">
-              <div className="reservation-static-qr" aria-label="Static QR code shown as a placeholder">
-                <StaticQrCode />
+            {isPending ? (
+              <div className="pending-approval-box">
+                <span className="pending-approval-pulse" />
+                <h3>Pending Hub Operator review</h3>
+                <p>
+                  Vehicle <strong>{selectedReservation.vehicleCode}</strong> at{' '}
+                  <strong>{pickupLocation}</strong> is locked for your time slot while staff verifies availability.
+                </p>
+                <div className="pending-approval-steps">
+                  <div><strong>Step 1 (Done):</strong> Hold request submitted ({selectedReservation.reservationCode || `#${selectedReservation.id}`})</div>
+                  <div><strong>Step 2 (Waiting):</strong> Operator clicks Approve on Control Console</div>
+                  <div><strong>Step 3 (Next):</strong> Optical QR code appears automatically here</div>
+                </div>
+                <div className="reservation-pickup-actions">
+                  <button
+                    type="button"
+                    className="reservation-action-cancel"
+                    onClick={() => handleCancelOrDecline(selectedReservation, 'Cancelled while pending')}
+                    disabled={loading}
+                  >
+                    {loading ? 'Cancelling...' : 'Cancel request'}
+                  </button>
+                  <button
+                    type="button"
+                    className="reservation-action-secondary-btn"
+                    onClick={() => reload()}
+                    disabled={loading}
+                  >
+                    Refresh status
+                  </button>
+                </div>
               </div>
-              <p>Scan the code to unlock your vehicle.</p>
-            </div>
-            <div style={{color:'#556b5d'}}>Pickup starts your {selectedDuration}-hour rental. Check brakes, tyres and lights before leaving the hub.</div>
-            <div className="reservation-button-row">
-              <button type="button" className="reservation-secondary-button" onClick={handleCancel} disabled={loading}>
-                {loading ? 'Cancelling...' : 'Cancel reservation'}
-              </button>
-              <button type="button" className="reservation-primary-button" onClick={handlePickup} disabled={loading}>
-                {loading ? 'Confirming...' : 'Confirm pickup'}
-              </button>
-            </div>
+            ) : isRejectedOrCancelled ? (
+              <div className="pending-approval-box">
+                <h3>{statusMeta.label}</h3>
+                <p>{statusMeta.hint}. You can reserve another available vehicle from any VNU-HCM hub.</p>
+                <button
+                  type="button"
+                  className="reservation-primary-long-button"
+                  onClick={() => navigate('/student/hubs')}
+                >
+                  Choose another vehicle
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="reservation-pickup-instructions">
+                  <h3>Quick pickup</h3>
+                  <ol>
+                    <li>Go to <strong>{pickupLocation}</strong>, rack <strong>{positionCode}</strong>.</li>
+                    <li>Scan QR on <strong>{selectedReservation.vehicleCode || 'EB-024'}</strong> and check brakes/lights.</li>
+                  </ol>
+                </div>
+                <div className="reservation-pickup-code-content">
+                  <AnimatedQrScanner codeLabel={selectedReservation.vehicleCode || 'SEMH-EV'} />
+                </div>
+                <p className="reservation-safety-note">
+                  Rental fee: <strong>{formatVnd(selectedFeeVnd)}</strong> ({selectedDuration}h). If the vehicle does not meet your check, you may decline pickup below.
+                </p>
+                <div className="reservation-pickup-actions">
+                  <button
+                    type="button"
+                    className="reservation-action-cancel"
+                    onClick={() => handleCancelOrDecline(selectedReservation, 'Declined vehicle at hub')}
+                    disabled={loading}
+                  >
+                    {loading ? 'Declining...' : 'Decline pickup'}
+                  </button>
+                  <button
+                    type="button"
+                    className="reservation-action-confirm"
+                    onClick={handlePickup}
+                    disabled={loading}
+                  >
+                    {loading ? 'Unlocking...' : 'Confirm pickup'}
+                  </button>
+                </div>
+              </>
+            )}
           </section>
         </div>
+
         <button className="reservation-back-link" type="button" onClick={handleBackToList}>
-          ← Back to reservations
+          ← Back to all reservations
         </button>
       </main>
     );
   }
 
+  // ============================================================================
+  // STAGE 3: ACTIVE RIDE (LIVE TIMER) & HUB RETURN
+  // ============================================================================
   if (stage === 'return' && selectedReservation) {
     const completed = selectedReservation.status === 'COMPLETED';
+    const elapsedText = formatElapsedRide(
+      selectedReservation.actualPickupTime || selectedReservation.startTime,
+      nowMs
+    );
+
     return (
       <main className="reservation-flow-page reservation-flow-page--return">
         <header className="reservation-flow-heading">
-          <h1>{completed ? 'Return confirmed' : 'Return your electric vehicle'}</h1>
-          <p>{completed ? 'Your vehicle has been returned.' : 'Confirm your return details.'}</p>
+          <h1>{completed ? 'Ride completed' : 'Riding in progress'}</h1>
+          <p>
+            {completed
+              ? 'Vehicle docked and verified at destination hub.'
+              : 'Enjoy your ride! Select any VNU-HCM hub with free spaces when ready to return.'}
+          </p>
         </header>
+
+        <div className="reservation-stepper-card">
+          <LifecycleStepper status={selectedReservation.status} reservationType="VEHICLE" />
+        </div>
+
         {error && <p className="reservation-flow-error" role="alert">{error}</p>}
+
         <div className="reservation-return-layout">
           <section className="reservation-step-card reservation-return-vehicle">
-            <h2>Vehicle details</h2>
+            {!completed && (
+              <div className="live-ride-timer-card">
+                <div className="live-ride-timer-card__top">
+                  <span>
+                    <i className="live-pulse-dot" /> Trip in progress
+                  </span>
+                  <span className="live-ride-unlocked-tag">UNLOCKED</span>
+                </div>
+                <div className="live-ride-timer-digits">{elapsedText}</div>
+                <div className="live-ride-timer-sub">
+                  Elapsed riding time · {selectedReservation.vehicleCode}
+                </div>
+              </div>
+            )}
+
             <div className="reservation-vehicle-image">
-              <img src={vehicleImage} alt={`Electric ${selectedVehicleKind}`} />
-            </div>
-            <div className="reservation-pickup-vehicle-name">
-              <span>{selectedReservation.vehicle?.model || `Electric ${selectedVehicleKind}`}</span>
-              <strong>{selectedReservation.vehicleCode || '—'}</strong>
+              <EvIllustration variant={selectedVehicleKind} />
             </div>
             <div className="reservation-pickup-details">
-              <div className="reservation-summary-row"><span>Pickup hub</span><strong>{selectedReservation.hubName || '—'}</strong></div>
-              <div className="reservation-summary-row"><span>Pickup time</span><strong>{formatDate(selectedReservation.startTime)} · {formatTime(selectedReservation.startTime)}</strong></div>
-              <div className="reservation-summary-row"><span>Return time</span><strong>{formatDate(selectedReservation.endTime)} · {formatTime(selectedReservation.endTime)}</strong></div>
-              <div className="reservation-summary-row"><span>Rack</span><strong>{positionCode}</strong></div>
+              <div className="reservation-summary-row">
+                <span>Vehicle</span>
+                <strong>{selectedReservation.vehicleCode || '—'}</strong>
+              </div>
+              <div className="reservation-summary-row">
+                <span>Origin hub</span>
+                <strong>{selectedReservation.hubName || '—'}</strong>
+              </div>
+              <div className="reservation-summary-row">
+                <span>Booked window</span>
+                <strong>{formatTime(selectedReservation.startTime)} – {formatTime(selectedReservation.endTime)}</strong>
+              </div>
+              <div className="reservation-summary-row">
+                <span>Total rental fee</span>
+                <strong>{formatVnd(selectedFeeVnd)}</strong>
+              </div>
             </div>
           </section>
+
           <section className="reservation-step-card reservation-return-confirmation">
-            <h2>Return hub &amp; instructions</h2>
+            <h2>{completed ? 'Return receipt' : 'Select destination hub'}</h2>
             {completed ? (
               <div className="reservation-return-complete">
-                <strong>Return confirmed</strong>
-                <span>Reservation {selectedReservation.reservationCode || `#${selectedReservation.id}`}</span>
+                <strong>✓ Return confirmed</strong>
+                <span>Booking {selectedReservation.reservationCode || `#${selectedReservation.id}`}</span>
               </div>
             ) : (
               <>
                 <label className="reservation-return-hub">
-                  Return hub:
+                  Destination hub
                   <select value={returnHubId} onChange={(event) => setReturnHubId(event.target.value)}>
                     {hubs.map((hub) => (
                       <option key={hub.id} value={hub.id}>
-                        {hub.name} · {hub.campusZone}
+                        {hub.name} ({hub.freeParkingSlots} free spaces)
                       </option>
                     ))}
                   </select>
                 </label>
+
+                <div className="return-hub-preview-card">
+                  <div>
+                    <strong>{selectedReturnHub?.name || 'Destination Hub'}</strong>
+                    <span>
+                      {selectedReturnHub
+                        ? `${selectedReturnHub.freeParkingSlots} return bays free · ${selectedReturnHub.availableChargers ?? 0} chargers open`
+                        : 'Checking bay availability...'}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="reservation-return-instructions">
-                  <p className="reservation-return-availability">
-                    {selectedReturnHub
-                      ? `${selectedReturnHub.freeParkingSlots} return spaces available at ${selectedReturnHub.name}.`
-                      : 'Loading return space availability...'}
-                  </p>
                   <ol>
-                    <li>Park in an available return rack.</li>
-                    <li>Lock the {selectedVehicleKind} and connect the cable.</li>
-                    <li>Confirm return to end your rental.</li>
+                    <li>Park inside a green Zone A / Universal bay.</li>
+                    <li>Lock the {selectedVehicleKind} and tap Confirm return below.</li>
                   </ol>
                 </div>
               </>
             )}
-            <h2>Reservation summary</h2>
-            <div className="reservation-summary-row">
-              <span>Return time</span>
-              <strong>{formatDate(selectedReservation.endTime)} · {formatTime(selectedReservation.endTime)}</strong>
-            </div>
-            <div className="reservation-summary-row">
-              <span>Rental duration</span>
-              <strong>{selectedDuration} {selectedDuration === 1 ? 'hour' : 'hours'}</strong>
-            </div>
-            <div className="reservation-summary-row">
-              <span>Total rental cost</span>
-              <strong>${selectedFee.toFixed(2)}</strong>
-            </div>
+
             {completed ? (
-              <button type="button" className="reservation-primary-long-button" onClick={handleBackToList}>Back to reservations</button>
+              <button type="button" className="reservation-primary-long-button" onClick={handleBackToList}>
+                Back to reservations
+              </button>
             ) : (
-              <button type="button" className="reservation-primary-long-button" onClick={handleReturn} disabled={loading || !returnHubId}>
-                {loading ? 'Returning...' : 'Confirm return'}
+              <button
+                type="button"
+                className="reservation-primary-long-button"
+                onClick={handleReturn}
+                disabled={loading || !returnHubId}
+              >
+                {loading ? 'Completing return...' : 'Confirm return here'}
               </button>
             )}
           </section>
@@ -619,36 +901,176 @@ export function ReservationsPage() {
     );
   }
 
+  // ============================================================================
+  // DEFAULT STAGE: CLEAN INTERACTIVE RESERVATIONS DASHBOARD
+  // ============================================================================
+  const filteredList =
+    listFilter === 'ACTIVE'
+      ? openVehicleReservations
+      : listFilter === 'HISTORY'
+      ? historyVehicleReservations
+      : vehicleReservations;
+
   return (
     <main className="reservation-flow-page">
       <header className="reservation-flow-heading">
-        <h1>Reservations</h1>
-        <p>View your bookings and continue through pickup and return.</p>
+        <h1>Pickup &amp; Return</h1>
+        <p>Track operator approval, scan QR to ride, and return at any VNU-HCM hub.</p>
       </header>
+
+      <QuickGuideStrip steps={RESERVATION_GUIDE} />
+
       {error && <p className="reservation-flow-error" role="alert">{error}</p>}
+
+      <div className="reservation-filter-bar">
+        <div className="reservation-filter-tabs">
+          <button
+            type="button"
+            className={`reservation-filter-tab ${listFilter === 'ACTIVE' ? 'is-active' : ''}`}
+            onClick={() => setListFilter('ACTIVE')}
+          >
+            Active &amp; Pending ({openVehicleReservations.length})
+          </button>
+          <button
+            type="button"
+            className={`reservation-filter-tab ${listFilter === 'HISTORY' ? 'is-active' : ''}`}
+            onClick={() => setListFilter('HISTORY')}
+          >
+            History ({historyVehicleReservations.length})
+          </button>
+          <button
+            type="button"
+            className={`reservation-filter-tab ${listFilter === 'ALL' ? 'is-active' : ''}`}
+            onClick={() => setListFilter('ALL')}
+          >
+            All ({vehicleReservations.length})
+          </button>
+        </div>
+
+        <Link to="/student/hubs" className="reservation-new-btn">
+          + Book a vehicle
+        </Link>
+      </div>
+
       <section className="reservation-list">
-        {vehicleReservations.map((reservation) => (
-          <article className="reservation-list-card" key={reservation.id}>
-            <div>
-              <h2>{reservation.vehicleCode || 'Electric vehicle'}</h2>
-              <p>{reservation.hubName} · {formatDate(reservation.startTime)} · {formatTime(reservation.startTime)} – {formatTime(reservation.endTime)}</p>
-              <span className={`reservation-status reservation-status-${reservation.status.toLowerCase()}`}>{reservation.status}</span>
-            </div>
-            {reservation.status === 'CONFIRMED' && (
-              <button type="button" className="reservation-primary-short-button" onClick={() => openReservation(reservation, 'pickup')} disabled={loading}>
-                Continue to pickup
-              </button>
-            )}
-            {reservation.status === 'ACTIVE' && (
-              <button type="button" className="reservation-primary-short-button" onClick={() => openReservation(reservation, 'return')} disabled={loading}>
-                Continue to return
-              </button>
-            )}
-          </article>
-        ))}
-        {!vehicleReservations.length && <p className="reservation-empty">You don’t have any vehicle reservations yet.</p>}
+        {filteredList.map((reservation) => {
+          const statusMeta = getReadableStatusMeta(reservation);
+          const isOpen = ['PENDING', 'CONFIRMED', 'ACTIVE'].includes(reservation.status);
+          const kind = getVehicleKind(reservation, reservation.vehicleCode);
+          const hrs = reservationHours(reservation);
+          const estFee = hrs * getRentalHourlyRateVnd(reservation.vehicleCode);
+
+          return (
+            <article
+              className={`reservation-modern-card ${isOpen ? 'is-highlighted' : ''}`}
+              key={reservation.id}
+            >
+              <div className="reservation-modern-card__top">
+                <div className="reservation-modern-card__title">
+                  <span className="vehicle-kind-chip">
+                    {kind === 'scooter' ? 'E-SCOOTER' : 'E-BIKE'}
+                  </span>
+                  <h2>{reservation.vehicleCode || 'Campus EV'}</h2>
+                  <span className={`status-tone-pill tone-${statusMeta.tone}`}>
+                    {statusMeta.label}
+                  </span>
+                </div>
+
+                <strong className="reservation-modern-card__price">
+                  {formatVnd(estFee)}
+                </strong>
+              </div>
+
+              <div className="reservation-modern-card__pills">
+                <span className="meta-chip">{reservation.hubName || 'Campus Hub'}</span>
+                <span className="meta-chip">{formatDate(reservation.startTime)}</span>
+                <span className="meta-chip">
+                  {formatTime(reservation.startTime)} – {formatTime(reservation.endTime)} ({hrs}h)
+                </span>
+                {reservation.status === 'ACTIVE' && (
+                  <span className="meta-chip meta-chip--live">
+                    Riding · {formatElapsedRide(reservation.actualPickupTime || reservation.startTime, nowMs)}
+                  </span>
+                )}
+              </div>
+
+              <LifecycleStepper
+                status={reservation.status}
+                cancellationSource={reservation.cancellationSource}
+                reservationType="VEHICLE"
+              />
+
+              {isOpen && (
+                <div className="reservation-modern-card__actions">
+                  {reservation.status === 'PENDING' && (
+                    <>
+                      <button
+                        type="button"
+                        className="reservation-primary-short-button"
+                        onClick={() => openReservation(reservation, 'pickup')}
+                        disabled={loading}
+                      >
+                        View approval status
+                      </button>
+                      <button
+                        type="button"
+                        className="reservation-outline-danger-btn"
+                        onClick={() => handleCancelOrDecline(reservation, 'Cancelled while pending')}
+                        disabled={loading}
+                      >
+                        Cancel request
+                      </button>
+                    </>
+                  )}
+                  {reservation.status === 'CONFIRMED' && (
+                    <>
+                      <button
+                        type="button"
+                        className="reservation-primary-short-button"
+                        onClick={() => openReservation(reservation, 'pickup')}
+                        disabled={loading}
+                      >
+                        Scan QR &amp; Pick up
+                      </button>
+                      <button
+                        type="button"
+                        className="reservation-outline-danger-btn"
+                        onClick={() => handleCancelOrDecline(reservation, 'Declined pickup')}
+                        disabled={loading}
+                      >
+                        Decline
+                      </button>
+                    </>
+                  )}
+                  {reservation.status === 'ACTIVE' && (
+                    <button
+                      type="button"
+                      className="reservation-primary-short-button"
+                      onClick={() => openReservation(reservation, 'return')}
+                      disabled={loading}
+                    >
+                      Open live ride &amp; Return
+                    </button>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
+
+        {!filteredList.length && (
+          <div className="reservation-empty">
+            <p style={{ margin: '0 0 12px', fontSize: 16 }}>
+              {listFilter === 'ACTIVE'
+                ? 'No active or pending vehicle bookings right now.'
+                : 'No reservations in this tab yet.'}
+            </p>
+            <Link to="/student/hubs" className="reservation-primary-short-button">
+              Browse VNU-HCM hubs
+            </Link>
+          </div>
+        )}
       </section>
-      <Link to="/student/hubs" className="reservation-back-link">Find a vehicle</Link>
     </main>
   );
 }

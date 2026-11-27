@@ -1,4 +1,20 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
+function resolveApiBaseUrl() {
+  const configured = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
+  if (typeof window === 'undefined') return configured;
+
+  const currentHost = window.location.hostname;
+  if (
+    currentHost &&
+    currentHost !== 'localhost' &&
+    currentHost !== '127.0.0.1' &&
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(configured)
+  ) {
+    return configured.replace(/^(https?:\/\/)(localhost|127\.0\.0\.1)/i, `$1${currentHost}`);
+  }
+  return configured;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const TOKEN_KEY = 'semh_auth_token';
 const USER_KEY = 'semh_auth_user';
@@ -6,11 +22,9 @@ const USER_KEY = 'semh_auth_user';
 /** Fired on window when the backend rejects our token; AuthContext listens and signs the user out. */
 export const SESSION_EXPIRED_EVENT = 'semh:session-expired';
 
-// Auth endpoints answer 401 for bad credentials; that is a login error, not an expired session.
 const AUTH_ENDPOINTS = ['/auth/google', '/auth/dev-login', '/auth/login', '/auth/register'];
 
 export function getStoredToken() {
-  // Uses sessionStorage instead of localStorage so session clears automatically when browser closes (safer on shared PCs!)
   return sessionStorage.getItem(TOKEN_KEY);
 }
 
@@ -42,7 +56,6 @@ export async function httpRequest(path, options = {}) {
       headers,
     });
   } catch {
-    // fetch only rejects when the request never reached the server (backend down, CORS, offline).
     throw createApiError('Cannot reach the server.', { code: 'NETWORK_ERROR' });
   }
 

@@ -8,6 +8,26 @@ import {
   getLocalDateStr,
   isWindowBooked,
 } from '../../components/common/TimeSlotWeekPicker';
+import {
+  QuickGuideStrip,
+  LifecycleStepper,
+  getReadableStatusMeta,
+} from '../../components/common/QuickGuideStrip';
+
+const PARKING_GUIDE = [
+  {
+    title: 'Choose Customer Slot',
+    desc: 'Pick any Zone C private or universal EV bay at this hub.',
+  },
+  {
+    title: 'Operator Confirmation',
+    desc: 'Your bay is held immediately and confirmed by hub staff.',
+  },
+  {
+    title: 'Park or Cancel Anytime',
+    desc: 'Arrive within your window or cancel free of charge if plans change.',
+  },
+];
 
 function formatDateTime(value) {
   if (!value) return '';
@@ -206,6 +226,7 @@ export function ParkingBookingPage() {
         ‹ Hub info
       </Link>
       <h1>Book parking</h1>
+      <QuickGuideStrip steps={PARKING_GUIDE} />
 
       <div className="booking-form-card parking-form-card">
         <form onSubmit={handleBook}>
@@ -318,45 +339,53 @@ export function ParkingBookingPage() {
       )}
 
       <section className="parking-booking-results" aria-live="polite">
-        {bookings.map((booking) => (
-          <article className="parking-result-card" key={booking.id}>
-            <div className="parking-result-heading">
-              <h2>Parking booking confirmed</h2>
-              <span>{booking.reservationCode || 'Confirmed'}</span>
-            </div>
-            <div className="parking-result-details">
-              <div>
-                <span>Location</span>
-                <strong>{booking.hubName}</strong>
+        {bookings.map((booking) => {
+          const meta = getReadableStatusMeta(booking);
+          return (
+            <article className="parking-result-card" key={booking.id}>
+              <div className="parking-result-heading">
+                <h2>Parking reservation · {booking.parkingSlotCode || 'Assigned'}</h2>
+                <span className={`status-tone-pill tone-${meta.tone}`}>{meta.label}</span>
               </div>
-              <div>
-                <span>Date</span>
-                <strong>{booking.startTime?.slice(0, 10)}</strong>
+              <LifecycleStepper
+                status={booking.status}
+                cancellationSource={booking.cancellationSource}
+                reservationType="PARKING"
+              />
+              <div className="parking-result-details">
+                <div>
+                  <span>Location</span>
+                  <strong>{booking.hubName}</strong>
+                </div>
+                <div>
+                  <span>Date</span>
+                  <strong>{booking.startTime?.slice(0, 10)}</strong>
+                </div>
+                <div>
+                  <span>Parking time</span>
+                  <strong>
+                    {booking.startTime?.slice(11, 16)} - {booking.endTime?.slice(11, 16)}
+                  </strong>
+                </div>
+                <div>
+                  <span>License plate</span>
+                  <strong>{booking.licensePlate || 'Not provided'}</strong>
+                </div>
               </div>
-              <div>
-                <span>Parking time</span>
-                <strong>
-                  {booking.startTime?.slice(11, 16)} - {booking.endTime?.slice(11, 16)}
-                </strong>
-              </div>
-              <div>
-                <span>Parking slot</span>
-                <strong>{booking.parkingSlotCode || 'Assigned'}</strong>
-              </div>
-              <div>
-                <span>License plate</span>
-                <strong>{booking.licensePlate || 'Not provided'}</strong>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="parking-cancel-button"
-              onClick={() => handleCancel(booking.id)}
-            >
-              Cancel reservation
-            </button>
-          </article>
-        ))}
+              {['PENDING', 'CONFIRMED'].includes(String(booking.status || '').toUpperCase()) && (
+                <button
+                  type="button"
+                  className="parking-cancel-button"
+                  onClick={() => handleCancel(booking.id)}
+                >
+                  {String(booking.status).toUpperCase() === 'CONFIRMED'
+                    ? 'Decline / Cancel booking'
+                    : 'Cancel request'}
+                </button>
+              )}
+            </article>
+          );
+        })}
       </section>
     </div>
   );

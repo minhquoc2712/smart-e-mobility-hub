@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { hubApi, vehicleApi } from '../../api';
-import vehicleImage from '../../components/common/images/vehicle.jpg';
+import { formatVnd, getRentalHourlyRateVnd } from '../../utils/currency';
+import { EvIllustration } from '../../components/common/EvIllustration';
 
 const VEHICLE_FILTERS = [
   { value: 'ELECTRIC_BIKE', label: 'Electric bike' },
@@ -62,7 +63,7 @@ export function HubDetailPage() {
     <div className="vehicle-availability-page">
       <header className="vehicle-availability-heading">
         <h1>Vehicle availability &amp; battery</h1>
-        <p>{hub?.name || 'Mobility hub'} · Check available vehicles and battery levels before you ride.</p>
+        <p>{hub?.name || 'Mobility hub'} · Inspect real-time state of charge and student rental rates.</p>
       </header>
 
       <div className="vehicle-filter-actions" role="group" aria-label="Filter by vehicle type">
@@ -74,7 +75,7 @@ export function HubDetailPage() {
             aria-pressed={vehicleType === filter.value}
             onClick={() => setVehicleType(filter.value)}
           >
-            {filter.label} {vehicleType === filter.value && <span aria-hidden="true">✓</span>}
+            {filter.label} · {formatVnd(getRentalHourlyRateVnd(filter.value))}/h
           </button>
         ))}
       </div>
@@ -89,11 +90,15 @@ export function HubDetailPage() {
             {vehicles.map((vehicle) => {
               const isBookable = ['AVAILABLE', 'RESERVED'].includes(vehicle.status);
               const battery = Math.min(100, Math.max(0, Number(vehicle.batteryLevel) || 0));
+              const hourlyRate = getRentalHourlyRateVnd(vehicle);
               return (
                 <article className="vehicle-availability-card" key={vehicle.id}>
-                  <h2>{vehicle.code}</h2>
+                  <div className="vehicle-card-top">
+                    <h2>{vehicle.code}</h2>
+                    <span className="vehicle-rate-tag">{formatVnd(hourlyRate)} / h</span>
+                  </div>
                   <div className="vehicle-availability-image">
-                    <img src={vehicleImage} alt={getVehicleTypeLabel(vehicle.type)} />
+                    <EvIllustration variant={vehicle.type === 'ELECTRIC_SCOOTER' ? 'scooter' : 'bike'} />
                   </div>
                   <div className="vehicle-battery">
                     <div className="vehicle-battery-label">
@@ -135,7 +140,7 @@ export function HubDetailPage() {
       )}
 
       <Link className="vehicle-availability-back" to={`/student/hubs/${hubId}/info`}>
-        ← Back to hub information
+        Back to hub services
       </Link>
     </div>
   );

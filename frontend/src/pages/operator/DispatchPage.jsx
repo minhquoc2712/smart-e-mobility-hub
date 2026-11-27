@@ -1,5 +1,21 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { operatorApi } from '../../api';
+import { QuickGuideStrip } from '../../components/common/QuickGuideStrip';
+
+const DISPATCH_GUIDE = [
+  {
+    title: 'Pick Source & Destination',
+    desc: 'Select hubs above or tap Auto-pair Zone A to match high-battery EVs automatically.',
+  },
+  {
+    title: 'Pair Vehicle to Exact Bay',
+    desc: 'Tap a source EV on the left, then tap any FREE Zone A or Universal slot on the right.',
+  },
+  {
+    title: 'Execute Dispatch Order',
+    desc: 'Submit to move fleet vehicles and recalculate hub capacity immediately.',
+  },
+];
 
 const STAFF_MEMBERS = ['S. Patel', 'A. Lee', 'M. Tran', 'K. Nguyen'];
 
@@ -293,10 +309,10 @@ export function DispatchPage() {
           background: incoming
             ? '#cdf4cf'
             : isLockedPrivate
-            ? '#f5f6f0'
+            ? 'var(--staff-subcard, var(--staff-pill))'
             : slot.effectiveFree
-            ? '#ffffff'
-            : '#f3f5ef',
+            ? 'var(--staff-card)'
+            : 'var(--staff-subcard, var(--staff-pill))',
           border: incoming
             ? '2px solid #2b581c'
             : activeVehicleId && slot.effectiveFree
@@ -318,7 +334,7 @@ export function DispatchPage() {
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--staff-forest)' }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: incoming ? '#182b20' : 'var(--staff-forest)' }}>
             {slot.slotCode}
           </span>
           <span
@@ -341,7 +357,7 @@ export function DispatchPage() {
         {incoming ? (
           <div style={{ fontSize: 13, color: '#182b20', fontWeight: 600, marginTop: 2 }}>
             ← {incoming.code} ({incoming.batteryLevel}%)
-            <div style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--staff-olive)' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 400, color: '#2b581c' }}>
               from {incoming.fromSlotCode} · click to undo
             </div>
           </div>
@@ -387,6 +403,10 @@ export function DispatchPage() {
   return (
     <>
       <h1 className="staff-page-title">Dispatch</h1>
+
+      <div style={{ width: '100%', maxWidth: 1240 }}>
+        <QuickGuideStrip steps={DISPATCH_GUIDE} variant="operator" />
+      </div>
 
       <form onSubmit={handleSubmit} className="staff-panel staff-panel--full">
         {/* Top 2x2 Figma Controls — synced live with Slot-to-Slot Arrangement Board below */}
@@ -551,15 +571,9 @@ export function DispatchPage() {
           </div>
         </div>
 
-        {/* Interactive 2-Column Board: Source (Slot -> Vehicle) ===> Multi-Zone Destination Slots */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-            gap: 22,
-            alignItems: 'start',
-          }}
-        >
+        {/* Interactive 2-Column Parallel Board: Source (Slot -> Vehicle) ===> Multi-Zone Destination Slots */}
+        <div className="parallel-board-scroll">
+          <div className="parallel-two-col-board">
           {/* LEFT COLUMN: Source Hub Vehicles (S1 -> V1) */}
           <div
             style={{
@@ -612,8 +626,8 @@ export function DispatchPage() {
                       background: isSelected
                         ? '#cdf4cf'
                         : assignedSlotId
-                        ? '#ffffff'
-                        : 'rgba(255,255,255,0.78)',
+                        ? 'var(--staff-card)'
+                        : 'var(--staff-subcard, var(--staff-card))',
                       border: isSelected
                         ? '2px solid #2b581c'
                         : assignedSlotId
@@ -642,12 +656,12 @@ export function DispatchPage() {
                       >
                         Zone {veh.zoneCode} · {veh.slotCode}
                       </span>
-                      <span style={{ color: 'var(--staff-muted)', fontWeight: 700 }}>→</span>
+                      <span style={{ color: isSelected ? '#2b581c' : 'var(--staff-muted)', fontWeight: 700 }}>→</span>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 15.5, color: 'var(--staff-ink)' }}>
+                        <div style={{ fontWeight: 600, fontSize: 15.5, color: isSelected ? '#182b20' : 'var(--staff-ink)' }}>
                           {veh.code}
                         </div>
-                        <div style={{ fontSize: 12.5, color: 'var(--staff-muted)' }}>
+                        <div style={{ fontSize: 12.5, color: isSelected ? '#2b581c' : 'var(--staff-muted)' }}>
                           Battery {veh.batteryLevel}%
                         </div>
                       </div>
@@ -660,7 +674,8 @@ export function DispatchPage() {
                       <select
                         className="staff-pill-select"
                         style={{
-                          background: assignedSlotObj ? '#cdf4cf' : '#eff9eb',
+                          background: assignedSlotObj ? '#cdf4cf' : 'var(--staff-card)',
+                          color: assignedSlotObj ? '#182b20' : 'var(--staff-forest)',
                           padding: '7px 11px',
                           fontSize: 13.5,
                           fontWeight: assignedSlotObj ? 600 : 400,
@@ -739,10 +754,10 @@ export function DispatchPage() {
             {/* Parking Lot 1: Zone A — Rental Vehicles (SHARED_EV) */}
             <div
               style={{
-                background: 'rgba(255,255,255,0.6)',
+                background: 'var(--staff-card)',
                 borderRadius: 13,
                 padding: 14,
-                border: '1px solid #d5ecd4',
+                border: '1px solid var(--staff-divider)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 10,
@@ -787,7 +802,7 @@ export function DispatchPage() {
             {/* Parking Lot 2: Zone C — Universal Overflow & Private Customer Parking */}
             <div
               style={{
-                background: 'rgba(255,255,255,0.6)',
+                background: 'var(--staff-card)',
                 borderRadius: 13,
                 padding: 14,
                 border: '1px solid var(--staff-divider)',
@@ -831,6 +846,7 @@ export function DispatchPage() {
                 {zoneCSlots.map(renderSlotCard)}
               </div>
             </div>
+          </div>
           </div>
         </div>
 

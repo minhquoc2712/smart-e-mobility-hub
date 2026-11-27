@@ -1,147 +1,81 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { ThemeToggleButton } from '../../context/ThemeContext';
+import { VnuLogo } from '../../components/common/VnuLogo';
+import logo from '../../components/common/images/logo.png';
+import campusBg from '../../components/common/images/vnu-campus-bg.jpg';
 
-const GOOGLE_DEMO_ACCOUNTS = [
+const DEMO_ACCOUNTS = [
   {
-    name: 'Nguyễn Văn Sinh Viên',
+    label: 'Student',
     email: 'student@hcmut.edu.vn',
-    badge: 'Student · Rental & Parking',
-    role: 'CUSTOMER',
-    color: '#22c55e',
+    roleTag: 'USER',
   },
   {
-    name: 'Trần Thị Chủ Xe Điện',
+    label: 'Private EV',
     email: 'ev.owner@hcmut.edu.vn',
-    badge: 'Private EV Owner · 59-MĐ1 123.45',
-    role: 'CUSTOMER',
-    color: '#0ea5e9',
+    roleTag: 'USER',
   },
   {
-    name: 'Mã Trần Minh Quốc',
-    email: 'matranminhquoc000@gmail.com',
-    badge: 'Hub Operator · Staff Console',
-    role: 'STAFF',
-    color: '#2b581c',
-  },
-  {
-    name: 'Lê Điều Phối Viên',
+    label: 'Operator',
     email: 'operator@hcmut.edu.vn',
-    badge: 'Hub Operator · Staff ST-014',
-    role: 'STAFF',
-    color: '#7c3aed',
+    roleTag: 'STAFF',
+  },
+  {
+    label: 'Lead Staff',
+    email: 'matranminhquoc000@gmail.com',
+    roleTag: 'STAFF',
   },
 ];
 
-function GoogleLogoSvg({ size = 24 }) {
+const DEMO_PASS_TOKEN = 'vnu-demo-2026';
+
+function EyeIcon({ visible }) {
+  if (visible) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+        <line x1="1" y1="1" x2="23" y2="23" />
+      </svg>
+    );
+  }
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
-      <path
-        fill="#EA4335"
-        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-      />
-      <path
-        fill="#4285F4"
-        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-      />
-      <path
-        fill="#34A853"
-        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-      />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
 
-function ScooterChargerIllustration() {
-  return (
-    <svg
-      width="230"
-      height="150"
-      viewBox="0 0 260 170"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      style={{ position: 'fixed', left: 48, bottom: 32, pointerEvents: 'none', zIndex: 1 }}
-    >
-      {/* Charging station */}
-      <rect x="18" y="34" width="52" height="106" rx="8" fill="#34c759" stroke="#24532b" strokeWidth="2.5" />
-      <rect x="25" y="25" width="12" height="10" rx="3" fill="#24532b" />
-      <rect x="49" y="25" width="12" height="10" rx="3" fill="#24532b" />
-      <rect x="27" y="54" width="34" height="12" rx="3" fill="#eff9eb" stroke="#24532b" strokeWidth="2" />
-      <rect x="30" y="57" width="8" height="6" fill="#ef4444" />
-      <rect x="39" y="57" width="8" height="6" fill="#f59e0b" />
-      <rect x="48" y="57" width="10" height="6" fill="#22c55e" />
-      <rect x="12" y="138" width="64" height="7" rx="2" fill="#24532b" />
-      {/* Charging cable */}
-      <path
-        d="M70 96 C86 96, 82 146, 108 148 C134 150, 152 146, 170 132"
-        stroke="#24532b"
-        strokeWidth="2"
-        fill="none"
-      />
-      {/* Electric scooter */}
-      <circle cx="112" cy="128" r="20" fill="#ffffff" stroke="#374151" strokeWidth="6" />
-      <circle cx="112" cy="128" r="5" fill="#374151" />
-      <circle cx="206" cy="128" r="20" fill="#ffffff" stroke="#374151" strokeWidth="6" />
-      <circle cx="206" cy="128" r="5" fill="#374151" />
-      <path
-        d="M102 114 L145 114 L162 128 L192 128 L178 78 L168 78"
-        stroke="#24532b"
-        strokeWidth="3"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M100 112 Q122 96 146 106 L166 124 L190 124 L179 84 L188 82 L198 118"
-        fill="#4ade80"
-        stroke="#24532b"
-        strokeWidth="2.2"
-      />
-      <rect x="108" y="96" width="38" height="9" rx="4.5" fill="#1f2937" />
-      <line x1="173" y1="68" x2="186" y2="72" stroke="#1f2937" strokeWidth="4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/**
- * Figma Welcome & Sign in Screens (with Real Google OAuth, Create Account & Interactive Account Chooser)
- */
 export function LoginPage() {
   const {
     loginWithGoogleCredential,
     registerWithPassword,
     loginWithPassword,
     loginDemo,
-    logout,
   } = useAuth();
   const navigate = useNavigate();
   const googleButtonRef = useRef(null);
-  const googleSignupButtonRef = useRef(null);
 
-  const [selectedRole, setSelectedRole] = useState(null); // null -> Welcome, 'CUSTOMER' | 'STAFF' -> Sign in
-  const [mode, setMode] = useState('login'); // 'login' | 'register' (customers only)
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [filledDemoEmail, setFilledDemoEmail] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Google Account Picker modal when VITE_GOOGLE_CLIENT_ID is not configured
-  const [googleModalOpen, setGoogleModalOpen] = useState(false);
-  const [customGoogleEmail, setCustomGoogleEmail] = useState('');
 
   const rawClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
   const hasRealGoogleClientId =
     Boolean(rawClientId) && !rawClientId.startsWith('your-google-oauth-client-id');
 
   useEffect(() => {
-    if (!hasRealGoogleClientId || !selectedRole) return;
+    if (!hasRealGoogleClientId) return;
     const scriptId = 'google-gsi-client';
     const initializeGsi = () => {
       if (window.google?.accounts?.id && googleButtonRef.current) {
@@ -155,27 +89,20 @@ export function LoginPage() {
                 state: { accountCreated: isNewUser },
               });
             } catch (err) {
-              setError(err.message || 'Google Sign-In failed');
+              setError(err.message || 'Google authentication failed.');
             } finally {
               setLoading(false);
             }
           },
         });
         window.google.accounts.id.renderButton(googleButtonRef.current, {
-          type: 'icon',
-          shape: 'circle',
+          type: 'standard',
+          text: mode === 'register' ? 'signup_with' : 'continue_with',
+          shape: 'pill',
           theme: 'outline',
           size: 'large',
+          width: 320,
         });
-        if (googleSignupButtonRef.current) {
-          window.google.accounts.id.renderButton(googleSignupButtonRef.current, {
-            type: 'standard',
-            text: 'signup_with',
-            shape: 'pill',
-            theme: 'outline',
-            size: 'medium',
-          });
-        }
       }
     };
 
@@ -190,590 +117,287 @@ export function LoginPage() {
     } else {
       initializeGsi();
     }
-  }, [hasRealGoogleClientId, rawClientId, selectedRole, loginWithGoogleCredential, navigate]);
-
-  const chooseRole = (role) => {
-    setSelectedRole(role);
-    setMode('login');
-    setError('');
-    setFullName('');
-    setUsername(role === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn');
-    setPassword('••••••••');
-    setConfirmPassword('');
-  };
+  }, [hasRealGoogleClientId, rawClientId, mode, loginWithGoogleCredential, navigate]);
 
   const switchMode = (nextMode) => {
     setMode(nextMode);
     setError('');
-    if (nextMode === 'register') {
-      setUsername('');
-      setPassword('');
-      setConfirmPassword('');
-    } else {
-      setUsername(selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn');
-      setPassword('••••••••');
-      setConfirmPassword('');
-    }
+    setFilledDemoEmail(null);
+    setPassword('');
+    setConfirmPassword('');
   };
 
-  const signInWithEmail = async (emailToUse) => {
+  const handleQuickFill = (acc) => {
+    setMode('login');
+    setError('');
+    setEmail(acc.email);
+    setPassword(DEMO_PASS_TOKEN);
+    setFilledDemoEmail(acc.email);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (mode === 'register') {
+      if (!fullName.trim()) return setError('Please enter your full name.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return setError('Please enter a valid email address.');
+      }
+      if (password.length < 6) {
+        return setError('Password must be at least 6 characters.');
+      }
+      if (password !== confirmPassword) {
+        return setError('Passwords do not match.');
+      }
+      try {
+        setLoading(true);
+        const { user } = await registerWithPassword({
+          fullName: fullName.trim(),
+          email: cleanEmail,
+          password,
+        });
+        navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs', {
+          state: { accountCreated: true },
+        });
+      } catch (err) {
+        setError(err.message || 'Could not create account.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!cleanEmail || !password) {
+      return setError('Please enter both your email and password.');
+    }
+
+    const isSeededDemo =
+      DEMO_ACCOUNTS.some((d) => d.email.toLowerCase() === cleanEmail) &&
+      (password === DEMO_PASS_TOKEN || filledDemoEmail === cleanEmail);
+
     try {
-      setError('');
       setLoading(true);
-      const { user, isNewUser } = await loginDemo(emailToUse);
-      setGoogleModalOpen(false);
-      navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs', {
-        state: { accountCreated: isNewUser },
-      });
+      if (isSeededDemo) {
+        const { user } = await loginDemo(cleanEmail);
+        navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs');
+        return;
+      }
+
+      const { user } = await loginWithPassword(cleanEmail, password);
+      navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs');
     } catch (err) {
-      setError(err.message || 'Sign-in failed');
+      setError(
+        err.message ||
+          'Invalid email or password. Use a quick-fill campus account below or create a new account.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const performSignIn = async (e) => {
-    if (e) e.preventDefault();
-    setError('');
-
-    if (mode === 'register') {
-      const email = username.trim();
-      if (!fullName.trim()) return setError('Please enter your full name.');
-      if (!email.includes('@')) return setError('Please enter a valid email address.');
-      if (password.length < 6) return setError('Password must be at least 6 characters.');
-      if (password !== confirmPassword) return setError('Passwords do not match.');
-      try {
-        setLoading(true);
-        await registerWithPassword({ fullName: fullName.trim(), email, password });
-        navigate('/student/hubs', { state: { accountCreated: true } });
-      } catch (err) {
-        setError(err.message || 'Sign-up failed');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    const fallbackEmail =
-      selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn';
-    const email = username.trim().includes('@') ? username.trim() : fallbackEmail;
-
-    // If user typed a real password (not the demo mask), verify via /auth/login
-    if (password && password !== '••••••••') {
-      try {
-        setLoading(true);
-        const { user } = await loginWithPassword(email, password);
-        if (selectedRole === 'STAFF' && user.role !== 'OPERATOR') {
-          logout();
-          setError('This is not a staff account. Staff sign in with Google using their staff email.');
-          return;
-        }
-        navigate(user.role === 'OPERATOR' ? '/operator/dashboard' : '/student/hubs');
-      } catch (err) {
-        setError(err.message || 'Sign-in failed');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    await signInWithEmail(email);
-  };
-
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: '#fbfcea',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '32px 20px',
-        position: 'relative',
-      }}
-    >
-      <ScooterChargerIllustration />
+    <div className="auth-portal">
+      {/* Blurred VNU-HCM Campus Illustration Backdrop */}
+      <div
+        className="auth-portal__backdrop"
+        style={{ backgroundImage: `url(${campusBg})` }}
+        aria-hidden="true"
+      />
+      <div className="auth-portal__tint" aria-hidden="true" />
 
-      {/* STEP 1: FIGMA WELCOME SCREEN */}
-      {!selectedRole ? (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 28,
-            zIndex: 2,
-            maxWidth: 520,
-            width: '100%',
-          }}
-        >
-          <div style={{ textAlign: 'center' }}>
-            <h1
-              style={{
-                margin: 0,
-                fontFamily: 'var(--font-heading)',
-                fontSize: 34,
-                fontWeight: 600,
-                lineHeight: 1.25,
-                color: '#34c759',
-              }}
-            >
-              Welcome to
-              <br />
-              Smart E-MOBILITY HUB
-            </h1>
-            <p style={{ margin: '8px 0 0', fontSize: 15, color: '#5c6e54' }}>
-              VNU-HCM Campus Electric Bike, Scooter, Parking &amp; Smart Charging Network
-            </p>
-          </div>
-
-          <div
-            style={{
-              width: '100%',
-              background: '#ffffff',
-              borderRadius: 20,
-              padding: '36px 40px',
-              boxShadow: '0 4px 20px rgba(38, 57, 35, 0.06)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 22,
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                fontSize: 17,
-                fontWeight: 600,
-                color: '#263923',
-                textAlign: 'center',
-              }}
-            >
-              To continue, please select your role
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, width: '100%' }}>
-              <button
-                type="button"
-                onClick={() => chooseRole('CUSTOMER')}
-                className="staff-pill-btn"
-                style={{
-                  flexDirection: 'column',
-                  padding: '18px 16px',
-                  minHeight: 92,
-                  borderRadius: 16,
-                  gap: 4,
-                }}
-              >
-                <span style={{ fontSize: 18, fontWeight: 700 }}>🚲 Customer</span>
-                <span style={{ fontSize: 12.5, fontWeight: 400, color: '#2b581c' }}>
-                  Rent EV · Parking · Charger
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => chooseRole('STAFF')}
-                className="staff-pill-btn"
-                style={{
-                  flexDirection: 'column',
-                  padding: '18px 16px',
-                  minHeight: 92,
-                  borderRadius: 16,
-                  gap: 4,
-                }}
-              >
-                <span style={{ fontSize: 18, fontWeight: 700 }}>🛠️ Staff</span>
-                <span style={{ fontSize: 12.5, fontWeight: 400, color: '#2b581c' }}>
-                  Monitor · Queue · Dispatch
-                </span>
-              </button>
+      {/* Top Bar with VNU-HCM + Group Logo & Theme Toggle */}
+      <header className="auth-portal__topbar">
+        <div className="brand-dual">
+          <VnuLogo height={34} />
+          <span className="brand-dual__divider" aria-hidden="true" />
+          <div className="brand-dual__project">
+            <img src={logo} alt="Smart E-Mobility Hub logo" />
+            <div>
+              <strong>Smart E-Mobility Hub</strong>
+              <span>VNU-HCM Urban Area Network</span>
             </div>
           </div>
         </div>
-      ) : (
-        /* STEP 2: FIGMA SIGN IN SCREEN */
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 22,
-            zIndex: 2,
-            maxWidth: 420,
-            width: '100%',
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              fontFamily: 'var(--font-heading)',
-              fontSize: 32,
-              fontWeight: 600,
-              color: '#34c759',
-            }}
-          >
-            {selectedRole === 'STAFF' ? 'Hello Staff!!!' : 'Hello Customer!!!'}
-          </h1>
+        <ThemeToggleButton />
+      </header>
 
-          <form
-            onSubmit={performSignIn}
-            style={{
-              width: '100%',
-              background: '#ffffff',
-              borderRadius: 20,
-              padding: '28px 36px 32px',
-              boxShadow: '0 4px 20px rgba(38, 57, 35, 0.06)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-            }}
-          >
-            <div
-              style={{
-                textAlign: 'center',
-                fontSize: 18,
-                fontWeight: 700,
-                color: '#263923',
-                marginBottom: 4,
-              }}
+      {/* Main Centered Auth Card */}
+      <main className="auth-portal__main">
+        <div className="auth-card">
+          <div className="auth-card__header">
+            <span className="auth-card__eyebrow">VNU-HCM ELECTRIC MOBILITY PLATFORM</span>
+            <h1>{mode === 'register' ? 'Create your campus account' : 'Sign in to continue'}</h1>
+            <p>
+              {mode === 'register'
+                ? 'Register with your email to rent electric vehicles, reserve parking, and schedule charging.'
+                : 'Access real-time electric bikes, scooters, smart charging, and hub telemetry across VNU-HCM.'}
+            </p>
+          </div>
+
+          {/* Mode Tabs */}
+          <div className="auth-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'login'}
+              className={`auth-tab ${mode === 'login' ? 'active' : ''}`}
+              onClick={() => switchMode('login')}
             >
-              {mode === 'register' ? 'Create Account' : 'Log In'}
-            </div>
-
-            {error && (
-              <div
-                style={{
-                  background: '#fee2e2',
-                  color: '#991b1b',
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  fontSize: 14,
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            {mode === 'register' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label htmlFor="signup-fullname" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>
-                  Full name:
-                </label>
-                <input
-                  id="signup-fullname"
-                  className="staff-field-green"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Nguyen Van A"
-                  autoComplete="name"
-                />
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label htmlFor="login-email" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>
-                Email:
-              </label>
-              <input
-                id="login-email"
-                type="email"
-                className="staff-field-green"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder={
-                  selectedRole === 'STAFF' ? 'operator@hcmut.edu.vn' : 'student@hcmut.edu.vn'
-                }
-                autoComplete="email"
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label htmlFor="login-password" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>
-                Password:
-              </label>
-              <input
-                id="login-password"
-                type="password"
-                className="staff-field-green"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-              />
-            </div>
-
-            {mode === 'register' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label htmlFor="signup-confirm" style={{ fontSize: 14, fontWeight: 700, color: '#263923' }}>
-                  Confirm password:
-                </label>
-                <input
-                  id="signup-confirm"
-                  type="password"
-                  className="staff-field-green"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </div>
-            )}
-
-            {selectedRole !== 'STAFF' && (
-              <div style={{ fontSize: 13.5, color: '#5c6e54', textAlign: 'center' }}>
-                {mode === 'register' ? 'Already have an account? ' : "Don't have an account? "}
-                <button
-                  type="button"
-                  onClick={() => switchMode(mode === 'register' ? 'login' : 'register')}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
-                    color: '#1b7f4c',
-                    fontWeight: 700,
-                    fontSize: 13.5,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                  }}
-                >
-                  {mode === 'register' ? 'Log in' : 'Sign up'}
-                </button>
-              </div>
-            )}
-
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: 6,
-              }}
+              Sign in
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'register'}
+              className={`auth-tab ${mode === 'register' ? 'active' : ''}`}
+              onClick={() => switchMode('register')}
             >
-              <button
-                type="button"
-                onClick={() => setSelectedRole(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#697663',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                ← Back
-              </button>
+              Create account
+            </button>
+          </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="staff-pill-btn"
-                style={{ minHeight: 42, padding: '8px 24px', fontSize: 15 }}
-              >
-                {loading
-                  ? mode === 'register'
-                    ? 'Creating account...'
-                    : 'Signing in...'
-                  : mode === 'register'
-                  ? 'Create account'
-                  : 'Continue'}
-              </button>
-            </div>
-          </form>
-
-          {/* Circular Google Sign-In / Sign-Up Button below card matching Figma */}
-          {hasRealGoogleClientId ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <div ref={googleButtonRef} />
-              <span style={{ fontSize: 13, color: '#5c6e54' }}>
-                New here? Create your account with Google.
-              </span>
-              <div ref={googleSignupButtonRef} />
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => setGoogleModalOpen(true)}
-                disabled={loading}
-                title="Sign in or create an account with Google"
-                style={{
-                  width: 54,
-                  height: 54,
-                  borderRadius: '50%',
-                  border: '1px solid #d1d5db',
-                  background: '#ffffff',
-                  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.09)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                <GoogleLogoSvg size={24} />
-              </button>
-              <span style={{ fontSize: 12.5, color: '#5c6e54' }}>
-                Sign in or create account with Google
-              </span>
+          {error && (
+            <div className="auth-alert" role="alert">
+              {error}
             </div>
           )}
-        </div>
-      )}
 
-      {/* GOOGLE ACCOUNT CHOOSER MODAL */}
-      {googleModalOpen && (
-        <div
-          onClick={() => setGoogleModalOpen(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(17, 24, 39, 0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-            zIndex: 200,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: 420,
-              background: '#ffffff',
-              borderRadius: 20,
-              padding: '24px 26px',
-              boxShadow: '0 20px 44px rgba(0,0,0,0.22)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 14,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <GoogleLogoSvg size={22} />
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#4b5563' }}>
-                Sign in with Google
-              </span>
-            </div>
+          <form onSubmit={handleSubmit} className="auth-form">
+            {mode === 'register' && (
+              <div className="auth-field">
+                <label htmlFor="auth-fullname">Full name</label>
+                <input
+                  id="auth-fullname"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Nguyen Van Minh"
+                  autoComplete="name"
+                  required
+                />
+              </div>
+            )}
 
-            <div>
-              <h3 style={{ margin: 0, fontSize: 21, fontWeight: 600, color: '#111827' }}>
-                Choose an account
-              </h3>
-              <p style={{ margin: '4px 0 0', fontSize: 13.5, color: '#6b7280' }}>
-                to continue to <strong style={{ color: '#2b581c' }}>Smart E-Mobility Hub</strong>
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {GOOGLE_DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => signInWithEmail(acc.email)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    width: '100%',
-                    textAlign: 'left',
-                    background:
-                      (selectedRole === 'STAFF' && acc.role === 'STAFF') ||
-                      (selectedRole === 'CUSTOMER' && acc.role === 'CUSTOMER')
-                        ? '#f5fbf5'
-                        : '#ffffff',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 12,
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: '50%',
-                      background: acc.color,
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: 15,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {acc.name.charAt(0)}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>
-                      {acc.name}
-                    </div>
-                    <div style={{ fontSize: 12.5, color: '#4b5563' }}>{acc.email}</div>
-                    <div style={{ fontSize: 11.5, color: '#2b581c', fontWeight: 600 }}>
-                      {acc.badge}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (customGoogleEmail.trim()) {
-                  signInWithEmail(customGoogleEmail.trim());
-                }
-              }}
-              style={{
-                display: 'flex',
-                gap: 8,
-                paddingTop: 8,
-                borderTop: '1px solid #f3f4f6',
-              }}
-            >
+            <div className="auth-field">
+              <label htmlFor="auth-email">Email address</label>
               <input
+                id="auth-email"
                 type="email"
-                placeholder="Or enter another Google email..."
-                value={customGoogleEmail}
-                onChange={(e) => setCustomGoogleEmail(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  border: '1px solid #d1d5db',
-                  fontSize: 13.5,
-                  fontFamily: 'inherit',
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (filledDemoEmail && e.target.value.trim().toLowerCase() !== filledDemoEmail) {
+                    setFilledDemoEmail(null);
+                  }
                 }}
+                placeholder="name@hcmut.edu.vn"
+                autoComplete="email"
+                required
               />
-              <button
-                type="submit"
-                className="staff-pill-btn"
-                style={{ minHeight: 36, padding: '6px 14px', fontSize: 13.5 }}
-              >
-                Sign in
-              </button>
-            </form>
+            </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setGoogleModalOpen(false)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#6b7280',
-                  fontSize: 13.5,
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
+            <div className="auth-field">
+              <label htmlFor="auth-password">Password</label>
+              <div className="auth-password-wrap">
+                <input
+                  id="auth-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={mode === 'register' ? 'At least 6 characters' : 'Enter your password'}
+                  autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                  required
+                />
+                <button
+                  type="button"
+                  className="auth-eye-btn"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <EyeIcon visible={showPassword} />
+                </button>
+              </div>
+            </div>
+
+            {mode === 'register' && (
+              <div className="auth-field">
+                <label htmlFor="auth-confirm">Confirm password</label>
+                <div className="auth-password-wrap">
+                  <input
+                    id="auth-confirm"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter your password"
+                    autoComplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="auth-eye-btn"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <EyeIcon visible={showConfirmPassword} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <button type="submit" className="auth-submit-btn" disabled={loading}>
+              {loading
+                ? mode === 'register'
+                  ? 'Creating account...'
+                  : 'Signing in...'
+                : mode === 'register'
+                ? 'Create account'
+                : 'Sign in'}
+            </button>
+          </form>
+
+          {hasRealGoogleClientId && (
+            <div className="auth-google-real">
+              <div className="auth-divider">
+                <span>or continue with Google</span>
+              </div>
+              <div ref={googleButtonRef} className="auth-google-btn-slot" />
+            </div>
+          )}
+
+          {/* Quick-Fill Campus Accounts */}
+          <div className="auth-quickfill">
+            <div className="auth-quickfill__head">
+              <span>Quick-fill campus accounts</span>
+              <small>Click to fill credentials</small>
+            </div>
+            <div className="auth-quickfill__grid">
+              {DEMO_ACCOUNTS.map((acc) => {
+                const isSelected = filledDemoEmail === acc.email && mode === 'login';
+                return (
+                  <button
+                    key={acc.email}
+                    type="button"
+                    onClick={() => handleQuickFill(acc)}
+                    className={`auth-quickfill__chip ${isSelected ? 'is-selected' : ''}`}
+                  >
+                    <div className="auth-quickfill__top">
+                      <strong>{acc.label}</strong>
+                      <span className={`auth-role-pill ${acc.roleTag === 'STAFF' ? 'is-staff' : ''}`}>
+                        {acc.roleTag}
+                      </span>
+                    </div>
+                    <span className="auth-quickfill__email">{acc.email}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
-      )}
+      </main>
     </div>
   );
 }

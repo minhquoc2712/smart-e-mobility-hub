@@ -3,6 +3,7 @@ const app = require('./app');
 const { checkDatabaseConnection } = require('./config/db');
 
 const PORT = Number(process.env.PORT || 4000);
+const HOST = process.env.HOST || '0.0.0.0';
 const { expireVehicleHolds } = require('./modules/reservations/reservations.service');
 
 async function bootstrap() {
@@ -28,8 +29,8 @@ async function bootstrap() {
   }, 60_000);
   expirationTimer.unref();
 
-  app.listen(PORT, () => {
-    console.log(`[Backend] Smart E-Mobility Hub API running at http://localhost:${PORT}/api/v1`);
+  app.listen(PORT, HOST, () => {
+    console.log(`[Backend] Smart E-Mobility Hub API running at http://localhost:${PORT}/api/v1 (LAN bound on ${HOST})`);
   });
 }
 
@@ -55,8 +56,8 @@ async function bootstrap() {
     );
   }
 
-  app.listen(PORT, () => {
-    console.log(`[Backend] Smart E-Mobility Hub API running at http://localhost:${PORT}/api/v1`);
+  app.listen(PORT, HOST, () => {
+    console.log(`[Backend] Smart E-Mobility Hub API running at http://localhost:${PORT}/api/v1 (LAN bound on ${HOST})`);
   });
 }
 

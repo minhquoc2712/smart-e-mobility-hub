@@ -32,6 +32,14 @@ a {
   text-decoration: none;
 }
 
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font-family: inherit;
+}
+
 .app-shell {
   min-height: 100vh;
   display: flex;
@@ -1763,14 +1771,16 @@ a {
   min-height: 48px;
   align-items: center;
   justify-content: center;
-  padding: 0.7rem 1.25rem;
+  padding: 0.7rem 1.35rem;
   border: 0;
-  border-radius: 9px;
+  border-radius: 11px;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
-  background: #50c65b;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
+  background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(21, 128, 61, 0.22);
+  transition: filter 0.15s ease, opacity 0.15s ease;
 }
 
 .reservation-primary-button,
@@ -3138,4 +3148,2753 @@ a {
 
 .state-view--success .state-view__title {
   color: #14532d;
+}
+
+
+/* ==========================================================================
+   V2.0 FUTURISTIC DESIGN SYSTEM: VNU-HCM BRANDING, INTERACTIVE MAP,
+   OPTICAL QR LASER SCANNER, DARK MODE & MOBILE-FIRST RESPONSIVENESS
+   ========================================================================== */
+
+:root {
+  --staff-subcard: #fbfdfa;
+  --glass-bg: rgba(255, 255, 255, 0.86);
+  --glass-border: rgba(52, 199, 89, 0.24);
+  --accent-glow: rgba(16, 185, 129, 0.28);
+}
+
+/* 1. Dual Brand Identity (VNU-HCM + Smart E-Mobility Hub) */
+.brand-dual {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.brand-dual__divider {
+  width: 1.5px;
+  height: 32px;
+  background: var(--border-color);
+  flex-shrink: 0;
+}
+
+.brand-dual__project {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand-dual__project img {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.brand-dual__project strong {
+  display: block;
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-main);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.brand-dual__project span {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* 2. Theme Toggle & Topbar Actions */
+.topbar {
+  min-height: 76px;
+  padding: 12px 28px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.theme-toggle-btn--icon {
+  width: 38px;
+  padding: 0;
+}
+
+.theme-toggle-btn:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* Pulsing futuristic live status dot */
+.live-pulse-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  display: inline-block;
+  flex-shrink: 0;
+  animation: semh-pulse 2s infinite;
+}
+
+@keyframes semh-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65); }
+  70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Active Ride Strip */
+.active-ride-strip {
+  background: var(--bg-soft-green);
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.active-ride-strip__info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.active-ride-strip__btn {
+  background: var(--primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* User Avatar Menu */
+.user-menu-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-menu-meta {
+  text-align: right;
+  line-height: 1.2;
+}
+
+.user-menu-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.user-menu-role {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.04em;
+}
+
+.user-avatar-trigger {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  padding: 0;
+  border: 2px solid var(--primary);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-avatar-trigger img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-avatar-initials {
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.user-avatar-online {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid var(--bg-surface);
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  left: auto;
+  width: min(256px, calc(100vw - 24px));
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+  padding: 10px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-menu-dropdown__head {
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.user-menu-dropdown__name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.user-menu-dropdown__email {
+  font-size: 12px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.user-menu-dropdown__plate {
+  margin-top: 6px;
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--bg-soft-green);
+  color: var(--primary);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.user-menu-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.user-menu-item:hover {
+  background: var(--bg-soft-green);
+}
+
+.user-menu-item--accent {
+  background: var(--bg-soft-green);
+  color: var(--primary);
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.user-menu-item--danger {
+  color: var(--danger);
+  border-top: 1px solid var(--border-color);
+  border-radius: 0 0 10px 10px;
+  margin-top: 4px;
+  padding-top: 10px;
+  font-weight: 600;
+}
+
+/* 3. Realistic Login Portal with Blurred VNU-HCM Campus Backdrop */
+.auth-portal {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-portal__backdrop {
+  position: fixed;
+  inset: -24px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(8px) saturate(1.06);
+  transform: scale(1.04);
+  z-index: 0;
+}
+
+.auth-portal__tint {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    145deg,
+    rgba(244, 249, 244, 0.72) 0%,
+    rgba(230, 244, 234, 0.62) 50%,
+    rgba(251, 252, 234, 0.76) 100%
+  );
+  z-index: 1;
+}
+
+.auth-portal__topbar {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 32px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-color);
+  gap: 12px;
+}
+
+.auth-portal__main {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px 40px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  padding: 28px 30px;
+  box-shadow: 0 24px 54px rgba(15, 35, 22, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-card__eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+
+.auth-card__header h1 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+}
+
+.auth-card__header p {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  background: var(--bg-soft-green);
+  border-radius: 12px;
+  gap: 4px;
+}
+
+.auth-tab {
+  height: 38px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.auth-tab.active {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+}
+
+.auth-alert {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.auth-field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.auth-field input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 11px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: 14.5px;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-field input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.auth-password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-password-wrap input {
+  padding-right: 44px;
+}
+
+.auth-eye-btn {
+  position: absolute;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.auth-eye-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-soft-green);
+}
+
+.auth-submit-btn {
+  margin-top: 4px;
+  height: 46px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(21, 128, 61, 0.25);
+  transition: transform 0.12s ease, filter 0.15s ease;
+}
+
+.auth-submit-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.auth-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 10px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.auth-google-btn-slot {
+  display: flex;
+  justify-content: center;
+}
+
+.auth-quickfill {
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-quickfill__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.auth-quickfill__head small {
+  font-weight: 500;
+  font-size: 11.5px;
+}
+
+.auth-quickfill__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.auth-quickfill__chip {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 11px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 0;
+}
+
+.auth-quickfill__chip:hover,
+.auth-quickfill__chip.is-selected {
+  border-color: var(--primary);
+  background: var(--bg-soft-green);
+}
+
+.auth-quickfill__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.auth-quickfill__top strong {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.auth-role-pill {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.auth-role-pill.is-staff {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.auth-quickfill__email {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 4. Interactive VNU-HCM Campus Hub Map (Leaflet) */
+.campus-map-shell {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 18px 0 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.campus-map-toolbar {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.campus-map-toolbar__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.campus-map-toolbar__title strong {
+  font-size: 14.5px;
+  color: var(--text-main);
+}
+
+.campus-map-toolbar__hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.campus-map-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.campus-map-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.campus-map-chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-page);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.campus-map-chip.active,
+.campus-map-chip:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.campus-map-stage {
+  position: relative;
+  height: 390px;
+  width: 100%;
+}
+
+.campus-map-canvas {
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
+
+.semh-map-marker-wrapper {
+  background: transparent !important;
+  border: none !important;
+}
+
+.semh-map-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transform: translateY(-4px);
+}
+
+.semh-map-pin__chip {
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  padding: 4px 9px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+  margin-bottom: 5px;
+  white-space: nowrap;
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+
+.semh-map-pin.is-selected .semh-map-pin__chip,
+.semh-map-pin:hover .semh-map-pin__chip {
+  transform: scale(1.07);
+  border-color: #34d399;
+}
+
+.semh-map-pin__title {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.semh-map-pin__meta {
+  font-size: 9.5px;
+  color: #a7f3d0;
+  font-weight: 600;
+}
+
+.semh-map-pin__dot {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.semh-map-pin__core {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--pin-color, #10b981);
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  z-index: 2;
+}
+
+.semh-map-pin__pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: var(--pin-ring, rgba(16, 185, 129, 0.3));
+  animation: map-pin-ripple 2.1s infinite ease-out;
+}
+
+@keyframes map-pin-ripple {
+  0% { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+.campus-map-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 400;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.campus-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.campus-map-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.campus-map-card {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: min(320px, calc(100% - 24px));
+  z-index: 450;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.campus-map-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.campus-map-card__zone {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--primary);
+}
+
+.campus-map-card__head h3 {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.campus-map-card__close {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: none;
+  background: var(--bg-soft-green);
+  color: var(--text-main);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.campus-map-card__address {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.campus-map-card__metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.campus-map-metric {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.campus-map-metric span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.campus-map-metric strong {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.campus-map-metric strong.text-danger {
+  color: var(--danger);
+}
+
+.campus-map-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.campus-map-btn {
+  flex: 1;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.campus-map-btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+/* 5. Optical QR Scanner with Animated Cyan-Emerald Laser Sweep */
+.qr-scanner-frame {
+  position: relative;
+  width: min(296px, 100%);
+  padding: 20px 20px 16px;
+  border-radius: 20px;
+  background: #0b1512;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  box-shadow: 0 14px 32px rgba(6, 24, 18, 0.32), inset 0 0 24px rgba(16, 185, 129, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.qr-scanner-reticle {
+  position: relative;
+  width: 100%;
+  max-width: 232px;
+  padding: 10px;
+}
+
+.qr-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: #34d399;
+  border-style: solid;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.qr-corner--tl { top: 0; left: 0; border-width: 3px 0 0 3px; border-top-left-radius: 10px; }
+.qr-corner--tr { top: 0; right: 0; border-width: 3px 3px 0 0; border-top-right-radius: 10px; }
+.qr-corner--bl { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-bottom-left-radius: 10px; }
+.qr-corner--br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-bottom-right-radius: 10px; }
+
+.qr-scanner-viewport {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.qr-laser-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, #06b6d4 20%, #34d399 50%, #06b6d4 80%, transparent 100%);
+  box-shadow:
+    0 0 10px 2px rgba(52, 211, 153, 0.9),
+    0 0 22px 6px rgba(6, 182, 212, 0.55);
+  animation: qr-laser-sweep 2.4s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.qr-laser-beam::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28px;
+  background: linear-gradient(to top, rgba(52, 211, 153, 0.26), transparent);
+}
+
+@keyframes qr-laser-sweep {
+  0% { top: 6%; }
+  100% { top: 92%; }
+}
+
+.qr-scanner-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.26);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: #a7f3d0;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Fix overlapping Pickup / Cancel buttons on mobile & desktop */
+.reservation-safety-note {
+  margin: 8px 0 14px;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.reservation-pickup-actions {
+  margin-top: auto;
+  padding-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+.reservation-action-cancel,
+.reservation-action-confirm {
+  position: static !important;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 16px;
+  border-radius: 11px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.reservation-action-cancel {
+  background: var(--bg-surface);
+  color: var(--danger);
+  border: 1.5px solid #fca5a5;
+}
+
+.reservation-action-confirm {
+  background: #22c55e;
+  color: #092412;
+  border: none;
+}
+
+.reservation-booking-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reservation-hub-select-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.reservation-hub-select-label select {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: 14.5px;
+  font-family: inherit;
+}
+
+/* 6. Clean Modern Student Hub List, Search & TimeSlot Picker */
+.search-highlight {
+  background: #bbf7d0;
+  color: #064e3b;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.onboarding-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.onboarding-step-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 12px 15px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.onboarding-step-num {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--bg-soft-green);
+  color: var(--primary);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.onboarding-step-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.onboarding-step-desc {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.hub-search-wrap {
+  position: relative;
+}
+
+.hub-location-search-svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.hub-search-loading {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+.hub-suggestions-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+  padding: 8px;
+  z-index: 80;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.hub-suggestions-head {
+  padding: 4px 10px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  justify-content: space-between;
+}
+
+.hub-suggestions-empty {
+  padding: 12px 10px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.hub-suggestion-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-wrap: wrap;
+}
+
+.hub-suggestion-row.is-active,
+.hub-suggestion-row:hover {
+  background: var(--bg-soft-green);
+}
+
+.hub-suggestion-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hub-suggestion-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 7px;
+  background: var(--bg-soft-green);
+  color: var(--primary);
+}
+
+.hub-suggestion-tag.is-ev {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.hub-suggestion-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hub-suggestion-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.hub-suggestion-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hub-suggestion-meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  background: var(--bg-page);
+  border: 1px solid var(--border-color);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.hub-suggestion-btn {
+  background: var(--primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hub-status-pill {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.hub-status-pill.status-near_full {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.hub-status-pill.status-full,
+.hub-status-pill.status-maintenance {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.nearby-hub-row.is-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.nearby-hub-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.nearby-hub-title-row h3 {
+  margin: 0;
+}
+
+.nearby-hub-availability {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metric-pill {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.metric-pill strong {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.nearby-hub-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.view-vehicles-button--primary {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.vehicle-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vehicle-card-top h2 {
+  margin: 0;
+}
+
+.vehicle-rate-tag {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--primary);
+  border: 1px solid var(--border-color);
+}
+
+/* TimeSlotWeekPicker CSS classes */
+.timeslot-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.timeslot-picker__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.timeslot-picker__label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.timeslot-date-input {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--bg-surface);
+  color: var(--text-main);
+}
+
+.timeslot-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.timeslot-day-btn {
+  padding: 7px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-family: inherit;
+}
+
+.timeslot-day-btn.is-active {
+  border: 1.5px solid var(--primary);
+  background: var(--bg-soft-green);
+  color: var(--primary);
+}
+
+.timeslot-day-btn__wk {
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.timeslot-day-btn__dm {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.timeslot-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.timeslot-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeslot-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.timeslot-legend__dot.is-selected {
+  background: #86efac;
+  border: 1px solid #16a34a;
+}
+
+.timeslot-legend__dot.is-booked {
+  background: #d1d5db;
+  border: 1px solid #9ca3af;
+}
+
+.timeslot-hour-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.timeslot-hour-btn {
+  padding: 8px 4px;
+  border-radius: 9px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+}
+
+.timeslot-hour-btn.is-start,
+.timeslot-hour-btn.is-range {
+  background: #bbf7d0;
+  border: 1.5px solid #15803d;
+  color: #052e16;
+  font-weight: 800;
+}
+
+.timeslot-hour-btn.is-booked,
+.timeslot-hour-btn.is-past {
+  background: rgba(148, 163, 184, 0.18);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: var(--text-muted);
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.timeslot-hour-btn.is-booked .timeslot-hour-btn__time {
+  text-decoration: line-through;
+}
+
+.timeslot-hour-btn__sub {
+  font-size: 9.5px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.timeslot-duration-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.timeslot-dur-btn {
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.timeslot-dur-btn.is-active {
+  border: 1.5px solid var(--primary);
+  background: var(--bg-soft-green);
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.timeslot-dur-btn.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.booked-charging-list {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.booked-charging-list__title {
+  font-size: 13.5px;
+  color: var(--text-main);
+}
+
+.booked-charging-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.booked-charging-item__code {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.booked-charging-item__sub {
+  color: var(--text-muted);
+}
+
+.booked-charging-item__cancel {
+  background: #fee2e2;
+  color: #991b1b;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.staff-error-banner {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   7. COMPLETE DARK MODE THEME ([data-theme="dark"])
+   ========================================================================== */
+[data-theme='dark'] {
+  --bg-page: #0b1410;
+  --bg-surface: #12211a;
+  --bg-soft-green: #183025;
+  --primary: #34d399;
+  --primary-hover: #10b981;
+  --text-main: #ecfdf5;
+  --text-muted: #94b3a3;
+  --border-color: #234233;
+  --danger: #f87171;
+  --warning: #fbbf24;
+  --info: #60a5fa;
+  --shadow-sm: 0 4px 18px rgba(0, 0, 0, 0.36);
+
+  --staff-bg: #0b1410;
+  --staff-card: #12211a;
+  --staff-subcard: #162920;
+  --staff-brand: #34d399;
+  --staff-forest: #a7f3d0;
+  --staff-ink: #ecfdf5;
+  --staff-muted: #8fb09f;
+  --staff-olive: #a3c2b2;
+  --staff-pill: #182e24;
+  --staff-pill-active: #1f4735;
+  --staff-divider: #234233;
+  --staff-shadow: 0 6px 24px rgba(0, 0, 0, 0.42);
+
+  --glass-bg: rgba(16, 31, 24, 0.86);
+  --glass-border: rgba(52, 211, 153, 0.25);
+  --accent-glow: rgba(52, 211, 153, 0.22);
+}
+
+[data-theme='dark'] .auth-portal__tint {
+  background: linear-gradient(
+    145deg,
+    rgba(8, 18, 13, 0.82) 0%,
+    rgba(13, 29, 21, 0.76) 50%,
+    rgba(9, 20, 15, 0.86) 100%
+  );
+}
+
+[data-theme='dark'] .campus-map-canvas .leaflet-tile-pane {
+  filter: invert(0.92) hue-rotate(180deg) brightness(0.94) contrast(0.92);
+}
+
+[data-theme='dark'] .nearby-hub-row,
+[data-theme='dark'] .hub-service-card,
+[data-theme='dark'] .vehicle-availability-card,
+[data-theme='dark'] .reservation-vehicle-card,
+[data-theme='dark'] .reservation-details-card,
+[data-theme='dark'] .reservation-step-card,
+[data-theme='dark'] .reservation-list-card,
+[data-theme='dark'] .booking-form-card,
+[data-theme='dark'] .parking-result-card,
+[data-theme='dark'] .charging-details-card,
+[data-theme='dark'] .charging-summary-card,
+[data-theme='dark'] .vehicle-owner-card,
+[data-theme='dark'] .availability-owner-card,
+[data-theme='dark'] .charging-status-card,
+[data-theme='dark'] .vehicle-edit-modal,
+[data-theme='dark'] .hub-location-search,
+[data-theme='dark'] .staff-panel,
+[data-theme='dark'] .staff-zone-card {
+  background: var(--bg-surface) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme='dark'] h1,
+[data-theme='dark'] h2,
+[data-theme='dark'] h3,
+[data-theme='dark'] strong,
+[data-theme='dark'] label,
+[data-theme='dark'] .reservation-vehicle-name,
+[data-theme='dark'] .reservation-vehicle-location,
+[data-theme='dark'] .reservation-vehicle-rate,
+[data-theme='dark'] .reservation-pickup-instructions ol,
+[data-theme='dark'] .reservation-return-instructions {
+  color: var(--text-main) !important;
+}
+
+[data-theme='dark'] p,
+[data-theme='dark'] .find-hub-heading p,
+[data-theme='dark'] .reservation-flow-heading p,
+[data-theme='dark'] .reservation-summary-row {
+  color: var(--text-muted) !important;
+}
+
+[data-theme='dark'] input,
+[data-theme='dark'] select,
+[data-theme='dark'] textarea {
+  background: #0e1a14 !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme='dark'] .nav-link {
+  color: var(--text-muted);
+}
+
+[data-theme='dark'] .nav-link.active {
+  background: var(--bg-soft-green);
+  color: var(--primary);
+}
+
+[data-theme='dark'] .staff-pill-btn {
+  background: #10b981;
+  color: #042f1e;
+  font-weight: 700;
+}
+
+[data-theme='dark'] .staff-pill-btn--soft {
+  background: var(--staff-pill);
+  color: var(--staff-forest);
+}
+
+/* ==========================================================================
+   8. MOBILE-FIRST RESPONSIVE OPTIMIZATION (FOR LIVE PHONE DEMO)
+   ========================================================================== */
+
+/* Transparent EV Illustration Stage (seamless in both Light & Dark Mode) */
+.ev-illustration-stage {
+  width: 100%;
+  height: 100%;
+  min-height: 185px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: radial-gradient(
+    circle at 50% 55%,
+    rgba(52, 211, 153, 0.15) 0%,
+    rgba(16, 185, 129, 0.04) 68%,
+    transparent 100%
+  );
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ev-illustration-stage svg {
+  width: 100%;
+  max-width: 230px;
+  max-height: 175px;
+  height: auto;
+  display: block;
+}
+
+.reservation-vehicle-image,
+.private-vehicle-image,
+.vehicle-availability-image,
+.hub-service-image,
+.charging-summary-image {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Ensure crisp button & control contrast on iOS Safari & Dark Mode */
+.vehicle-reserve-button,
+.hub-service-card button,
+.primary-action,
+.floating-action,
+.charging-register-button {
+  background: linear-gradient(135deg, #22c55e 0%, #15803d 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border: none !important;
+}
+
+.edit-vehicle-button,
+.secondary-action {
+  background: var(--bg-surface) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-color) !important;
+  font-weight: 600 !important;
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    padding: 10px 14px;
+    gap: 8px;
+    min-height: auto;
+  }
+
+  .topbar .brand-dual,
+  .staff-header .brand-dual,
+  .auth-portal__topbar .brand-dual {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .topbar-actions,
+  .staff-account-bar {
+    margin-left: auto;
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .topbar .nav-links {
+    order: 3;
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    padding-top: 4px;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .topbar .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .topbar .nav-link {
+    white-space: nowrap;
+    padding: 7px 13px;
+    font-size: 13.5px;
+    border-radius: 999px;
+  }
+
+  .staff-header {
+    padding: 10px 14px;
+    min-height: auto;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .staff-nav {
+    padding: 0 14px 8px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .staff-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .staff-nav-item {
+    height: 40px;
+    padding: 0 14px;
+    font-size: 14px;
+    border-radius: 999px;
+  }
+
+  .staff-workspace {
+    padding: 20px 14px 44px;
+  }
+
+  .hub-service-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .hub-service-card {
+    min-height: auto;
+  }
+
+  .hub-service-image {
+    height: 210px;
+  }
+
+  .campus-map-stage {
+    height: 350px;
+  }
+
+  .campus-map-card {
+    top: auto;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
+
+  .campus-map-legend {
+    top: 10px;
+    bottom: auto;
+    left: 10px;
+  }
+}
+
+@media (max-width: 600px) {
+  .brand-dual {
+    gap: 6px !important;
+  }
+
+  .brand-dual__divider {
+    height: 20px;
+  }
+
+  .brand-dual svg {
+    height: 20px !important;
+  }
+
+  .brand-dual__project {
+    gap: 5px;
+  }
+
+  .brand-dual__project img {
+    width: 22px;
+    height: 22px;
+  }
+
+  .brand-dual__project strong {
+    font-size: 12.5px;
+    max-width: 145px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .brand-dual__project span {
+    display: none;
+  }
+
+  .topbar-actions,
+  .staff-account-bar {
+    gap: 6px;
+  }
+
+  .theme-toggle-btn--icon,
+  .user-avatar-trigger {
+    width: 34px;
+    height: 34px;
+  }
+
+  .user-avatar-initials {
+    font-size: 12px;
+  }
+
+  .user-menu-meta {
+    display: none;
+  }
+
+  .auth-portal__topbar {
+    padding: 10px 12px;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .auth-card {
+    padding: 22px 18px;
+    border-radius: 20px;
+  }
+
+  .auth-quickfill__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .timeslot-week-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .timeslot-hour-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .timeslot-duration-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reservation-pickup-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .nearby-hub-row {
+    padding: 16px;
+  }
+
+  .nearby-hub-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .nearby-hub-actions > a {
+    flex: 1;
+    text-align: center;
+  }
+}
+
+
+/* ==========================================================================
+   9. V2.2 UPGRADES: LIFECYCLE STEPPER, OPERATOR APPROVALS, PARALLEL MOBILE
+      BOARDS, ENLARGED NAVIGATION & PRIVATE EV TYPOGRAPHY
+   ========================================================================== */
+
+/* Enlarge Topbar 4 Navigation Items on Desktop */
+@media (min-width: 901px) {
+  .topbar .nav-links {
+    gap: 10px;
+  }
+
+  .topbar .nav-link {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 12px;
+  }
+}
+
+/* Quick Guide Strip for Operator & Student */
+.quick-guide-strip {
+  margin-bottom: 18px;
+}
+
+.quick-guide-strip--operator .onboarding-step-card {
+  background: var(--staff-card);
+  border-color: var(--staff-divider);
+}
+
+/* Prominent 4 KPI Cards on Operator Dashboard */
+.staff-kpi-grid--prominent {
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 16px;
+  padding-bottom: 6px;
+}
+
+.staff-kpi-card {
+  background: var(--staff-pill);
+  border: 1px solid var(--staff-divider);
+  border-radius: 16px;
+  padding: 20px 22px;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease;
+}
+
+.staff-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--staff-brand);
+}
+
+.staff-kpi-eyebrow {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--staff-olive);
+  margin-bottom: 6px;
+}
+
+.staff-kpi-grid--prominent .staff-kpi-value {
+  font-size: 42px;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+
+.staff-kpi-grid--prominent .staff-kpi-label {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+/* Operator Student Booking Approval Queue */
+.operator-approval-section {
+  background: var(--staff-pill);
+  border: 1px solid var(--staff-divider);
+  border-radius: 18px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.operator-approval-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.operator-approval-sub {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--staff-olive);
+}
+
+.operator-approval-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.operator-tab-btn {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--staff-divider);
+  background: var(--staff-card);
+  color: var(--staff-forest);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.operator-tab-btn.is-active {
+  background: var(--staff-brand);
+  border-color: var(--staff-brand);
+  color: #ffffff;
+}
+
+.operator-approval-toast {
+  background: var(--staff-card);
+  border: 1.5px solid #22c55e;
+  color: var(--staff-forest);
+  padding: 10px 14px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.operator-approval-toast button {
+  background: none;
+  border: none;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.operator-approval-empty {
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px dashed var(--staff-divider);
+  background: var(--staff-card);
+  text-align: center;
+  color: var(--staff-muted);
+  font-size: 14.5px;
+}
+
+.operator-approval-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.operator-approval-card {
+  background: var(--staff-card);
+  border: 1px solid var(--staff-divider);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.operator-approval-card__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 16px;
+}
+
+.operator-type-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--staff-pill);
+  color: var(--staff-forest);
+  letter-spacing: 0.04em;
+}
+
+.operator-approval-card__meta {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  color: var(--staff-olive);
+}
+
+.operator-approval-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.operator-approve-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
+  color: #ffffff !important;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.operator-reject-btn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #fca5a5;
+  background: var(--staff-card);
+  color: #dc2626 !important;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Status Tone Pills across Student & Operator */
+.status-tone-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.status-tone-pill.tone-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-tone-pill.tone-confirmed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-tone-pill.tone-active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-tone-pill.tone-completed {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.status-tone-pill.tone-rejected,
+.status-tone-pill.tone-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-tone-pill.tone-expired {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* Visual 4-Stage Lifecycle Progress Stepper */
+.lifecycle-stepper-wrap {
+  width: 100%;
+  margin: 10px 0 4px;
+}
+
+.lifecycle-stepper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+}
+
+.lifecycle-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.lifecycle-step__dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-page);
+  border: 2px solid var(--border-color);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lifecycle-step.is-done .lifecycle-step__dot {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #ffffff;
+}
+
+.lifecycle-step.is-current .lifecycle-step__dot {
+  background: var(--bg-soft-green);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 0 4px var(--accent-glow, rgba(16, 185, 129, 0.2));
+}
+
+.lifecycle-step__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.lifecycle-step.is-done .lifecycle-step__label,
+.lifecycle-step.is-current .lifecycle-step__label {
+  color: var(--text-main);
+  font-weight: 800;
+}
+
+.lifecycle-step__bar {
+  flex: 1;
+  min-width: 14px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border-color);
+}
+
+.lifecycle-step__bar.is-filled {
+  background: #22c55e;
+}
+
+.lifecycle-stepper.is-terminated {
+  opacity: 0.48;
+}
+
+.lifecycle-terminated-pill {
+  margin-top: 8px;
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Redesigned Student Reservations Page */
+.reservation-stepper-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 14px 20px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+}
+
+.reservation-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.reservation-filter-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reservation-filter-tab {
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reservation-filter-tab.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.reservation-new-btn {
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--bg-soft-green);
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 800;
+  border: 1px solid var(--border-color);
+}
+
+.reservation-modern-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+}
+
+.reservation-modern-card.is-highlighted {
+  border: 1.5px solid var(--primary);
+}
+
+.reservation-modern-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.reservation-modern-card__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reservation-modern-card__title h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.vehicle-kind-chip {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--bg-soft-green);
+  color: var(--primary);
+}
+
+.reservation-modern-card__price {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.reservation-modern-card__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.meta-chip {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.meta-chip--live {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+  font-weight: 800;
+}
+
+.reservation-modern-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.reservation-outline-danger-btn {
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 11px;
+  border: 1.5px solid #fca5a5;
+  background: var(--bg-surface);
+  color: var(--danger) !important;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reservation-card-head-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.reservation-card-head-inline h2 {
+  margin: 0 !important;
+}
+
+.pending-approval-box {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  height: 100%;
+  justify-content: center;
+}
+
+.pending-approval-pulse {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.22);
+}
+
+.pending-approval-box h3 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.pending-approval-box p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.pending-approval-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-color);
+  font-size: 13.5px;
+}
+
+.reservation-action-secondary-btn {
+  min-height: 48px;
+  padding: 10px 16px;
+  border-radius: 11px;
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main) !important;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Live Ride Digital Timer Card (Screenshot 14 inspiration) */
+.live-ride-timer-card {
+  background: var(--bg-soft-green);
+  border: 1.5px solid var(--primary);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.live-ride-timer-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.live-ride-timer-card__top span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.live-ride-unlocked-tag {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #22c55e;
+  color: #ffffff;
+}
+
+.live-ride-timer-digits {
+  font-size: 38px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--primary);
+  margin: 6px 0 2px;
+  line-height: 1.1;
+}
+
+.live-ride-timer-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.return-hub-preview-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  margin: 8px 0;
+}
+
+.return-hub-preview-card strong {
+  display: block;
+  font-size: 15.5px;
+}
+
+.return-hub-preview-card span {
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+/* Enlarged Typography on My Vehicles (Private EV) Page */
+.my-vehicles-page .page-description {
+  font-size: 17px;
+  margin-bottom: 18px;
+}
+
+.my-vehicles-page h2 {
+  font-size: 23px !important;
+  font-weight: 800;
+}
+
+.my-vehicles-page .vehicle-selector select {
+  min-height: 48px;
+  font-size: 16.5px !important;
+  font-weight: 600;
+  padding: 0 14px;
+}
+
+.my-vehicles-page .vehicle-owner-card > strong {
+  display: block;
+  font-size: 21px !important;
+  font-weight: 800;
+  margin: 10px 0 6px;
+}
+
+.my-vehicles-page .battery-row span,
+.my-vehicles-page .vehicle-detail-row,
+.my-vehicles-page .availability-owner-card > div,
+.my-vehicles-page .charging-status-row {
+  font-size: 16.5px !important;
+  line-height: 1.55;
+}
+
+.my-vehicles-page .edit-vehicle-button,
+.my-vehicles-page .floating-action {
+  min-height: 48px;
+  font-size: 16px !important;
+}
+
+.my-vehicles-page .charging-status-row button {
+  padding: 8px 14px;
+  font-size: 14.5px !important;
+  font-weight: 700;
+  border-radius: 9px;
+}
+
+/* Preserve Priority Select Badge Colors in Dark Mode */
+[data-theme='dark'] select.priority-pill-select {
+  background: #183025 !important;
+  color: #ecfdf5 !important;
+  border-color: #34d399 !important;
+}
+
+/* Fleet Table Horizontal Scroll Container + Parallel 2-Column & Zone Boards on Mobile */
+.fleet-table-scroll,
+.parallel-board-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+}
+
+.parallel-two-col-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(300px, 1fr));
+  gap: 16px;
+  align-items: start;
+  min-width: 616px;
+}
+
+@media (max-width: 900px) {
+  .staff-kpi-grid--prominent {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .staff-kpi-grid--prominent .staff-kpi-value {
+    font-size: 32px;
+  }
+
+  .staff-kpi-grid--prominent .staff-kpi-label {
+    font-size: 15.5px;
+  }
+
+  /* Keep Zone A, Zone B, Zone C side-by-side horizontally on mobile! */
+  .staff-zone-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(240px, 1fr)) !important;
+    gap: 12px !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    width: 100%;
+  }
+
+  /* Keep Active vs Queue & Source vs Destination side-by-side in 2 columns on mobile! */
+  .parallel-two-col-board {
+    grid-template-columns: repeat(2, minmax(272px, 1fr));
+    min-width: 558px;
+    gap: 12px;
+  }
+
+  /* Keep Quick Guide steps compact horizontally on mobile */
+  .quick-guide-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(215px, 1fr));
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+}
+
+@media (max-width: 600px) {
+  .staff-panel {
+    padding: 18px 14px;
+  }
+
+  .lifecycle-step__label {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 600px) {
+  .staff-field-green {
+    font-size: 15.5px !important;
+    padding: 0 14px !important;
+  }
 }

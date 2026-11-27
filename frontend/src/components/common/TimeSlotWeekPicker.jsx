@@ -147,24 +147,16 @@ export function TimeSlotWeekPicker({
   }, [date, selectedHour, durationOptions, bookedIntervals, nowMs]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div className="timeslot-picker">
       {/* Rolling 7-Day Date Selector */}
       <div>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 6,
-            gap: 8,
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#202b20' }}>
+        <div className="timeslot-picker__head">
+          <span className="timeslot-picker__label">
             Date ({weekDates[0].dayMonth} – {weekDates[weekDates.length - 1].dayMonth})
           </span>
           <input
             type="date"
+            aria-label="Booking date"
             value={date}
             min={minDate}
             max={maxDate}
@@ -175,25 +167,11 @@ export function TimeSlotWeekPicker({
                 onDateChange(val);
               }
             }}
-            style={{
-              padding: '5px 10px',
-              borderRadius: 8,
-              border: '1px solid #c9dec9',
-              fontSize: 13.5,
-              fontFamily: 'inherit',
-              background: '#ffffff',
-              color: '#1f3b24',
-            }}
+            className="timeslot-date-input"
           />
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-            gap: 6,
-          }}
-        >
+        <div className="timeslot-week-grid">
           {weekDates.map((d) => {
             const active = d.value === date;
             return (
@@ -202,99 +180,42 @@ export function TimeSlotWeekPicker({
                 type="button"
                 disabled={disabled}
                 onClick={() => onDateChange(d.value)}
-                style={{
-                  padding: '7px 4px',
-                  borderRadius: 10,
-                  border: active ? '1.5px solid #2b581c' : '1px solid #d7ead7',
-                  background: active ? '#cdf4cf' : '#ffffff',
-                  color: '#1f3b24',
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 1,
-                  fontFamily: 'inherit',
-                }}
+                className={`timeslot-day-btn ${active ? 'is-active' : ''}`}
               >
-                <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.8 }}>{d.weekday}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{d.dayMonth}</span>
+                <span className="timeslot-day-btn__wk">{d.weekday}</span>
+                <span className="timeslot-day-btn__dm">{d.dayMonth}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Hourly Time-Slot Grid (Booked slots turn grey & unclickable!) */}
+      {/* Hourly Time-Slot Grid */}
       <div>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 6,
-            flexWrap: 'wrap',
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#202b20' }}>
-            Choose start time
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#1f3b24' }}>
-              <i
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 3,
-                  background: '#cdf4cf',
-                  border: '1px solid #2b581c',
-                  display: 'inline-block',
-                }}
-              />
-              Selected
+        <div className="timeslot-picker__head">
+          <span className="timeslot-picker__label">Choose start time</span>
+          <div className="timeslot-legend">
+            <span>
+              <i className="timeslot-legend__dot is-selected" /> Selected
             </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#6b7280' }}>
-              <i
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 3,
-                  background: '#e5e7eb',
-                  border: '1px solid #d1d5db',
-                  display: 'inline-block',
-                }}
-              />
-              Booked / Unavailable
+            <span>
+              <i className="timeslot-legend__dot is-booked" /> Booked / Passed
             </span>
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-            gap: 7,
-          }}
-        >
+        <div className="timeslot-hour-grid">
           {hourStates.map((slot) => {
             const unavailable = slot.isBooked || slot.isPast || disabled;
-            let bg = '#ffffff';
-            let border = '1px solid #d4e8d4';
-            let color = '#1f3b24';
-
-            if (slot.isBooked) {
-              bg = '#e5e7eb';
-              border = '1px solid #d1d5db';
-              color = '#9ca3af';
-            } else if (slot.isPast) {
-              bg = '#f3f4f6';
-              border = '1px solid #e5e7eb';
-              color = '#b0b7c3';
-            } else if (slot.inSelectedRange) {
-              bg = slot.isStart ? '#9be7a1' : '#cdf4cf';
-              border = '1.5px solid #2b581c';
-              color = '#143318';
-            }
+            const stateClass = slot.isBooked
+              ? 'is-booked'
+              : slot.isPast
+              ? 'is-past'
+              : slot.inSelectedRange
+              ? slot.isStart
+                ? 'is-start'
+                : 'is-range'
+              : '';
 
             return (
               <button
@@ -319,27 +240,10 @@ export function TimeSlotWeekPicker({
                     onDurationChange(1);
                   }
                 }}
-                style={{
-                  padding: '8px 4px',
-                  borderRadius: 9,
-                  background: bg,
-                  border,
-                  color,
-                  fontFamily: 'inherit',
-                  fontSize: 13,
-                  fontWeight: slot.inSelectedRange ? 700 : 600,
-                  cursor: unavailable ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  lineHeight: 1.15,
-                  opacity: slot.isBooked ? 0.78 : 1,
-                }}
+                className={`timeslot-hour-btn ${stateClass}`.trim()}
               >
-                <span style={{ textDecoration: slot.isBooked ? 'line-through' : 'none' }}>
-                  {slot.label}
-                </span>
-                <span style={{ fontSize: 10, fontWeight: 600, marginTop: 2 }}>
+                <span className="timeslot-hour-btn__time">{slot.label}</span>
+                <span className="timeslot-hour-btn__sub">
                   {slot.isBooked ? 'Booked' : slot.isPast ? 'Passed' : 'Free'}
                 </span>
               </button>
@@ -350,18 +254,10 @@ export function TimeSlotWeekPicker({
 
       {/* Duration Selector */}
       <div>
-        <span
-          style={{
-            display: 'block',
-            fontSize: 14,
-            fontWeight: 600,
-            color: '#202b20',
-            marginBottom: 6,
-          }}
-        >
+        <span className="timeslot-picker__label" style={{ display: 'block', marginBottom: 6 }}>
           Duration
         </span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        <div className="timeslot-duration-grid">
           {durationAvailability.map(({ dur, allowed, overlaps }) => {
             const active = Number(durationHours) === dur;
             return (
@@ -370,17 +266,7 @@ export function TimeSlotWeekPicker({
                 type="button"
                 disabled={disabled || !allowed}
                 onClick={() => onDurationChange(dur)}
-                style={{
-                  padding: '9px 8px',
-                  borderRadius: 10,
-                  border: active && allowed ? '1.5px solid #2b581c' : '1px solid #d4e8d4',
-                  background: !allowed ? '#e5e7eb' : active ? '#cdf4cf' : '#ffffff',
-                  color: !allowed ? '#9ca3af' : '#1f3b24',
-                  fontWeight: active ? 700 : 600,
-                  fontSize: 13.5,
-                  fontFamily: 'inherit',
-                  cursor: disabled || !allowed ? 'not-allowed' : 'pointer',
-                }}
+                className={`timeslot-dur-btn ${active && allowed ? 'is-active' : ''} ${!allowed ? 'is-disabled' : ''}`.trim()}
               >
                 {dur} {dur === 1 ? 'hour' : 'hours'}
                 {overlaps ? ' (Booked)' : ''}

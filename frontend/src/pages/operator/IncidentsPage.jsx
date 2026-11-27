@@ -8,10 +8,6 @@ const STATUS_LABELS = {
   CLOSED: 'Closed',
 };
 
-/**
- * Staff / Incidents (Task 3.3a — Figma node 32:2340)
- * Implements UC11 (Record operational incident) & UC12 (Assign & resolve incident after repair).
- */
 export function IncidentsPage() {
   const [incidents, setIncidents] = useState([]);
   const [bundle, setBundle] = useState(null);
@@ -20,7 +16,6 @@ export function IncidentsPage() {
   const [resolvingId, setResolvingId] = useState(null);
   const [resolutionNotes, setResolutionNotes] = useState('Repaired & verified by maintenance staff.');
 
-  // Form state for UC11
   const [hubId, setHubId] = useState(1);
   const [targetType, setTargetType] = useState('CHARGING_POINT');
   const [targetEntityId, setTargetEntityId] = useState('');
@@ -58,6 +53,25 @@ export function IncidentsPage() {
     (s) => s.hubId === Number(hubId)
   );
 
+  // Auto-select first valid target unit whenever hub or targetType changes
+  useEffect(() => {
+    if (targetType === 'HUB') {
+      setTargetEntityId('');
+      return;
+    }
+    const list =
+      targetType === 'VEHICLE'
+        ? vehiclesAtHub
+        : targetType === 'CHARGING_POINT'
+        ? chargersAtHub
+        : slotsAtHub;
+    if (list.length > 0 && !list.some((item) => String(item.id) === String(targetEntityId))) {
+      setTargetEntityId(String(list[0].id));
+    } else if (list.length === 0) {
+      setTargetEntityId('');
+    }
+  }, [hubId, targetType, vehiclesAtHub, chargersAtHub, slotsAtHub, targetEntityId]);
+
   const unresolvedCount = incidents.filter((i) => i.status !== 'CLOSED').length;
   const visibleIncidents =
     filterMode === 'UNRESOLVED'
@@ -66,7 +80,14 @@ export function IncidentsPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      setError('Please enter an incident summary.');
+      return;
+    }
+    if (targetType !== 'HUB' && !targetEntityId) {
+      setError(`Please select a specific ${targetType.toLowerCase().replace('_', ' ')}.`);
+      return;
+    }
     try {
       setError('');
       const payload = {
@@ -76,17 +97,13 @@ export function IncidentsPage() {
         title: title.trim(),
         description: description.trim() || 'Reported from Operator Staff Console.',
       };
-      if (targetType === 'VEHICLE' && targetEntityId) payload.vehicleId = Number(targetEntityId);
-      if (targetType === 'CHARGING_POINT' && targetEntityId) {
-        payload.chargingPointId = Number(targetEntityId);
-      }
-      if (targetType === 'PARKING_SLOT' && targetEntityId) {
-        payload.parkingSlotId = Number(targetEntityId);
-      }
+      if (targetType === 'VEHICLE') payload.vehicleId = Number(targetEntityId);
+      if (targetType === 'CHARGING_POINT') payload.chargingPointId = Number(targetEntityId);
+      if (targetType === 'PARKING_SLOT') payload.parkingSlotId = Number(targetEntityId);
+
       await operatorApi.createIncident(payload);
       setTitle('');
       setDescription('');
-      setTargetEntityId('');
       setReportOpen(false);
       await refresh();
     } catch (err) {
@@ -125,9 +142,35 @@ export function IncidentsPage() {
             flexWrap: 'wrap',
           }}
         >
-          <span style={{ fontSize: 20, color: 'var(--staff-muted)' }}>
-            {unresolvedCount} unresolved incident{unresolvedCount === 1 ? '' : 's'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 19, color: 'var(--staff-muted)', fontWeight: 600 }}>
+              {unresolvedCount} unresolved incident{unresolvedCount === 1 ? '' : 's'}
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setFilterMode('UNRESOLVED')}
+                className="staff-mini-link"
+                style={{
+                  background: filterMode === 'UNRESOLVED' ? 'var(--staff-pill-active)' : 'var(--staff-pill)',
+                  fontWeight: filterMode === 'UNRESOLVED' ? 700 : 500,
+                }}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterMode('ALL')}
+                className="staff-mini-link"
+                style={{
+                  background: filterMode === 'ALL' ? 'var(--staff-pill-active)' : 'var(--staff-pill)',
+                  fontWeight: filterMode === 'ALL' ? 700 : 500,
+                }}
+              >
+                All history
+              </button>
+            </div>
+          </div>
 
           <button
             type="button"
@@ -140,19 +183,18 @@ export function IncidentsPage() {
         </div>
 
         {error && (
-          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 16px', borderRadius: 12 }}>
+          <div className="staff-error-banner" role="alert">
             {error}
           </div>
         )}
 
-        {/* UC11 Record Incident Form */}
         {reportOpen && (
           <form
             onSubmit={handleCreate}
             style={{
               background: 'var(--staff-pill)',
               borderRadius: 16,
-              padding: 24,
+              padding: 20,
               display: 'flex',
               flexDirection: 'column',
               gap: 14,
@@ -162,12 +204,12 @@ export function IncidentsPage() {
               Log operational incident (UC11)
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 13.5, color: 'var(--staff-olive)', marginBottom: 4 }}>Hub</div>
                 <select
                   className="staff-pill-select"
-                  style={{ background: '#fff', width: '100%' }}
+                  style={{ background: 'var(--staff-card)', width: '100%' }}
                   value={hubId}
                   onChange={(e) => {
                     setHubId(Number(e.target.value));
@@ -186,7 +228,7 @@ export function IncidentsPage() {
                 <div style={{ fontSize: 13.5, color: 'var(--staff-olive)', marginBottom: 4 }}>Affected target</div>
                 <select
                   className="staff-pill-select"
-                  style={{ background: '#fff', width: '100%' }}
+                  style={{ background: 'var(--staff-card)', width: '100%' }}
                   value={targetType}
                   onChange={(e) => {
                     setTargetType(e.target.value);
@@ -203,15 +245,18 @@ export function IncidentsPage() {
               {targetType !== 'HUB' && (
                 <div>
                   <div style={{ fontSize: 13.5, color: 'var(--staff-olive)', marginBottom: 4 }}>
-                    Specific {targetType.toLowerCase().replace('_', ' ')}
+                    Specific {targetType.toLowerCase().replace('_', ' ')} *
                   </div>
                   <select
                     className="staff-pill-select"
-                    style={{ background: '#fff', width: '100%' }}
+                    style={{ background: 'var(--staff-card)', width: '100%' }}
                     value={targetEntityId}
                     onChange={(e) => setTargetEntityId(e.target.value)}
+                    required
                   >
-                    <option value="">Select unit (optional)</option>
+                    <option value="" disabled>
+                      Select unit (required)
+                    </option>
                     {targetType === 'VEHICLE' &&
                       vehiclesAtHub.map((v) => (
                         <option key={v.id} value={v.id}>
@@ -238,7 +283,7 @@ export function IncidentsPage() {
                 <div style={{ fontSize: 13.5, color: 'var(--staff-olive)', marginBottom: 4 }}>Severity</div>
                 <select
                   className="staff-pill-select"
-                  style={{ background: '#fff', width: '100%' }}
+                  style={{ background: 'var(--staff-card)', width: '100%' }}
                   value={severity}
                   onChange={(e) => setSeverity(e.target.value)}
                 >
@@ -252,7 +297,7 @@ export function IncidentsPage() {
 
             <input
               className="staff-pill-input"
-              style={{ background: '#fff', width: '100%' }}
+              style={{ background: 'var(--staff-card)', width: '100%' }}
               placeholder="Incident summary (e.g., Charger CT-C02 offline or Vehicle EB-309 brake fault)"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -261,10 +306,11 @@ export function IncidentsPage() {
 
             <input
               className="staff-pill-input"
-              style={{ background: '#fff', width: '100%' }}
+              style={{ background: 'var(--staff-card)', width: '100%' }}
               placeholder="Inspection details / error notes"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              required
             />
 
             <div>
@@ -275,7 +321,6 @@ export function IncidentsPage() {
           </form>
         )}
 
-        {/* Incident List matching Figma node 32:2363 */}
         <div>
           {visibleIncidents.length === 0 ? (
             <p style={{ color: 'var(--staff-muted)', margin: '12px 0' }}>
@@ -288,31 +333,31 @@ export function IncidentsPage() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 24,
-                    minHeight: 86,
-                    padding: '16px 0',
+                    gap: 20,
+                    minHeight: 80,
+                    padding: '14px 0',
                     flexWrap: 'wrap',
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 240 }}>
-                    <div style={{ fontSize: 17, color: 'var(--staff-muted)', marginBottom: 6 }}>
-                      {inc.incidentCode}
+                  <div style={{ flex: '1 1 240px' }}>
+                    <div style={{ fontSize: 14, color: 'var(--staff-muted)', marginBottom: 4, fontWeight: 600 }}>
+                      {inc.incidentCode} · {inc.severity}
                     </div>
-                    <div style={{ fontSize: 20, color: 'var(--staff-ink)' }}>
+                    <div style={{ fontSize: 18, color: 'var(--staff-ink)', fontWeight: 600 }}>
                       {inc.hubName} · {inc.title}
                     </div>
                   </div>
 
-                  <div style={{ width: 140, fontSize: 19, color: 'var(--staff-ink)' }}>
+                  <div style={{ minWidth: 110, fontSize: 16, color: 'var(--staff-ink)', fontWeight: 600 }}>
                     {STATUS_LABELS[inc.status] || inc.status}
                   </div>
 
-                  <div style={{ width: 165, display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     {inc.status === 'OPEN' && (
                       <button
                         type="button"
                         className="staff-pill-btn"
-                        style={{ width: 160, height: 52 }}
+                        style={{ minWidth: 140, height: 44 }}
                         onClick={() => handleAssign(inc.id)}
                       >
                         Assign staff
@@ -322,7 +367,7 @@ export function IncidentsPage() {
                       <button
                         type="button"
                         className="staff-pill-btn"
-                        style={{ width: 160, height: 52 }}
+                        style={{ minWidth: 140, height: 44 }}
                         onClick={() =>
                           setResolvingId((prev) => (prev === inc.id ? null : inc.id))
                         }
@@ -351,7 +396,7 @@ export function IncidentsPage() {
                   >
                     <input
                       className="staff-pill-input"
-                      style={{ background: '#fff', flex: '1 1 280px' }}
+                      style={{ background: 'var(--staff-card)', flex: '1 1 240px' }}
                       placeholder="Resolution notes (UC12)"
                       value={resolutionNotes}
                       onChange={(e) => setResolutionNotes(e.target.value)}

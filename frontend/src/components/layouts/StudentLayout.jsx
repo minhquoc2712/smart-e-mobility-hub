@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { ThemeToggleButton } from '../../context/ThemeContext';
 import { IS_MOCK_MODE, reservationApi } from '../../api';
 import { UserAvatarMenu } from '../common/UserAvatarMenu';
 import { AccountCreatedBanner } from '../common/AccountCreatedBanner';
+import { VnuLogo } from '../common/VnuLogo';
 import logo from '../common/images/logo.png';
 
 export function StudentLayout() {
@@ -22,7 +24,7 @@ export function StudentLayout() {
           (r) =>
             String(r.reservationType ?? r.reservation_type ?? 'VEHICLE').toUpperCase() ===
               'VEHICLE' &&
-            ['CONFIRMED', 'ACTIVE'].includes(String(r.status || '').toUpperCase())
+            ['PENDING', 'CONFIRMED', 'ACTIVE'].includes(String(r.status || '').toUpperCase())
         );
         setActiveBooking(found || null);
       })
@@ -43,13 +45,16 @@ export function StudentLayout() {
         </div>
       )}
       <header className="topbar">
-        <NavLink
-          to="/student/hubs"
-          className="brand-title"
-          style={{ textDecoration: 'none', color: 'inherit' }}
-        >
-          <img src={logo} alt="" />
-          <span>Smart E-MOBILITY HUB</span>
+        <NavLink to="/student/hubs" className="brand-dual">
+          <VnuLogo height={32} />
+          <span className="brand-dual__divider" aria-hidden="true" />
+          <div className="brand-dual__project">
+            <img src={logo} alt="Smart E-Mobility Hub" />
+            <div>
+              <strong>Smart E-Mobility Hub</strong>
+              <span>VNU-HCM Urban Area</span>
+            </div>
+          </div>
         </NavLink>
 
         <nav className="nav-links" aria-label="Student navigation">
@@ -57,77 +62,69 @@ export function StudentLayout() {
             to="/student/hubs"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
-            🚲 Find Hub &amp; Rent
+            Hubs &amp; Map
           </NavLink>
           <NavLink
             to="/student/reservations"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
-            📋 Pickup &amp; Return
+            Pickup &amp; Return
           </NavLink>
           <NavLink
             to="/student/charging"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
-            ⚡ Book Charger
+            Book Charger
           </NavLink>
           <NavLink
             to="/student/vehicles"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >
-            🛵 Private EV
+            Private EV
           </NavLink>
         </nav>
 
-        <UserAvatarMenu variant="student" />
+        <div className="topbar-actions">
+          <ThemeToggleButton compact />
+          <UserAvatarMenu variant="student" />
+        </div>
       </header>
 
-      {/* Active Rental / Hold Quick-Action Banner for First-Time Users */}
+      {/* Active Rental / Hold Quick-Action Banner */}
       {activeBooking && location.pathname !== '/student/reservations' && (
-        <div
-          style={{
-            background: activeBooking.status === 'ACTIVE' ? '#dcfce7' : '#eff9eb',
-            borderBottom: '1px solid #bde5bf',
-            padding: '10px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 16,
-            flexWrap: 'wrap',
-            fontSize: 14.5,
-            color: '#1f3b24',
-          }}
-        >
-          <span>
+        <div className="active-ride-strip">
+          <div className="active-ride-strip__info">
+            <span className="live-pulse-dot" />
             {activeBooking.status === 'ACTIVE' ? (
-              <>
-                🟢 <strong>Active ride in progress:</strong> Vehicle{' '}
+              <span>
+                <strong>Active ride in progress:</strong> Vehicle{' '}
                 <strong>{activeBooking.vehicleCode || `#${activeBooking.vehicle_id}`}</strong> from{' '}
                 {activeBooking.hubName || 'Campus Hub'}
-              </>
-            ) : (
-              <>
-                ⏳ <strong>Reserved vehicle held for you (15 min):</strong>{' '}
+              </span>
+            ) : activeBooking.status === 'PENDING' ? (
+              <span>
+                <strong>Booking awaiting operator approval:</strong>{' '}
                 <strong>{activeBooking.vehicleCode || `#${activeBooking.vehicle_id}`}</strong> at{' '}
                 {activeBooking.hubName || 'Campus Hub'}
-              </>
+              </span>
+            ) : (
+              <span>
+                <strong>Approved &amp; held (15 min):</strong>{' '}
+                <strong>{activeBooking.vehicleCode || `#${activeBooking.vehicle_id}`}</strong> at{' '}
+                {activeBooking.hubName || 'Campus Hub'}
+              </span>
             )}
-          </span>
+          </div>
           <button
             type="button"
+            className="active-ride-strip__btn"
             onClick={() => navigate('/student/reservations')}
-            style={{
-              background: '#2b581c',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 999,
-              padding: '5px 14px',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
           >
-            {activeBooking.status === 'ACTIVE' ? 'Return vehicle now →' : 'Scan QR & Pick up →'}
+            {activeBooking.status === 'ACTIVE'
+              ? 'View ride & Return'
+              : activeBooking.status === 'PENDING'
+              ? 'Track status'
+              : 'Scan QR & Pick up'}
           </button>
         </div>
       )}

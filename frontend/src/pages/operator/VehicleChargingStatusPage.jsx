@@ -1,5 +1,21 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { chargingApi, operatorApi } from '../../api';
+import { QuickGuideStrip } from '../../components/common/QuickGuideStrip';
+
+const CHARGING_CONSOLE_GUIDE = [
+  {
+    title: 'Inspect Fleet Battery & Priority',
+    desc: 'Filter by hub or override charging priority (Urgent, High, Normal, Low) on any EV.',
+  },
+  {
+    title: 'Active Chargers (Left Column)',
+    desc: 'Monitor plugged-in EVs and click Unplug when charged to release the port.',
+  },
+  {
+    title: 'Waitlist Queue (Right Column)',
+    desc: 'Plug waiting EVs into free chargers or Swap directly with an active vehicle.',
+  },
+];
 
 const PRIORITIES = ['URGENT', 'HIGH', 'NORMAL', 'LOW'];
 const PRIORITY_RANK = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
@@ -309,11 +325,11 @@ export function VehicleChargingStatusPage() {
       await loadStatus();
       setQueueNotice(
         isResetToAuto
-          ? `Synced to MySQL: reverted ${label} back to Auto priority (${autoPriority}).`
-          : `Synced to MySQL: set ${label} priority → ${nextValue}. Queue updated!`
+          ? `Reverted ${label} back to Auto priority (${autoPriority}).`
+          : `Updated ${label} priority → ${nextValue}. Queue re-ranked!`
       );
     } catch (err) {
-      setQueueNotice(err.message || 'Failed to update priority in MySQL.');
+      setQueueNotice(`Error: ${err.message || 'Failed to update priority.'}`);
     } finally {
       setSavingKey(null);
     }
@@ -323,9 +339,9 @@ export function VehicleChargingStatusPage() {
     try {
       await operatorApi.resetAllChargingPriorities();
       await loadStatus();
-      setQueueNotice('All fleet charging priorities reset to Automatic in MySQL.');
+      setQueueNotice('All fleet charging priorities reset to Automatic.');
     } catch (err) {
-      setQueueNotice(err.message || 'Could not reset priorities.');
+      setQueueNotice(`Error: ${err.message || 'Could not reset priorities.'}`);
     }
   };
 
@@ -456,11 +472,15 @@ export function VehicleChargingStatusPage() {
         <h1 className="staff-page-title">Vehicle &amp; charging status</h1>
         <p style={{ margin: '6px 0 0', color: 'var(--staff-olive)', fontSize: 15.5 }}>
           Confirmed time-slot bookings lock their charger first · Waitlist &amp; fleet queue rank by
-          Priority &amp; Battery % (100% synced with MySQL)
+          Priority &amp; Battery %
         </p>
       </div>
 
-      <div className="staff-panel staff-panel--full" style={{ maxWidth: 1140 }}>
+      <div style={{ width: '100%', maxWidth: 1140 }}>
+        <QuickGuideStrip steps={CHARGING_CONSOLE_GUIDE} variant="operator" />
+      </div>
+
+      <div className="staff-panel staff-panel--full" style={{ maxWidth: 1140, overflow: 'hidden' }}>
         {/* =========================================================================
             SECTION 1: FILTER BAR & FLEET TABLE (KEPT AS ORIGINAL)
            ========================================================================= */}
@@ -498,26 +518,28 @@ export function VehicleChargingStatusPage() {
           </div>
         </div>
 
-        {/* Fleet Table */}
-        <div>
+        {/* Fleet Table (horizontally scrollable on narrow mobile screens so Battery % & Priority never misalign) */}
+        <div className="fleet-table-scroll">
           <div
             className="staff-list-head"
             style={{
               display: 'grid',
-              gridTemplateColumns: '0.9fr 1.4fr 1.1fr 0.9fr 1.4fr',
+              gridTemplateColumns: '92px minmax(145px, 1.3fr) 128px 102px minmax(168px, 1.3fr)',
               gap: 14,
+              minWidth: 650,
+              alignItems: 'center',
             }}
           >
             <span>Vehicle</span>
             <span>Hub</span>
             <span>Battery</span>
             <span>Status</span>
-            <span>Set priority (MySQL)</span>
+            <span>Set priority</span>
           </div>
 
           {!bundle ? (
             <p style={{ color: 'var(--staff-muted)', padding: '16px 0' }}>
-              Loading fleet telemetry from MySQL...
+              Loading fleet telemetry...
             </p>
           ) : (
             enrichedVehicles.map((v) => {
@@ -540,32 +562,34 @@ export function VehicleChargingStatusPage() {
                   className="staff-list-row"
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '0.9fr 1.4fr 1.1fr 0.9fr 1.4fr',
+                    gridTemplateColumns: '92px minmax(145px, 1.3fr) 128px 102px minmax(168px, 1.3fr)',
                     gap: 14,
-                    fontSize: 16.5,
+                    minWidth: 650,
+                    alignItems: 'center',
+                    fontSize: 16,
                   }}
                 >
-                  <span style={{ fontWeight: 600 }}>
+                  <span style={{ fontWeight: 700 }}>
                     {v.code}
                     {v.chargerCode && (
                       <div style={{ fontSize: 12, color: 'var(--staff-olive)', fontWeight: 500 }}>
-                        ⚡ {v.chargerCode}
+                        Port {v.chargerCode}
                       </div>
                     )}
                   </span>
 
-                  <span>{v.currentHubName || 'In transit'}</span>
+                  <span style={{ lineHeight: 1.3 }}>{v.currentHubName || 'In transit'}</span>
 
-                  <span>
-                    <div style={{ fontWeight: 600 }}>{v.batteryLevel}%</div>
+                  <span style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <div style={{ fontWeight: 700, lineHeight: 1.2 }}>{v.batteryLevel}%</div>
                     <div
                       style={{
                         width: 96,
-                        height: 6,
-                        background: '#e5efe3',
+                        height: 7,
+                        background: 'var(--staff-divider)',
                         borderRadius: 999,
                         overflow: 'hidden',
-                        marginTop: 4,
+                        marginTop: 5,
                       }}
                     >
                       <div
@@ -587,11 +611,11 @@ export function VehicleChargingStatusPage() {
                     style={{
                       color:
                         v.status === 'OUT_OF_SERVICE'
-                          ? '#b91c1c'
+                          ? '#dc2626'
                           : v.status === 'CHARGING'
-                          ? '#2b581c'
+                          ? 'var(--staff-forest)'
                           : 'var(--staff-ink)',
-                      fontWeight: v.status === 'CHARGING' ? 600 : 400,
+                      fontWeight: v.status === 'CHARGING' ? 700 : 500,
                     }}
                   >
                     {statusLabel}
@@ -606,14 +630,15 @@ export function VehicleChargingStatusPage() {
                     }}
                   >
                     <select
-                      className="staff-pill-select"
+                      className="staff-pill-select priority-pill-select"
                       disabled={savingKey === v.overrideKey}
                       aria-label={`Charging priority for ${v.code}`}
                       style={{
-                        padding: '5px 10px',
-                        fontSize: 13.5,
-                        fontWeight: 600,
+                        padding: '6px 10px',
+                        fontSize: 13,
+                        fontWeight: 700,
                         borderRadius: 8,
+                        maxWidth: '100%',
                         ...badgeStyle,
                       }}
                       value={v.manualPriority || 'AUTO'}
@@ -763,7 +788,7 @@ export function VehicleChargingStatusPage() {
                 Smart charging schedule &amp; waitlist ({totalQueueCount})
               </div>
               <div style={{ fontSize: 13.5, color: 'var(--staff-olive)' }}>
-                🔒 Active on chargers · ⏳ Waitlist &amp; fleet queue rank by Staff Priority &rarr; Battery % &rarr; Booking Time
+                Active on chargers · Waitlist &amp; fleet queue rank by Staff Priority &rarr; Battery % &rarr; Booking Time
               </div>
             </div>
 
@@ -799,9 +824,19 @@ export function VehicleChargingStatusPage() {
           {queueNotice && (
             <div
               style={{
-                background: queueNotice.startsWith('Error') || queueNotice.startsWith('Cannot') ? '#fef2f2' : '#ffffff',
-                color: queueNotice.startsWith('Error') || queueNotice.startsWith('Cannot') ? '#b91c1c' : 'var(--staff-forest)',
-                border: `1px solid ${queueNotice.startsWith('Error') || queueNotice.startsWith('Cannot') ? '#fca5a5' : '#34c759'}`,
+                background:
+                  queueNotice.startsWith('Error') || queueNotice.startsWith('Cannot')
+                    ? '#fef2f2'
+                    : 'var(--staff-card)',
+                color:
+                  queueNotice.startsWith('Error') || queueNotice.startsWith('Cannot')
+                    ? '#b91c1c'
+                    : 'var(--staff-forest)',
+                border: `1px solid ${
+                  queueNotice.startsWith('Error') || queueNotice.startsWith('Cannot')
+                    ? '#fca5a5'
+                    : '#34c759'
+                }`,
                 padding: '9px 14px',
                 borderRadius: 10,
                 fontSize: 14,
@@ -811,7 +846,7 @@ export function VehicleChargingStatusPage() {
                 alignItems: 'center',
               }}
             >
-              <span>{queueNotice.startsWith('Error') || queueNotice.startsWith('Cannot') ? '✕ ' : '✓ '}{queueNotice}</span>
+              <span>{queueNotice}</span>
               <button
                 type="button"
                 onClick={() => setQueueNotice('')}
@@ -830,14 +865,8 @@ export function VehicleChargingStatusPage() {
           )}
 
           {showQueue && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))',
-                gap: 16,
-                alignItems: 'start',
-              }}
-            >
+            <div className="parallel-board-scroll">
+              <div className="parallel-two-col-board">
               {/* -----------------------------------------------------------------
                   TABLE A: ACTIVE CHARGING (CURRENTLY ON CHARGERS)
                  ----------------------------------------------------------------- */}
@@ -846,7 +875,7 @@ export function VehicleChargingStatusPage() {
                 onDragLeave={(e) => handleDragLeave(e, 'ACTIVE_ZONE')}
                 onDrop={(e) => handleDropOnActiveZone(e)}
                 style={{
-                  background: '#ffffff',
+                  background: 'var(--staff-card)',
                   borderRadius: 14,
                   padding: '16px',
                   border:
@@ -863,7 +892,7 @@ export function VehicleChargingStatusPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontSize: 16.5, fontWeight: 700, color: 'var(--staff-forest)' }}>
-                      ⚡ Active on Chargers ({activeChargingList.length})
+                      Active on Chargers ({activeChargingList.length})
                     </div>
                     <div style={{ fontSize: 12.5, color: 'var(--staff-olive)', marginTop: 2 }}>
                       Currently charging. Unplug when near full to free the charger.
@@ -925,7 +954,7 @@ export function VehicleChargingStatusPage() {
                             handleDropOnActiveZone(e, item);
                           }}
                           style={{
-                            background: '#fbfdfa',
+                            background: 'var(--staff-subcard, var(--staff-card))',
                             borderRadius: 12,
                             padding: '12px 14px',
                             border:
@@ -982,7 +1011,7 @@ export function VehicleChargingStatusPage() {
                                   color: '#075985',
                                 }}
                               >
-                                🔒 {item.slotBadge}
+                                {item.slotBadge}
                               </span>
                             </div>
 
@@ -997,7 +1026,7 @@ export function VehicleChargingStatusPage() {
                                   color: '#15803d',
                                 }}
                               >
-                                ✓ Charged ({item.currentBattery}%)
+                                Charged ({item.currentBattery}%)
                               </span>
                             ) : isNearlyFull ? (
                               <span
@@ -1010,7 +1039,7 @@ export function VehicleChargingStatusPage() {
                                   color: '#b45309',
                                 }}
                               >
-                                ⚡ Near Full ({item.currentBattery}%)
+                                Near Full ({item.currentBattery}%)
                               </span>
                             ) : null}
                           </div>
@@ -1061,7 +1090,7 @@ export function VehicleChargingStatusPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <span style={{ fontSize: 12, color: 'var(--staff-olive)' }}>Priority:</span>
                               <select
-                                className="staff-pill-select"
+                                className="staff-pill-select priority-pill-select"
                                 disabled={isBeingSaved}
                                 style={{
                                   padding: '3px 8px',
@@ -1109,7 +1138,7 @@ export function VehicleChargingStatusPage() {
                               }}
                               title="Unplug this vehicle to set Available and release the charger"
                             >
-                              {isBeingSaved ? 'Unplugging...' : '🔌 Unplug (Release)'}
+                              {isBeingSaved ? 'Unplugging...' : 'Unplug (Release)'}
                             </button>
                           </div>
                         </div>
@@ -1127,7 +1156,7 @@ export function VehicleChargingStatusPage() {
                 onDragLeave={(e) => handleDragLeave(e, 'QUEUE_ZONE')}
                 onDrop={(e) => handleDropOnQueueZone(e)}
                 style={{
-                  background: '#ffffff',
+                  background: 'var(--staff-card)',
                   borderRadius: 14,
                   padding: '16px',
                   border:
@@ -1143,10 +1172,10 @@ export function VehicleChargingStatusPage() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontSize: 16.5, fontWeight: 700, color: '#92400e' }}>
-                      ⏳ Waitlist &amp; Fleet Queue ({waitlistQueue.length})
+                    <div style={{ fontSize: 16.5, fontWeight: 700, color: 'var(--staff-forest)' }}>
+                      Waitlist &amp; Fleet Queue ({waitlistQueue.length})
                     </div>
-                    <div style={{ fontSize: 12.5, color: '#b45309', marginTop: 2 }}>
+                    <div style={{ fontSize: 12.5, color: 'var(--staff-olive)', marginTop: 2 }}>
                       Suggested rank: Priority &rarr; Battery % &rarr; Time. Operator chooses when to plug in.
                     </div>
                   </div>
@@ -1197,7 +1226,7 @@ export function VehicleChargingStatusPage() {
                           draggable={Boolean(item.vehicleId)}
                           onDragStart={(e) => handleDragStart(e, item, 'QUEUE')}
                           style={{
-                            background: '#fffdf9',
+                            background: 'var(--staff-subcard, var(--staff-card))',
                             borderRadius: 12,
                             padding: '12px 14px',
                             border: item.isManual
@@ -1278,7 +1307,7 @@ export function VehicleChargingStatusPage() {
                                   color: '#15803d',
                                 }}
                               >
-                                🟢 Free at hub: {freeChargers[0].chargerCode}
+                                Free at hub: {freeChargers[0].chargerCode}
                               </span>
                             ) : (
                               <span
@@ -1291,7 +1320,7 @@ export function VehicleChargingStatusPage() {
                                   color: '#b91c1c',
                                 }}
                               >
-                                🔴 Chargers at hub busy
+                                Chargers at hub busy
                               </span>
                             )}
                           </div>
@@ -1342,7 +1371,7 @@ export function VehicleChargingStatusPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <span style={{ fontSize: 12, color: '#92400e' }}>Priority:</span>
                               <select
-                                className="staff-pill-select"
+                                className="staff-pill-select priority-pill-select"
                                 disabled={isBeingSaved}
                                 style={{
                                   padding: '3px 8px',
@@ -1393,7 +1422,7 @@ export function VehicleChargingStatusPage() {
                                   }}
                                   title={`Plug this vehicle into available charger ${freeChargers[0].chargerCode} at ${item.hubName}`}
                                 >
-                                  {isBeingSaved ? 'Plugging in...' : `⚡ Plug In (${freeChargers[0].chargerCode})`}
+                                  {isBeingSaved ? 'Plugging in...' : `Plug In (${freeChargers[0].chargerCode})`}
                                 </button>
                               ) : activeVehicleAtSameHub ? (
                                 <button
@@ -1414,7 +1443,7 @@ export function VehicleChargingStatusPage() {
                                   }}
                                   title={`Swap charger with vehicle ${activeVehicleAtSameHub.code} at the same hub`}
                                 >
-                                  {isBeingSaved ? 'Swapping...' : `🔄 Swap (${activeVehicleAtSameHub.code})`}
+                                  {isBeingSaved ? 'Swapping...' : `Swap (${activeVehicleAtSameHub.code})`}
                                 </button>
                               ) : (
                                 <span style={{ fontSize: 12, color: 'var(--staff-muted)', fontStyle: 'italic' }}>
@@ -1428,6 +1457,7 @@ export function VehicleChargingStatusPage() {
                     })
                   )}
                 </div>
+              </div>
               </div>
             </div>
           )}

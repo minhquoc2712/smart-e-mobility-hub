@@ -8,6 +8,10 @@ router.post('/',c.reserveVehicle); // API 2B.6
 router.post('/vehicles',c.reserveVehicle); // Existing frontend compatibility
 router.post('/parking',c.reserveParking); // Existing frontend compatibility
 router.get('/:reservationId',c.detail);
+router.post('/:reservationId/approve',c.approve);
+router.patch('/:reservationId/approve',c.approve);
+router.post('/:reservationId/reject',c.reject);
+router.patch('/:reservationId/reject',c.reject);
 router.post('/:reservationId/cancel',c.cancel); // API 2B.6
 router.patch('/:reservationId/cancel',c.cancel); // Existing frontend compatibility
 router.post('/:reservationId/pickup',c.pickup);

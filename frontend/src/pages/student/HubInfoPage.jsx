@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { hubApi } from '../../api';
-import vehicleImage from '../../components/common/images/vehicle.jpg';
-import parkingImage from '../../components/common/images/parking space.jpg';
-import chargingImage from '../../components/common/images/charging spot.jpg';
+import { EvIllustration } from '../../components/common/EvIllustration';
 
 export function HubInfoPage() {
   const { hubId } = useParams();
@@ -23,7 +21,7 @@ export function HubInfoPage() {
         <article className="hub-service-card">
           <h2>Rent Vehicle</h2>
           <div className="hub-service-image">
-            <img src={vehicleImage} alt="Rental vehicle" />
+            <EvIllustration variant="bike" />
           </div>
           <button type="button" onClick={() => navigate(`/student/hubs/${hubId}/vehicles`)}>
             Book now
@@ -33,7 +31,7 @@ export function HubInfoPage() {
         <article className="hub-service-card">
           <h2>Book parking</h2>
           <div className="hub-service-image">
-            <img src={parkingImage} alt="Parking space" />
+            <EvIllustration variant="parking" />
           </div>
           <button type="button" onClick={() => navigate(`/student/hubs/${hubId}/parking`)}>
             Book now
@@ -43,7 +41,7 @@ export function HubInfoPage() {
         <article className="hub-service-card">
           <h2>Book charger</h2>
           <div className="hub-service-image">
-            <img src={chargingImage} alt="Charging station" />
+            <EvIllustration variant="charger" />
           </div>
           <button type="button" onClick={() => navigate('/student/charging')}>
             Book now

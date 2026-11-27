@@ -88,7 +88,7 @@ async function findSuggestions(query = '') {
       title: h.name,
       subtitle: `${h.campusZone} · ${h.address}`,
       status: h.status,
-      meta: `🚲 ${h.availableBikes} · 🛴 ${h.availableScooters} · 🅿️ ${h.freeParkingSlots} free`,
+      meta: `${h.availableBikes} bikes · ${h.availableScooters} scooters · ${h.freeParkingSlots} free`,
       searchValue: h.name,
     });
   });
@@ -104,7 +104,7 @@ async function findSuggestions(query = '') {
       title: `${v.code} (${v.model})`,
       subtitle: `Parked at ${v.hubName}`,
       status: 'AVAILABLE',
-      meta: `🔋 ${v.batteryLevel}% battery`,
+      meta: `${v.batteryLevel}% battery`,
       searchValue: v.code,
     });
   });
@@ -181,7 +181,7 @@ async function findBookedWindows(hubId) {
      LEFT JOIN parking_slots ps ON ps.id = r.parking_slot_id
      LEFT JOIN vehicles v ON v.id = r.vehicle_id
      WHERE r.hub_id = ?
-       AND r.status IN ('CONFIRMED', 'ACTIVE')
+       AND r.status IN ('PENDING', 'CONFIRMED', 'ACTIVE')
        AND r.end_time >= DATE_SUB(NOW(), INTERVAL 1 DAY)
      ORDER BY r.start_time ASC`,
     [hubId]

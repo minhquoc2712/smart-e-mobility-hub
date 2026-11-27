@@ -32,14 +32,32 @@ function toLocalIso(val) {
 
 function mapReservationRow(row) {
   if (!row) return row;
+  const rawNote = row.return_condition_note || '';
+  let cancellationSource = null;
+  if (row.status === 'CANCELLED') {
+    if (rawNote.startsWith('REJECTED_BY_OPERATOR:')) cancellationSource = 'OPERATOR_REJECTED';
+    else if (rawNote.startsWith('DECLINED_BY_STUDENT:')) cancellationSource = 'STUDENT_DECLINED';
+    else cancellationSource = 'STUDENT_CANCELLED';
+  }
   return {
     ...row,
     start_time: toLocalIso(row.start_time),
     end_time: toLocalIso(row.end_time),
     startTime: toLocalIso(row.start_time),
     endTime: toLocalIso(row.end_time),
+    actualPickupTime: toLocalIso(row.actual_pickup_time),
+    actualReturnTime: toLocalIso(row.actual_return_time),
+    studentName: row.studentName || null,
+    studentEmail: row.studentEmail || null,
+    cancellationSource,
+    statusNote: rawNote
+      .replace(/^REJECTED_BY_OPERATOR:\s*/i, '')
+      .replace(/^DECLINED_BY_STUDENT:\s*/i, '')
+      .replace(/^CANCELLED_BY_STUDENT:\s*/i, '') || null,
     licensePlate:
-      row.reservation_type === 'PARKING' ? row.return_condition_note || null : null,
+      row.reservation_type === 'PARKING' && !rawNote.startsWith('REJECTED_BY_OPERATOR:') && !rawNote.startsWith('DECLINED_BY_STUDENT:') && !rawNote.startsWith('CANCELLED_BY_STUDENT:')
+        ? rawNote || null
+        : null,
   };
 }
 
@@ -80,7 +98,7 @@ async function detail(user, id) {
   return {
     ...mapReservationRow(r),
     holdExpiresAt:
-      r.reservation_type === 'VEHICLE' && r.status === 'CONFIRMED'
+      r.reservation_type === 'VEHICLE' && ['PENDING', 'CONFIRMED'].includes(r.status)
         ? new Date(new Date(r.created_at).getTime() + 15 * 60000).toISOString()
         : null,
   };
@@ -102,9 +120,11 @@ async function list(user, query = {}) {
     params.push(requiredId(query.hubId, 'hubId'));
   }
   const [rows] = await pool.execute(
-    `SELECT r.*, h.name AS hubName, v.code AS vehicleCode, p.slot_code AS parkingSlotCode
+    `SELECT r.*, h.name AS hubName, v.code AS vehicleCode, v.type AS vehicleType, v.battery_level AS batteryLevel,
+            p.slot_code AS parkingSlotCode, u.full_name AS studentName, u.email AS studentEmail
      FROM reservations r
      JOIN hubs h ON h.id = r.hub_id
+     LEFT JOIN users u ON u.id = r.user_id
      LEFT JOIN vehicles v ON v.id = r.vehicle_id
      LEFT JOIN parking_slots p ON p.id = r.parking_slot_id
      ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
@@ -120,10 +140,10 @@ async function assertNoOpenRental(c, uid, excludeId = 0, pickup = false) {
   await selectOne(c, 'SELECT id FROM users WHERE id = ? FOR UPDATE', [uid], 'USER_NOT_FOUND');
   const [open] = await c.execute(
     `SELECT id FROM reservations WHERE user_id = ? AND reservation_type = 'VEHICLE'
-      AND status IN (${pickup ? "'ACTIVE'" : "'CONFIRMED', 'ACTIVE'"}) AND id <> ? LIMIT 1 FOR UPDATE`,
+      AND status IN (${pickup ? "'ACTIVE'" : "'PENDING', 'CONFIRMED', 'ACTIVE'"}) AND id <> ? LIMIT 1 FOR UPDATE`,
     [uid, excludeId]
   );
-  if (open.length) fail(409, 'USER_HAS_ACTIVE_RENTAL', 'You already have a vehicle reservation or rental. Cancel it or return the vehicle before booking another.');
+  if (open.length) fail(409, 'USER_HAS_ACTIVE_RENTAL', 'You already have a pending or active vehicle reservation. Cancel it or return the vehicle before booking another.');
 }
 
 async function reserveVehicle(user, body = {}) {
@@ -161,7 +181,7 @@ async function reserveVehicle(user, body = {}) {
       `SELECT id FROM reservations
        WHERE vehicle_id = ?
          AND reservation_type = 'VEHICLE'
-         AND status IN ('CONFIRMED', 'ACTIVE')
+         AND status IN ('PENDING', 'CONFIRMED', 'ACTIVE')
          AND start_time < ?
          AND end_time > ?
        LIMIT 1 FOR UPDATE`,
@@ -180,16 +200,17 @@ async function reserveVehicle(user, body = {}) {
       assertTransition('vehicle', v.status, 'RESERVED');
       await c.execute("UPDATE vehicles SET status = 'RESERVED' WHERE id = ?", [vid]);
     }
+    const initialStatus = isOperator(user) ? 'CONFIRMED' : 'PENDING';
     const reservationCode = code('RES-V');
     const [result] = await c.execute(
       `INSERT INTO reservations (reservation_code, user_id, reservation_type, hub_id, vehicle_id, start_time, end_time, status)
-       VALUES (?, ?, 'VEHICLE', ?, ?, ?, ?, 'CONFIRMED')`,
-      [reservationCode, uid, v.current_hub_id, vid, startSql, endSql]
+       VALUES (?, ?, 'VEHICLE', ?, ?, ?, ?, ?)`,
+      [reservationCode, uid, v.current_hub_id, vid, startSql, endSql, initialStatus]
     );
     return {
       id: result.insertId,
       reservationCode,
-      status: 'CONFIRMED',
+      status: initialStatus,
       holdExpiresAt: new Date(Date.now() + 15 * 60000).toISOString(),
       vehicleId: vid,
     };
@@ -221,7 +242,7 @@ async function reserveParking(user, body) {
            SELECT 1 FROM reservations r
            WHERE r.parking_slot_id = s.id
              AND r.reservation_type = 'PARKING'
-             AND r.status IN ('CONFIRMED', 'ACTIVE')
+             AND r.status IN ('PENDING', 'CONFIRMED', 'ACTIVE')
              AND r.start_time < ?
              AND r.end_time > ?
          )
@@ -247,11 +268,12 @@ async function reserveParking(user, body) {
       await c.execute("UPDATE parking_slots SET status = 'RESERVED' WHERE id = ?", [slot.id]);
     }
 
+    const initialStatus = isOperator(user) ? 'CONFIRMED' : 'PENDING';
     const [result] = await c.execute(
       `INSERT INTO reservations
         (reservation_code, user_id, reservation_type, hub_id, parking_slot_id, start_time, end_time, status, return_condition_note)
-       VALUES (?, ?, 'PARKING', ?, ?, ?, ?, 'CONFIRMED', ?)`,
-      [reservationCode, uid, hubId, slot.id, start, end, plateNote]
+       VALUES (?, ?, 'PARKING', ?, ?, ?, ?, ?, ?)`,
+      [reservationCode, uid, hubId, slot.id, start, end, initialStatus, plateNote]
     );
 
     // Recompute Hub status (ACTIVE / NEAR_FULL / FULL) immediately in MySQL!
@@ -267,44 +289,105 @@ async function reserveParking(user, body) {
       startTime: start.replace(' ', 'T'),
       endTime: end.replace(' ', 'T'),
       hubStatus: nextHubStatus,
-      status: 'CONFIRMED',
+      status: initialStatus,
     };
   });
 }
 
-async function cancel(user, id) {
+async function releaseHeldResources(c, r) {
+  if (r.reservation_type === 'VEHICLE' && r.vehicle_id) {
+    const v = await selectOne(c, 'SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [r.vehicle_id]);
+    const [others] = await c.execute(
+      `SELECT id FROM reservations
+       WHERE vehicle_id = ? AND id <> ? AND status IN ('PENDING', 'CONFIRMED')
+         AND start_time <= DATE_ADD(NOW(), INTERVAL 2 HOUR) AND end_time > NOW()
+       LIMIT 1 FOR UPDATE`,
+      [v.id, r.id]
+    );
+    if (v.status === 'RESERVED' && !others.length) {
+      assertTransition('vehicle', v.status, 'AVAILABLE');
+      await c.execute("UPDATE vehicles SET status = 'AVAILABLE' WHERE id = ?", [v.id]);
+    }
+  }
+
+  if (r.reservation_type === 'PARKING' && r.parking_slot_id) {
+    const [others] = await c.execute(
+      `SELECT id FROM reservations
+       WHERE parking_slot_id = ? AND id <> ? AND status IN ('PENDING', 'CONFIRMED', 'ACTIVE') LIMIT 1`,
+      [r.parking_slot_id, r.id]
+    );
+    const slot = await selectOne(c, 'SELECT * FROM parking_slots WHERE id = ? FOR UPDATE', [
+      r.parking_slot_id,
+    ]);
+    if (!others.length && slot.status === 'RESERVED') {
+      await c.execute("UPDATE parking_slots SET status = 'FREE' WHERE id = ?", [slot.id]);
+    }
+    await hubsService.syncHubStatus(c, r.hub_id);
+  }
+}
+
+async function approve(user, id) {
+  if (!isOperator(user)) {
+    fail(403, 'FORBIDDEN', 'Only hub operators can approve reservations.');
+  }
   return withTransaction(async (c) => {
     const r = await authorizedReservation(c, id, user);
-    if (r.status !== 'CONFIRMED') {
-      fail(409, 'INVALID_STATE_TRANSITION', 'Only confirmed reservations can be cancelled.');
+    if (r.status !== 'PENDING') {
+      fail(409, 'INVALID_STATE_TRANSITION', 'Only pending reservations can be approved.');
     }
-    await c.execute("UPDATE reservations SET status = 'CANCELLED' WHERE id = ?", [r.id]);
+    await c.execute("UPDATE reservations SET status = 'CONFIRMED' WHERE id = ?", [r.id]);
+    return { id: r.id, status: 'CONFIRMED' };
+  });
+}
 
-    if (r.reservation_type === 'VEHICLE' && r.vehicle_id) {
-      const v = await selectOne(c, 'SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [r.vehicle_id]);
-      const [others] = await c.execute(`SELECT id FROM reservations WHERE vehicle_id = ? AND id <> ? AND status = 'CONFIRMED' AND start_time <= DATE_ADD(NOW(), INTERVAL 2 HOUR) AND end_time > NOW() LIMIT 1 FOR UPDATE`, [v.id, r.id]);
-      if (v.status === 'RESERVED' && !others.length) {
-        assertTransition('vehicle', v.status, 'AVAILABLE');
-        await c.execute("UPDATE vehicles SET status = 'AVAILABLE' WHERE id = ?", [v.id]);
-      }
+async function reject(user, id, body = {}) {
+  if (!isOperator(user)) {
+    fail(403, 'FORBIDDEN', 'Only hub operators can reject reservations.');
+  }
+  const reason = optionalText(body?.reason, 'reason', 180) || 'Declined by hub operator';
+  return withTransaction(async (c) => {
+    const r = await authorizedReservation(c, id, user);
+    if (!['PENDING', 'CONFIRMED'].includes(r.status)) {
+      fail(409, 'INVALID_STATE_TRANSITION', 'Only pending or confirmed reservations can be rejected.');
     }
+    await c.execute(
+      "UPDATE reservations SET status = 'CANCELLED', return_condition_note = ? WHERE id = ?",
+      [`REJECTED_BY_OPERATOR: ${reason}`, r.id]
+    );
+    await releaseHeldResources(c, r);
+    return { id: r.id, status: 'CANCELLED', cancellationSource: 'OPERATOR_REJECTED', reason };
+  });
+}
 
-    if (r.reservation_type === 'PARKING' && r.parking_slot_id) {
-      const [others] = await c.execute(
-        `SELECT id FROM reservations
-         WHERE parking_slot_id = ? AND id <> ? AND status IN ('CONFIRMED', 'ACTIVE') LIMIT 1`,
-        [r.parking_slot_id, r.id]
-      );
-      const slot = await selectOne(c, 'SELECT * FROM parking_slots WHERE id = ? FOR UPDATE', [
-        r.parking_slot_id,
-      ]);
-      if (!others.length && slot.status === 'RESERVED') {
-        await c.execute("UPDATE parking_slots SET status = 'FREE' WHERE id = ?", [slot.id]);
-      }
-      await hubsService.syncHubStatus(c, r.hub_id);
+async function cancel(user, id, body = {}) {
+  return withTransaction(async (c) => {
+    const r = await authorizedReservation(c, id, user);
+    if (!['PENDING', 'CONFIRMED'].includes(r.status)) {
+      fail(409, 'INVALID_STATE_TRANSITION', 'Only pending or confirmed reservations can be cancelled.');
     }
+    const wasApproved = r.status === 'CONFIRMED';
+    const customReason = optionalText(body?.reason, 'reason', 180);
+    const note = isOperator(user)
+      ? `REJECTED_BY_OPERATOR: ${customReason || 'Cancelled by operator'}`
+      : wasApproved
+      ? `DECLINED_BY_STUDENT: ${customReason || 'Declined pickup after approval'}`
+      : `CANCELLED_BY_STUDENT: ${customReason || 'Cancelled while pending approval'}`;
 
-    return { id: r.id, status: 'CANCELLED' };
+    await c.execute(
+      "UPDATE reservations SET status = 'CANCELLED', return_condition_note = ? WHERE id = ?",
+      [note, r.id]
+    );
+    await releaseHeldResources(c, r);
+
+    return {
+      id: r.id,
+      status: 'CANCELLED',
+      cancellationSource: isOperator(user)
+        ? 'OPERATOR_REJECTED'
+        : wasApproved
+        ? 'STUDENT_DECLINED'
+        : 'STUDENT_CANCELLED',
+    };
   });
 }
 
@@ -315,6 +398,9 @@ async function pickup(user, id, body = {}) {
     await selectOne(c, 'SELECT id FROM users WHERE id = ? FOR UPDATE', [ownerId], 'USER_NOT_FOUND');
     const r = await authorizedReservation(c, id, user);
     await assertNoOpenRental(c, ownerId, r.id, true);
+    if (r.reservation_type === 'VEHICLE' && r.status === 'PENDING') {
+      fail(409, 'AWAITING_OPERATOR_APPROVAL', 'Reservation is awaiting operator approval before QR unlock.');
+    }
     if (r.reservation_type !== 'VEHICLE' || r.status !== 'CONFIRMED') {
       fail(409, 'INVALID_STATE_TRANSITION', 'Reservation is not ready for pickup.');
     }
@@ -374,7 +460,7 @@ async function returnVehicle(user, id, body = {}) {
        WHERE hub_id = ? AND slot_type IN ('SHARED_EV', 'UNIVERSAL') AND status = 'FREE'
          AND NOT EXISTS (SELECT 1 FROM vehicles v WHERE v.parking_slot_id = parking_slots.id)
          AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.parking_slot_id = parking_slots.id
-           AND r.status IN ('CONFIRMED', 'ACTIVE') AND r.end_time > NOW() AND r.start_time <= NOW())
+           AND r.status IN ('PENDING', 'CONFIRMED', 'ACTIVE') AND r.end_time > NOW() AND r.start_time <= NOW())
        ORDER BY id FOR UPDATE`,
       [hubId]
     );
@@ -470,7 +556,7 @@ async function parkingCheckOut(user, id) {
 async function expireVehicleHolds() {
   const [rows] = await pool.execute(
     `SELECT id, user_id FROM reservations
-     WHERE reservation_type = 'VEHICLE' AND status = 'CONFIRMED'
+     WHERE reservation_type = 'VEHICLE' AND status IN ('PENDING', 'CONFIRMED')
        AND end_time < DATE_SUB(NOW(), INTERVAL 15 MINUTE)
      ORDER BY id LIMIT 100`
   );
@@ -479,13 +565,13 @@ async function expireVehicleHolds() {
     try {
       await withTransaction(async (c) => {
         const r = await authorizedReservation(c, row.id, { id: row.user_id, role: 'USER' });
-        if (r.status !== 'CONFIRMED' || Date.now() < new Date(r.end_time).getTime() + 15 * 60000) {
+        if (!['PENDING', 'CONFIRMED'].includes(r.status) || Date.now() < new Date(r.end_time).getTime() + 15 * 60000) {
           return;
         }
         const v = await selectOne(c, 'SELECT * FROM vehicles WHERE id = ? FOR UPDATE', [
           r.vehicle_id,
         ]);
-        const [others] = await c.execute(`SELECT id FROM reservations WHERE vehicle_id = ? AND id <> ? AND status = 'CONFIRMED' AND start_time <= DATE_ADD(NOW(), INTERVAL 2 HOUR) AND end_time > NOW() LIMIT 1 FOR UPDATE`, [v.id, r.id]);
+        const [others] = await c.execute(`SELECT id FROM reservations WHERE vehicle_id = ? AND id <> ? AND status IN ('PENDING', 'CONFIRMED') AND start_time <= DATE_ADD(NOW(), INTERVAL 2 HOUR) AND end_time > NOW() LIMIT 1 FOR UPDATE`, [v.id, r.id]);
         if (v.status === 'RESERVED' && !others.length) {
           await c.execute("UPDATE vehicles SET status = 'AVAILABLE' WHERE id = ?", [v.id]);
         }
@@ -504,6 +590,8 @@ module.exports = {
   list,
   reserveVehicle,
   reserveParking,
+  approve,
+  reject,
   cancel,
   pickup,
   returnVehicle,

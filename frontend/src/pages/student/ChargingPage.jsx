@@ -7,13 +7,29 @@ import {
   getLocalDateStr,
   isWindowBooked,
 } from '../../components/common/TimeSlotWeekPicker';
-import chargingImage from '../../components/common/images/charging spot.jpg';
+import { CHARGING_HOURLY_VND, formatVnd } from '../../utils/currency';
+import { EvIllustration } from '../../components/common/EvIllustration';
+import { QuickGuideStrip } from '../../components/common/QuickGuideStrip';
+
+const CHARGING_GUIDE = [
+  {
+    title: 'Select Vehicle & Hub',
+    desc: 'Choose your private EV and a campus hub with operational chargers.',
+  },
+  {
+    title: 'Pick Unshaded Hours',
+    desc: 'Select a charger port and free time window across the 7-day schedule.',
+  },
+  {
+    title: 'Instant Slot Lock',
+    desc: 'Confirmed windows lock your charger first; full hours join the priority waitlist.',
+  },
+];
 
 const VEHICLES_KEY = 'semh_private_vehicles';
 const DEFAULT_VEHICLES = [
   { id: 'PV-018', name: 'My e-bike', type: 'Private electric bike', battery: 38 },
 ];
-const RATE_PER_HOUR = 1;
 
 function getConnector(vehicle) {
   const type = vehicle?.type?.toLowerCase() || '';
@@ -173,7 +189,7 @@ export function ChargingPage() {
       '0'
     )}`;
   }, [startTime, duration]);
-  const total = (duration * RATE_PER_HOUR).toFixed(2);
+  const totalVnd = duration * CHARGING_HOURLY_VND;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -244,8 +260,10 @@ export function ChargingPage() {
     <div className="charging-registration-page">
       <header className="charging-page-heading">
         <h1>Register for charging</h1>
-        <p>Reserve a charging slot for your private vehicle at a nearby hub.</p>
+        <p>Reserve a dedicated campus EV charger (5.000 ₫/hour) or join the smart priority queue.</p>
       </header>
+
+      <QuickGuideStrip steps={CHARGING_GUIDE} />
 
       <div className="charging-page-grid">
         <section className="charging-details-card">
@@ -347,7 +365,7 @@ export function ChargingPage() {
         <section className="charging-summary-card">
           <h2>Registration summary</h2>
           <div className="charging-summary-image">
-            <img src={chargingImage} alt="Charging station illustration" />
+            <EvIllustration variant="charger" />
           </div>
           <div className="charging-summary-row">
             <span>Vehicle / battery</span>
@@ -374,9 +392,9 @@ export function ChargingPage() {
           </div>
           <div className="charging-summary-row">
             <span>
-              Total · {duration} {duration === 1 ? 'hour' : 'hours'}
+              Total · {duration} {duration === 1 ? 'hour' : 'hours'} × {formatVnd(CHARGING_HOURLY_VND)}
             </span>
-            <strong>${total}</strong>
+            <strong>{formatVnd(totalVnd)}</strong>
           </div>
           {error && (
             <p className="charging-feedback charging-feedback-error" role="alert">
@@ -398,17 +416,8 @@ export function ChargingPage() {
           </button>
 
           {myRegistrations.length > 0 && (
-            <div
-              style={{
-                marginTop: 14,
-                paddingTop: 12,
-                borderTop: '1px solid #d4e8d4',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-              }}
-            >
-              <strong style={{ fontSize: 14, color: '#1f3b24' }}>
+            <div className="booked-charging-list">
+              <strong className="booked-charging-list__title">
                 Your booked charging windows ({myRegistrations.length})
               </strong>
               {myRegistrations.map((reg) => {
@@ -418,24 +427,12 @@ export function ChargingPage() {
                 );
                 const eStr = String(reg.scheduledEnd || reg.scheduled_end || '').replace(' ', 'T');
                 return (
-                  <div
-                    key={reg.id}
-                    style={{
-                      background: '#ffffff',
-                      borderRadius: 10,
-                      padding: '8px 10px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: 8,
-                      fontSize: 13,
-                    }}
-                  >
+                  <div key={reg.id} className="booked-charging-item">
                     <div>
-                      <div style={{ fontWeight: 700, color: '#1f3b24' }}>
+                      <div className="booked-charging-item__code">
                         {reg.chargerCode || reg.slotCode || 'Charger'} · {sStr.slice(0, 10)}
                       </div>
-                      <div style={{ color: '#556b5d' }}>
+                      <div className="booked-charging-item__sub">
                         {sStr.slice(11, 16)} – {eStr.slice(11, 16)} ({reg.hubName || 'Campus Hub'})
                       </div>
                     </div>
@@ -443,16 +440,7 @@ export function ChargingPage() {
                       type="button"
                       disabled={submitting}
                       onClick={() => handleCancelRegistration(reg.id)}
-                      style={{
-                        background: '#fee2e2',
-                        color: '#991b1b',
-                        border: 'none',
-                        borderRadius: 8,
-                        padding: '5px 10px',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
+                      className="booked-charging-item__cancel"
                     >
                       Cancel
                     </button>

@@ -64,7 +64,7 @@ export const hubApi = {
         title: h.name,
         subtitle: `${h.campusZone} · ${h.address || ''}`,
         status: h.status || 'ACTIVE',
-        meta: `🚲 ${h.availableBikes} · 🛴 ${h.availableScooters} · 🅿️ ${h.freeParkingSlots ?? 0} free`,
+        meta: `${h.availableBikes} bikes · ${h.availableScooters} scooters · ${h.freeParkingSlots ?? 0} free`,
         searchValue: h.name,
       }));
     }
@@ -127,6 +127,10 @@ export const chargingPointApi = {
 export const reservationApi = {
   getMyReservations: (userId) =>
     IS_MOCK_MODE ? mockServer.getMyReservations(userId) : httpRequest('/reservations/my'),
+  getAllReservations: (status = '') =>
+    IS_MOCK_MODE
+      ? mockServer.getMyReservations()
+      : httpRequest(`/reservations${status ? `?status=${encodeURIComponent(status)}` : ''}`),
   reserveVehicle: (payload) =>
     IS_MOCK_MODE
       ? mockServer.reserveVehicle(payload)
@@ -135,6 +139,17 @@ export const reservationApi = {
     IS_MOCK_MODE
       ? mockServer.reserveParking(payload)
       : httpRequest('/reservations/parking', { method: 'POST', body: JSON.stringify(payload) }),
+  approveReservation: (id) =>
+    IS_MOCK_MODE
+      ? mockServer.approveReservation(id)
+      : httpRequest(`/reservations/${id}/approve`, { method: 'POST' }),
+  rejectReservation: (id, reason = '') =>
+    IS_MOCK_MODE
+      ? mockServer.rejectReservation(id, reason)
+      : httpRequest(`/reservations/${id}/reject`, {
+          method: 'POST',
+          body: JSON.stringify({ reason }),
+        }),
   pickupReservation: (id) =>
     IS_MOCK_MODE
       ? mockServer.pickupReservation(id)
@@ -143,10 +158,13 @@ export const reservationApi = {
     IS_MOCK_MODE
       ? mockServer.returnReservation(id, payload)
       : httpRequest(`/reservations/${id}/return`, { method: 'POST', body: JSON.stringify(payload) }),
-  cancelReservation: (id) =>
+  cancelReservation: (id, reason = '') =>
     IS_MOCK_MODE
-      ? mockServer.cancelReservation(id)
-      : httpRequest(`/reservations/${id}/cancel`, { method: 'PATCH' }),
+      ? mockServer.cancelReservation(id, reason)
+      : httpRequest(`/reservations/${id}/cancel`, {
+          method: 'PATCH',
+          body: JSON.stringify({ reason }),
+        }),
 };
 
 export const chargingApi = {
