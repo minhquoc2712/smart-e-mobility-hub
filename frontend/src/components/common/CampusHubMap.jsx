@@ -2,15 +2,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useTheme } from '../../context/ThemeContext';
 
 const VNU_CENTER = [10.8754, 106.8005];
 const DEFAULT_ZOOM = 14;
 
-// High-speed global Fastly Edge CDN tiles (CARTO Voyager for Light Mode, Dark Matter for Dark Mode)
-// with automatic fallback to OpenStreetMap if any individual tile request drops on mobile Wi-Fi/4G.
-const LIGHT_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const DARK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+// Akamai Global CDN (Esri ArcGIS World Street Map) — 100% free, no API key required,
+// and never blocked/throttled by Vietnamese ISPs (unlike tile.openstreetmap.org).
+const ARCGIS_STREET_TILES =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+const ARCGIS_TOPO_FALLBACK =
+  'https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
 
 const FALLBACK_COORDS = {
   'HUB-BK-GATE1': [10.88052, 106.80531],
@@ -54,19 +55,25 @@ function attachTileFallback(tileLayer) {
     if (attempt === 0) {
       img.dataset.retryCount = '1';
       setTimeout(() => {
-        img.src = `https://tile.openstreetmap.org/${coords.z}/${coords.x}/${coords.y}.png`;
-      }, 250);
+        img.src = ARCGIS_TOPO_FALLBACK
+          .replace('{z}', coords.z)
+          .replace('{y}', coords.y)
+          .replace('{x}', coords.x);
+      }, 200);
     } else if (attempt === 1) {
       img.dataset.retryCount = '2';
       setTimeout(() => {
-        img.src = `https://a.tile.openstreetmap.fr/hot/${coords.z}/${coords.x}/${coords.y}.png`;
-      }, 600);
+        img.src = `${ARCGIS_STREET_TILES
+          .replace('{z}', coords.z)
+          .replace('{y}', coords.y)
+          .replace('{x}', coords.x)}?retry=1`;
+      }, 500);
     }
   });
 }
 
 /**
- * Interactive Leaflet + Multi-CDN OpenStreetMap view of all VNU-HCM Mobility Hubs.
+ * Interactive Leaflet Map of all VNU-HCM Mobility Hubs.
  * Clicking any hub dot displays live available bikes, scooters, free parking spaces, and chargers.
  */
 export function CampusHubMap({
@@ -76,10 +83,8 @@ export function CampusHubMap({
   onSelectHub,
 }) {
   const navigate = useNavigate();
-  const { isDark } = useTheme();
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const tileLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
   const [activeHubId, setActiveHubId] = useState(controlledHubId || null);
 
@@ -131,18 +136,16 @@ export function CampusHubMap({
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    const initialTileLayer = L.tileLayer(isDark ? DARK_TILE_URL : LIGHT_TILE_URL, {
-      attribution: '&copy; OpenStreetMap &copy; CARTO · VNU-HCM Urban Area',
-      subdomains: 'abcd',
+    const tileLayer = L.tileLayer(ARCGIS_STREET_TILES, {
+      attribution: '&copy; Esri, OpenStreetMap contributors · VNU-HCM Urban Area',
       maxZoom: 19,
       keepBuffer: 4,
       updateWhenIdle: false,
     }).addTo(map);
-    attachTileFallback(initialTileLayer);
+    attachTileFallback(tileLayer);
 
     const layerGroup = L.layerGroup().addTo(map);
     mapInstanceRef.current = map;
-    tileLayerRef.current = initialTileLayer;
     markersLayerRef.current = layerGroup;
 
     const invalidate = () => {
@@ -166,28 +169,9 @@ export function CampusHubMap({
       if (observer) observer.disconnect();
       map.remove();
       mapInstanceRef.current = null;
-      tileLayerRef.current = null;
       markersLayerRef.current = null;
     };
   }, []);
-
-  // Dynamically switch between native Light & Dark CDN tiles when theme changes
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    if (tileLayerRef.current) {
-      map.removeLayer(tileLayerRef.current);
-    }
-    const nextLayer = L.tileLayer(isDark ? DARK_TILE_URL : LIGHT_TILE_URL, {
-      attribution: '&copy; OpenStreetMap &copy; CARTO · VNU-HCM Urban Area',
-      subdomains: 'abcd',
-      maxZoom: 19,
-      keepBuffer: 4,
-      updateWhenIdle: false,
-    }).addTo(map);
-    attachTileFallback(nextLayer);
-    tileLayerRef.current = nextLayer;
-  }, [isDark]);
 
   // Render interactive Hub markers whenever hubs or activeHubId change
   useEffect(() => {
