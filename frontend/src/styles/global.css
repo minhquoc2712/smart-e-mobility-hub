@@ -4796,8 +4796,8 @@ textarea {
   );
 }
 
-[data-theme='dark'] .campus-map-canvas .leaflet-tile-pane {
-  filter: invert(0.92) hue-rotate(180deg) brightness(0.94) contrast(0.92);
+[data-theme='dark'] .campus-map-canvas {
+  background: #0d1914;
 }
 
 [data-theme='dark'] .nearby-hub-row,

@@ -2,9 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useTheme } from '../../context/ThemeContext';
 
 const VNU_CENTER = [10.8754, 106.8005];
 const DEFAULT_ZOOM = 14;
+
+// High-speed global Fastly Edge CDN tiles (CARTO Voyager for Light Mode, Dark Matter for Dark Mode)
+// with automatic fallback to OpenStreetMap if any individual tile request drops on mobile Wi-Fi/4G.
+const LIGHT_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const DARK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 const FALLBACK_COORDS = {
   'HUB-BK-GATE1': [10.88052, 106.80531],
@@ -27,7 +33,11 @@ function getCoords(hub, idx = 0) {
 function getHubTone(status) {
   const st = String(status || 'ACTIVE').toUpperCase();
   if (st === 'FULL' || st === 'MAINTENANCE') {
-    return { dot: '#ef4444', ring: 'rgba(239, 68, 68, 0.28)', label: st === 'MAINTENANCE' ? 'Maintenance' : 'Full' };
+    return {
+      dot: '#ef4444',
+      ring: 'rgba(239, 68, 68, 0.28)',
+      label: st === 'MAINTENANCE' ? 'Maintenance' : 'Full',
+    };
   }
   if (st === 'NEAR_FULL') {
     return { dot: '#f59e0b', ring: 'rgba(245, 158, 11, 0.28)', label: 'Near full' };
@@ -35,14 +45,41 @@ function getHubTone(status) {
   return { dot: '#10b981', ring: 'rgba(16, 185, 129, 0.28)', label: 'Active' };
 }
 
+function attachTileFallback(tileLayer) {
+  tileLayer.on('tileerror', (event) => {
+    const img = event?.tile;
+    const coords = event?.coords;
+    if (!img || !coords) return;
+    const attempt = Number(img.dataset.retryCount || '0');
+    if (attempt === 0) {
+      img.dataset.retryCount = '1';
+      setTimeout(() => {
+        img.src = `https://tile.openstreetmap.org/${coords.z}/${coords.x}/${coords.y}.png`;
+      }, 250);
+    } else if (attempt === 1) {
+      img.dataset.retryCount = '2';
+      setTimeout(() => {
+        img.src = `https://a.tile.openstreetmap.fr/hot/${coords.z}/${coords.x}/${coords.y}.png`;
+      }, 600);
+    }
+  });
+}
+
 /**
- * Interactive Leaflet + OpenStreetMap view of all VNU-HCM Mobility Hubs.
+ * Interactive Leaflet + Multi-CDN OpenStreetMap view of all VNU-HCM Mobility Hubs.
  * Clicking any hub dot displays live available bikes, scooters, free parking spaces, and chargers.
  */
-export function CampusHubMap({ hubs = [], mode = 'student', selectedHubId: controlledHubId, onSelectHub }) {
+export function CampusHubMap({
+  hubs = [],
+  mode = 'student',
+  selectedHubId: controlledHubId,
+  onSelectHub,
+}) {
   const navigate = useNavigate();
+  const { isDark } = useTheme();
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const tileLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
   const [activeHubId, setActiveHubId] = useState(controlledHubId || null);
 
@@ -53,7 +90,7 @@ export function CampusHubMap({ hubs = [], mode = 'student', selectedHubId: contr
       const bikes = h.availableBikes ?? null;
       const scooters = h.availableScooters ?? null;
       const totalAvailVehicles =
-        h.availableVehicles ?? (Number(bikes || 0) + Number(scooters || 0));
+        h.availableVehicles ?? Number(bikes || 0) + Number(scooters || 0);
       const freeParking = h.freeParkingSlots ?? h.freeSlots ?? 0;
       const freeChargers = h.availableChargingPoints ?? 0;
       return {
@@ -81,7 +118,7 @@ export function CampusHubMap({ hubs = [], mode = 'student', selectedHubId: contr
     [normalizedHubs, activeHubId]
   );
 
-  // Initialize Leaflet map once
+  // Initialize Leaflet map once + ResizeObserver so container changes never leave blank grey tiles
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return undefined;
 
@@ -94,25 +131,63 @@ export function CampusHubMap({ hubs = [], mode = 'student', selectedHubId: contr
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors · VNU-HCM Urban Area',
+    const initialTileLayer = L.tileLayer(isDark ? DARK_TILE_URL : LIGHT_TILE_URL, {
+      attribution: '&copy; OpenStreetMap &copy; CARTO · VNU-HCM Urban Area',
+      subdomains: 'abcd',
       maxZoom: 19,
+      keepBuffer: 4,
+      updateWhenIdle: false,
     }).addTo(map);
+    attachTileFallback(initialTileLayer);
 
     const layerGroup = L.layerGroup().addTo(map);
     mapInstanceRef.current = map;
+    tileLayerRef.current = initialTileLayer;
     markersLayerRef.current = layerGroup;
 
-    // Ensure proper tile sizing on mobile/flex layouts
-    const resizeTimer = setTimeout(() => map.invalidateSize(), 200);
+    const invalidate = () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize({ pan: false });
+      }
+    };
+
+    const t1 = setTimeout(invalidate, 150);
+    const t2 = setTimeout(invalidate, 500);
+
+    let observer = null;
+    if (typeof ResizeObserver !== 'undefined' && mapContainerRef.current) {
+      observer = new ResizeObserver(() => invalidate());
+      observer.observe(mapContainerRef.current);
+    }
 
     return () => {
-      clearTimeout(resizeTimer);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      if (observer) observer.disconnect();
       map.remove();
       mapInstanceRef.current = null;
+      tileLayerRef.current = null;
       markersLayerRef.current = null;
     };
   }, []);
+
+  // Dynamically switch between native Light & Dark CDN tiles when theme changes
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+    const nextLayer = L.tileLayer(isDark ? DARK_TILE_URL : LIGHT_TILE_URL, {
+      attribution: '&copy; OpenStreetMap &copy; CARTO · VNU-HCM Urban Area',
+      subdomains: 'abcd',
+      maxZoom: 19,
+      keepBuffer: 4,
+      updateWhenIdle: false,
+    }).addTo(map);
+    attachTileFallback(nextLayer);
+    tileLayerRef.current = nextLayer;
+  }, [isDark]);
 
   // Render interactive Hub markers whenever hubs or activeHubId change
   useEffect(() => {
@@ -174,7 +249,9 @@ export function CampusHubMap({ hubs = [], mode = 'student', selectedHubId: contr
         <div className="campus-map-toolbar__title">
           <span className="live-pulse-dot" />
           <strong>VNU-HCM Live Hub Map</strong>
-          <span className="campus-map-toolbar__hint">Tap any hub marker to inspect real-time capacity</span>
+          <span className="campus-map-toolbar__hint">
+            Tap any hub marker to inspect real-time capacity
+          </span>
         </div>
 
         <div className="campus-map-chips" role="tablist" aria-label="Focus campus hub">
@@ -214,7 +291,9 @@ export function CampusHubMap({ hubs = [], mode = 'student', selectedHubId: contr
           <aside className="campus-map-card" aria-live="polite">
             <div className="campus-map-card__head">
               <div>
-                <span className="campus-map-card__zone">{activeHub.campusZone || 'VNU-HCM Urban Area'}</span>
+                <span className="campus-map-card__zone">
+                  {activeHub.campusZone || 'VNU-HCM Urban Area'}
+                </span>
                 <h3>{activeHub.name}</h3>
               </div>
               <button
