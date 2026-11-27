@@ -126,8 +126,27 @@ function getPickupLocation(hubName, campusZone) {
   return `${shortName} Hub (${zone})`;
 }
 
-function formatElapsedRide(startIso, nowMs) {
-  const baseMs = startIso ? new Date(startIso).getTime() : NaN;
+function formatElapsedRide(startIso, nowMs, reservationId = null) {
+  let localAnchor = NaN;
+  if (reservationId != null) {
+    try {
+      const saved = sessionStorage.getItem(`semh_ride_start_${reservationId}`);
+      if (saved) localAnchor = Number(saved);
+    } catch {
+      // ignore storage errors
+    }
+  }
+  const normalizedIso = startIso ? String(startIso).trim().replace(' ', 'T') : '';
+  const serverMs = normalizedIso ? new Date(normalizedIso).getTime() : NaN;
+
+  let baseMs = serverMs;
+  if (Number.isFinite(localAnchor)) {
+    // Use client anchor whenever server clock is ahead of phone clock (clock skew) or within 5 min
+    if (!Number.isFinite(serverMs) || serverMs > nowMs || Math.abs(serverMs - localAnchor) < 300_000) {
+      baseMs = localAnchor;
+    }
+  }
+
   const diffSec = Number.isFinite(baseMs)
     ? Math.max(0, Math.floor((nowMs - baseMs) / 1000))
     : 0;
@@ -254,11 +273,11 @@ export function ReservationsPage() {
       .finally(() => setLoading(false));
   }, [user?.id]);
 
-  // Poll every 6 seconds so Operator Approve / Reject updates Student screen automatically!
+  // Poll every 4 seconds so Operator Approve / Reject updates Student screen automatically!
   useEffect(() => {
     const poll = setInterval(() => {
       reload().catch(() => {});
-    }, 6000);
+    }, 4000);
     return () => clearInterval(poll);
   }, [reload]);
 
@@ -421,6 +440,13 @@ export function ReservationsPage() {
     setLoading(true);
     try {
       await reservationApi.pickupReservation(selectedReservation.id);
+      const clientPickupMs = Date.now();
+      try {
+        sessionStorage.setItem(`semh_ride_start_${selectedReservation.id}`, String(clientPickupMs));
+      } catch {
+        // ignore storage errors
+      }
+      setNowMs(clientPickupMs);
       const { reservations: latest, hubs: latestHubs } = await reload();
       const active =
         latest.find((item) => item.id === selectedReservation.id) || {
@@ -781,7 +807,8 @@ export function ReservationsPage() {
     const completed = selectedReservation.status === 'COMPLETED';
     const elapsedText = formatElapsedRide(
       selectedReservation.actualPickupTime || selectedReservation.startTime,
-      nowMs
+      nowMs,
+      selectedReservation.id
     );
 
     return (
@@ -989,7 +1016,7 @@ export function ReservationsPage() {
                 </span>
                 {reservation.status === 'ACTIVE' && (
                   <span className="meta-chip meta-chip--live">
-                    Riding · {formatElapsedRide(reservation.actualPickupTime || reservation.startTime, nowMs)}
+                    Riding · {formatElapsedRide(reservation.actualPickupTime || reservation.startTime, nowMs, reservation.id)}
                   </span>
                 )}
               </div>

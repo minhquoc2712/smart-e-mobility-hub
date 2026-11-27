@@ -121,7 +121,8 @@ export function ParkingBookingPage() {
           (reservation) =>
             reservation.hubId === Number(hubId) &&
             reservation.reservationType === 'PARKING' &&
-            reservation.status !== 'CANCELLED'
+            (reservation.status !== 'CANCELLED' ||
+              reservation.cancellationSource === 'OPERATOR_REJECTED')
         )
     );
   }, [hubId, user?.id]);
@@ -130,6 +131,19 @@ export function ParkingBookingPage() {
     loadData().catch((loadError) =>
       setError(loadError.message || 'Unable to load parking details.')
     );
+  }, [loadData]);
+
+  // Live auto-poll every 4s so Operator Approve / Reject updates Student screen automatically
+  useEffect(() => {
+    const poll = setInterval(() => {
+      loadData().catch(() => {});
+    }, 4000);
+    const onFocus = () => loadData().catch(() => {});
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(poll);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [loadData]);
 
   // Booked intervals ONLY for the selected parking slot
