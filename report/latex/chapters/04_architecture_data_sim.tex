@@ -53,7 +53,7 @@ The Smart E-Mobility Hub is architected as a \textbf{Three-Tier Layered Modular 
 
 \safesubsection{Structural Class Diagram and Physical MySQL 8.0 ERD}
 \label{subsec:structural-data}
-\Cref{fig:class-diagram} models the implementation-oriented UML Class Diagram (\texttt{<<entity>>}, \texttt{<<service>>}, attributes, operations, and multiplicities), while \Cref{fig:erd} and \Cref{tab:db-tables} specify the 10 normalized MySQL 8.0 InnoDB tables defined in \texttt{database/\allowbreak schema.sql}. Conceptual Phase 2B entities (19 draft classes separating vehicle/parking reservations and simulation logs) were consolidated into 10 normalized tables (\texttt{reservations} unified via \texttt{reservation\_\allowbreak type}; simulation runs held in RAM) to eliminate multi-table join anomalies and enforce strict operational state isolation.
+\Cref{fig:class-diagram} models the implementation-oriented UML Class Diagram (\texttt{<<entity>>}, \texttt{<<service>>}, attributes, operations, and multiplicities), while \Cref{fig:erd} and \Cref{tab:db-tables} specify the 10 normalized MySQL 8.0 InnoDB tables defined in the physical relational schema. Conceptual Phase 2B entities (19 draft classes separating vehicle/parking reservations and simulation logs) were consolidated into 10 normalized tables (\texttt{reservations} unified via \texttt{reservation\_\allowbreak type}; simulation runs held in RAM) to eliminate multi-table join anomalies and enforce strict operational state isolation.
 
 \begin{figure}[H]
   \centering

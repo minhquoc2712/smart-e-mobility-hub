@@ -3,7 +3,7 @@
 
 \safesubsection{Technology Stack and Development Environment}
 \label{subsec:tech-stack}
-The full implementation source code is hosted at \url{https://github.com/minhquoc2712/smart-e-mobility-hub} (branch \texttt{final/project}). \Cref{tab:tech-stack} summarizes the technology stack and runtime environment.
+\Cref{tab:tech-stack} summarizes the implementation technology stack and runtime environment selected to realize the Three-Tier Modular Monolith architecture across desktop and mobile Wi-Fi/LAN clients.
 
 \begin{table}[H]
   \centering
@@ -11,61 +11,61 @@ The full implementation source code is hosted at \url{https://github.com/minhquo
   \caption{Implementation Technology Stack and Selection Rationale}
   \label{tab:tech-stack}
   \renewcommand{\arraystretch}{1.24}
-  \begin{tabularx}{\textwidth}{|L{3.3cm}|L{3.5cm}|Y|}
+  \begin{tabularx}{\textwidth}{|L{3.3cm}|L{3.6cm}|Y|}
     \hline
     \rowcolor{tblHeader}
     \textbf{Architectural Tier} & \textbf{Selected Technologies} & \textbf{Engineering Justification} \\
     \hline
-    Frontend Web \& Mobile SPA & React 18, Vite 5, React Router 6, Leaflet + OpenStreetMap & Fast component updates for 1-second ride timers and 4-second live polling; lightweight 2D campus map with tile retry and mobile \texttt{ResizeObserver}. \\
+    Frontend Web \& Mobile SPA & React 18, Vite 5, React Router 6, Leaflet + OpenStreetMap & Fast reactive state updates for 1-second ride timers and 4-second live polling; lightweight 2D campus map with tile retry and mobile \texttt{ResizeObserver}. \\
     \hline
-    Backend API \& Domain Core & Node.js 20, Express.js 4, \texttt{jsonwebtoken}, \texttt{bcryptjs} & Shared JavaScript stack; clean middleware chain for JWT session validation, RBAC (\texttt{USER}/\texttt{OPERATOR}), and OpenAPI error formatting. \\
+    Backend API \& Domain Core & Node.js 20, Express.js 4, HS256 JWT, Bcrypt Hashing & Unified JavaScript runtime; clean middleware chain for stateless JWT verification, RBAC (\texttt{USER}/\texttt{OPERATOR}), and OpenAPI error formatting. \\
     \hline
-    Relational Persistence & MySQL 8.0 (InnoDB), \texttt{mysql2/\allowbreak promise} & Pessimistic row-level locking (\texttt{SELECT ... FOR UPDATE}), foreign-key enforcement, \texttt{ENUM}/\texttt{CHECK} constraints, and \texttt{+07:00} local timezone parity. \\
+    Relational Persistence & MySQL 8.0 (InnoDB Engine, Connection Pool) & Pessimistic row-level locking (\texttt{SELECT ... FOR UPDATE}), foreign-key enforcement, \texttt{ENUM}/\texttt{CHECK} constraints, and \texttt{+07:00} local timezone parity. \\
     \hline
-    Contract \& Verification & OpenAPI 3.0.3, \texttt{node:test}, Git \& GitHub & Contract-first parallel frontend/backend development and zero-dependency native Node unit/concurrency testing. \\
+    Contract \& Verification & OpenAPI 3.0.3 Specification, Native Test Runner & Contract-first parallel frontend/backend engineering and deterministic automated unit and concurrency lock-ordering verification. \\
     \hline
   \end{tabularx}
 \end{table}
 
-\safesubsection{Implementation Structure and Module Mapping}
+\safesubsection{Implementation Structure and Subsystem Mapping}
 \label{subsec:code-mapping}
-\Cref{tab:code-mapping} maps each architectural design component directly to its implemented package in the repository.
+\Cref{tab:code-mapping} maps each architectural design component directly to its implemented logical subsystem module and operational responsibilities.
 
 \begin{table}[H]
   \centering
   \singlespacing\footnotesize
-  \caption{Mapping from Architectural Design Components to Repository Modules}
+  \caption{Mapping from Architectural Design Components to Logical Subsystem Modules}
   \label{tab:code-mapping}
   \renewcommand{\arraystretch}{1.22}
-  \begin{tabularx}{\textwidth}{|L{3.4cm}|L{4.9cm}|Y|}
+  \begin{tabularx}{\textwidth}{|L{3.5cm}|L{4.5cm}|Y|}
     \hline
     \rowcolor{tblHeader}
-    \textbf{Design Component} & \textbf{Repository Path} & \textbf{Implemented Responsibilities} \\
+    \textbf{Design Component} & \textbf{Logical Subsystem Module} & \textbf{Implemented Responsibilities} \\
     \hline
-    Student \& Operator SPAs & \texttt{frontend/src/pages/*},\newline\texttt{frontend/src/components/*} & Role-adaptive views, Leaflet hub map, 7-day \texttt{AUTO} picker, 5-stage stepper, optical QR UI, Dark/Light themes. \\
+    Student \& Operator SPAs & Presentation Views \& Shared UI Components & Role-adaptive views, Leaflet hub map, 7-day \texttt{AUTO} picker, 5-stage stepper, optical QR unlock UI, Dark/Light themes. \\
     \hline
-    API Client \& Stateful Mock & \texttt{frontend/src/api/*} & LAN host-aware HTTP wrapper (\texttt{httpClient.js}) and contract-compliant mock fallback (\texttt{mockServer.js}). \\
+    API Client \& Contract Adapter & LAN-Aware HTTP Client \& Stateful Mock Adapter & Dynamic host-aware REST transport and contract-compliant stateful mock fallback for parallel UI verification. \\
     \hline
-    Auth, RBAC \& Error Guards & \texttt{backend/src/\allowbreak middlewares/*},\newline\texttt{backend/src/modules/auth/} & JWT issuance/verification, \texttt{OPERATOR} role checks, SQL deadlock/duplicate mapping to \texttt{HTTP 409}. \\
+    Auth, RBAC \& Error Guards & Authentication \& Middleware Pipeline & JWT session issuance/verification, \texttt{OPERATOR} role enforcement, and SQL deadlock/conflict mapping to \texttt{HTTP 409}. \\
     \hline
-    Hub \& Map Module & \texttt{backend/src/modules/hubs/} & Live hub queries, search suggestions, booked time-window aggregation, atomic \texttt{syncHubStatus()}. \\
+    Hub \& Map Module & Hub Discovery \& Saturation Service & Live hub queries, search autocomplete, booked time-window aggregation, and atomic hub saturation recalculation. \\
     \hline
-    Rental \& Reservations & \texttt{backend/src/modules/\allowbreak reservations/} & Ordered \texttt{FOR UPDATE} mutex, 5-stage approval/reject/cancel, QR pickup, capacity-checked return. \\
+    Rental \& Reservations & Reservation Lifecycle \& Mutex Service & Ordered \texttt{FOR UPDATE} mutex, 5-stage approval/reject/cancel guards, optical QR pickup, and capacity-checked return. \\
     \hline
-    Parking \& Smart Charging & \texttt{backend/src/modules/\allowbreak charging/},\newline\texttt{backend/src/modules/\allowbreak parking-slots/} & Multi-port \texttt{AUTO} time-slot locking, $100\%$ SoC validation, priority waitlist (\texttt{QUEUED}), 3-zone slot rules. \\
+    Parking \& Smart Charging & Multi-Port Charging \& 3-Zone Slot Service & Multi-port \texttt{AUTO} time-slot locking, $100\%$ target SoC validation, priority waitlist (\texttt{QUEUED}), and 3-zone bay isolation. \\
     \hline
-    Operator, Incidents \& Dispatch & \texttt{backend/src/modules/\allowbreak operator/},\newline\texttt{backend/src/modules/\allowbreak incidents/} & Network KPI bundle, 2-table charger \texttt{Plug}/\allowbreak\texttt{Unplug}/\allowbreak\texttt{Swap}/\allowbreak\texttt{Priority}, unit isolation, 2-phase slot redistribution. \\
+    Operator, Incidents \& Dispatch & Network Operations, Incident \& Dispatch Service & Network KPI aggregation, 2-table charger \texttt{Plug}/\allowbreak\texttt{Unplug}/\allowbreak\texttt{Swap}/\allowbreak\texttt{Priority}, unit isolation, and 2-phase slot redistribution. \\
     \hline
-    What-If Simulation Engine & \texttt{backend/src/modules/\allowbreak simulation/} & Deep-clone snapshot loader, discrete 1-min stepper, \texttt{I1..I8} evaluator, and \texttt{R1..R4} recommender. \\
+    What-If Simulation Engine & Sandbox Snapshot \& Recommendation Engine & Deep-clone RAM snapshot loader, discrete 1-min stepper, \texttt{I1..I8} impact evaluator, and \texttt{R1..R4} rule recommender. \\
     \hline
-    Schema, Seed \& Unit Tests & \texttt{database/*.sql},\newline\texttt{tests/unit/\allowbreak task43b.test.js} & 10-table InnoDB schema, VNU-HCM 4-hub demo dataset, and 15 automated concurrency/validation tests. \\
+    Relational Schema \& QA Suite & 10-Table InnoDB Schema \& Automated Unit Suite & Normalized relational DDL, VNU-HCM 4-hub campus seed dataset, and 15 white-box concurrency/validation unit tests. \\
     \hline
   \end{tabularx}
 \end{table}
 
 \safesubsection{Important Implementation Decisions}
 \label{subsec:impl-decisions}
-Rather than duplicating source code available in the GitHub repository, \Cref{tab:impl-decisions} summarizes the six technically critical engineering mechanisms implemented to guarantee consistency, concurrency safety, and cross-device usability.
+\Cref{tab:impl-decisions} summarizes the six technically critical engineering mechanisms implemented to guarantee state consistency, concurrency safety, and cross-device usability.
 
 \begin{table}[H]
   \centering
@@ -78,17 +78,17 @@ Rather than duplicating source code available in the GitHub repository, \Cref{ta
     \rowcolor{tblHeader}
     \textbf{Engineering Challenge} & \textbf{Implemented Technical Solution} \\
     \hline
-    Preventing Concurrent Double-Booking \& Deadlocks & Every reservation transaction acquires InnoDB \texttt{SELECT ... FOR UPDATE} locks in a strict canonical order (\texttt{users} $\rightarrow$ \texttt{reservations} $\rightarrow$ \texttt{vehicles} $\rightarrow$ \texttt{hubs} $\rightarrow$ \texttt{parking\_\allowbreak slots}). Locking the \texttt{users} row first acts as a per-account mutex under \texttt{REPEATABLE READ} (\texttt{BR-01}), while interval overlap queries (\texttt{start\_time < end AND end\_time > start FOR UPDATE}) block cross-user double-booking. \\
+    Preventing Concurrent Double-Booking \& Deadlocks & Every reservation transaction acquires InnoDB \texttt{SELECT ... FOR UPDATE} locks in a strict canonical order (\texttt{users} $\rightarrow$ \texttt{reservations} $\rightarrow$ \texttt{vehicles} $\rightarrow$ \texttt{hubs} $\rightarrow$ \texttt{parking\_\allowbreak slots}). Locking the \texttt{users} row first acts as a per-account mutex under \texttt{REPEATABLE READ} (\texttt{BR-01}), while interval overlap predicates block cross-user double-booking. \\
     \hline
-    Role-Safe 5-Stage Approval \& Cancellation Attribution & Operator rejections invoke \texttt{POST /reservations/\allowbreak :id/reject} (\texttt{OPERATOR\_\allowbreak REJECTED}), whereas customer cancellations invoke \texttt{PATCH /reservations/\allowbreak :id/cancel}, which unconditionally records \texttt{STUDENT\_\allowbreak CANCELLED} or \texttt{STUDENT\_\allowbreak DECLINED}---ensuring accurate status labels even when an operator tests the Student Portal view. \\
+    Role-Safe 5-Stage Approval \& Cancellation Attribution & Operator rejections invoke the dedicated operator reject endpoint (\texttt{OPERATOR\_\allowbreak REJECTED}), whereas customer cancellations invoke the student cancel endpoint, which unconditionally records \texttt{STUDENT\_\allowbreak CANCELLED} or \texttt{STUDENT\_\allowbreak DECLINED}---ensuring accurate status attribution across both portals. \\
     \hline
-    Concurrent Multi-Charger \texttt{AUTO} Port Allocation & Defaulting the charger/parking dropdown to \texttt{AUTO} (\texttt{chargingPointId: null}) computes shaded calendar hours from the intersection of \emph{all} operational ports at a hub. Two students booking the same hour at a 2-free-port hub atomically lock distinct ports (\texttt{BK-C02}, \texttt{BK-C03}), while subsequent requests enter \texttt{QUEUED}. \\
+    Concurrent Multi-Charger \texttt{AUTO} Port Allocation & Defaulting the charger/parking selector to \texttt{AUTO} computes shaded calendar hours from the intersection of \emph{all} operational ports at a hub. Two students booking the same hour at a 2-free-port hub atomically lock distinct ports (\texttt{BK-C02}, \texttt{BK-C03}), while subsequent requests enter \texttt{QUEUED}. \\
     \hline
     Two-Phase Slot-to-Slot Fleet Redistribution & Vehicle dispatch executes in two atomic phases inside one transaction---Phase A vacates all source slots to \texttt{FREE} before Phase B binds destination slots to \texttt{OCCUPIED}---enabling safe intra-hub swaps and inter-hub transfers while filtering out private customer EVs. \\
     \hline
-    Strict In-Memory What-If State Isolation & Simulation runs clone live relational rows via \texttt{structuredClone} into JavaScript heap memory with a seeded PRNG; live tables are touched only if an operator confirms a recommendation that passes fresh live-capacity revalidation. \\
+    Strict In-Memory What-If State Isolation & Simulation runs deep-clone live relational rows into isolated heap memory with a seeded PRNG; live tables are modified only if an operator confirms a recommendation that passes fresh live-capacity revalidation. \\
     \hline
-    Mobile Wi-Fi/LAN Sync \& Clock-Skew Resilience & Dynamic hostname resolution binds mobile Safari/Chrome over campus LAN (\texttt{192.168.1.x:\allowbreak 5173}) to Express (\texttt{:4000}) with $4\text{ s}$ live polling, while client-side \texttt{sessionStorage} pickup timestamps prevent PC-to-phone clock skew from stalling the elapsed ride timer. \\
+    Mobile Wi-Fi/LAN Sync \& Clock-Skew Resilience & Dynamic hostname resolution binds mobile Safari/Chrome over campus LAN (\texttt{192.168.1.x:\allowbreak 5173}) to the REST API (\texttt{:4000}) with $4\text{ s}$ live polling, while client-anchored pickup timestamps prevent PC-to-phone clock skew from stalling the elapsed ride timer. \\
     \hline
   \end{tabularx}
 \end{table}

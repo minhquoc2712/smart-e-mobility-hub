@@ -24,11 +24,11 @@ Planned in parallel with Sprint 2 and updated for the final V2.2 web and mobile-
     \hline
     \textbf{4.\ Untested Features \& Justification} & Production Google Cloud OAuth token exchange in offline grading environments (replaced by verified local JWT registration/login and demo autofill accounts for offline reproducibility). \\
     \hline
-    \textbf{5.\ Testing Levels \& Types} & \emph{Unit Testing} (white-box \texttt{node:test} assertions on validators, error mapper, and \texttt{FOR UPDATE} lock order); \emph{Integration Testing} (Express + MySQL InnoDB); \emph{System / Use-Case Testing} (black-box E2E); \emph{Cross-Device Concurrency \& Mobile LAN QA}. \\
+    \textbf{5.\ Testing Levels \& Types} & \emph{Unit Testing} (white-box assertions on input validators, error mappers, and \texttt{FOR UPDATE} lock order); \emph{Integration Testing} (REST API + MySQL InnoDB); \emph{System / Use-Case Testing} (black-box E2E); \emph{Cross-Device Concurrency \& Mobile LAN QA}. \\
     \hline
     \textbf{6.\ Test Environment} & Windows 11 host (Node.js v20, Vite v5.4, MySQL 8.0 with \texttt{tz: '+07:00'}), Chrome 131 desktop (\texttt{localhost:5173}), and iOS Safari / Android Chrome over Wi-Fi LAN (\texttt{192.168.1.7:\allowbreak 5173}). \\
     \hline
-    \textbf{7.\ Test Data Strategy} & Deterministic reset via \texttt{schema.sql} + \texttt{seed.sql}: 4 VNU-HCM hubs, 24 parking slots, 16 EVs (\texttt{AVAILABLE}, \texttt{CHARGING}, \texttt{OUT\_\allowbreak OF\_\allowbreak SERVICE}), 12 chargers, 2 open incidents, 4 scenario templates. \\
+    \textbf{7.\ Test Data Strategy} & Deterministic relational schema and seed reset: 4 VNU-HCM hubs, 24 parking slots, 16 EVs (\texttt{AVAILABLE}, \texttt{CHARGING}, \texttt{OUT\_\allowbreak OF\_\allowbreak SERVICE}), 12 chargers, 2 open incidents, 4 scenario templates. \\
     \hline
     \textbf{8.\ Roles \& Responsibilities} & \emph{QA Lead (Lê Minh Nhật):} Test Plan, EP/BVA/Decision-Table design, test suite authoring. \emph{Mobile \& Workflow QA (Trần Tiến Phát):} Two-device LAN execution \& bug logging. \emph{Dev Leads (Khánh Phát, Minh Quốc, Tuấn Minh):} Unit tests \& defect fixes. \\
     \hline
@@ -36,7 +36,7 @@ Planned in parallel with Sprint 2 and updated for the final V2.2 web and mobile-
     \hline
     \textbf{10.\ Exit / Completion Criteria} & $100\%$ pass rate on \texttt{High}-priority core flows, $\ge 95\%$ overall test pass rate, and $0$ open \texttt{Critical}/\texttt{High} defects. \\
     \hline
-    \textbf{11.\ Schedule \& Tools} & Test design: 03/11--16/11/2026; execution \& regression cycles: 17/11--27/11/2026; tools: native \texttt{node:test} + \texttt{node:assert/\allowbreak strict}, Chrome/Safari DevTools, GitHub issue/commit tracking. \\
+    \textbf{11.\ Schedule \& Tools} & Test design: 03/11--16/11/2026; execution \& regression cycles: 17/11--27/11/2026; tools: automated unit/concurrency test runner, Chrome/Safari DevTools, and structured team defect tracking. \\
     \hline
   \end{tabularx}
 \end{table}
@@ -177,7 +177,7 @@ Five formal Software Engineering test-design techniques were applied systematica
 
 \safesubsection{Test Execution Summary, Defect Log, and Traceability}
 \label{subsec:test-results}
-\textbf{Execution Results:} All \textbf{15/15 automated white-box unit and lock-ordering tests} (\texttt{node --test tests/\allowbreak unit/\allowbreak task43b.test.js}) passed in $99.5\text{ ms}$ ($100\%$), and all \textbf{32/32 black-box system, concurrency, and cross-device mobile-LAN test cases} passed ($100\%$) after resolving the nine defects logged in \Cref{tab:defects}. \Cref{tab:traceability} confirms $100\%$ bidirectional traceability across \texttt{FR-01..FR-18}.
+\textbf{Execution Results:} All \textbf{15/15 automated white-box unit and lock-ordering tests} passed in $99.5\text{ ms}$ ($100\%$), and all \textbf{32/32 black-box system, concurrency, and cross-device mobile-LAN test cases} passed ($100\%$) after resolving the nine defects logged in \Cref{tab:defects}. \Cref{tab:traceability} confirms $100\%$ bidirectional traceability across \texttt{FR-01..FR-18}.
 
 \begin{table}[H]
   \centering
@@ -190,23 +190,23 @@ Five formal Software Engineering test-design techniques were applied systematica
     \rowcolor{tblHeader}
     \textbf{ID} & \textbf{Sev.} & \textbf{TC} & \textbf{Observed Failure} & \textbf{Root Cause \& Verified Resolution} & \textbf{State} \\
     \hline
-    \texttt{DEF-01} & High & \texttt{TC-08} & Booked hours shifted by 7h between DB and UI. & UTC conversion drift; set \texttt{timezone: '+07:00'} in MySQL pool and local ISO formatter. & Closed \\
+    \texttt{DEF-01} & High & \texttt{TC-08} & Booked hours shifted by 7h between DB and UI. & UTC conversion drift; enforced \texttt{+07:00} timezone in MySQL pool and local ISO formatter. & Closed \\
     \hline
-    \texttt{DEF-02} & Med & \texttt{TC-21} & \textit{Set Priority} failed when choosing \texttt{LOW}. & Missing \texttt{'LOW'} in route validator whitelist; added full \texttt{LOW..URGENT} parity. & Closed \\
+    \texttt{DEF-02} & Med & \texttt{TC-21} & \textit{Set Priority} failed when choosing \texttt{LOW}. & Missing \texttt{LOW} in priority validator whitelist; restored full \texttt{LOW..URGENT} parity. & Closed \\
     \hline
-    \texttt{DEF-03} & Med & \texttt{TC-32} & Fleet filter overflowed iPhone portrait width. & Fixed \texttt{min-width: 184px}; replaced with responsive \texttt{flex: 1 1 0} mobile grid (\texttt{0d82ab8}). & Closed \\
+    \texttt{DEF-03} & Med & \texttt{TC-32} & Fleet filter overflowed iPhone portrait width. & Fixed button minimum width caused overflow; replaced with responsive flex mobile grid. & Closed \\
     \hline
-    \texttt{DEF-04} & Med & \texttt{TC-11} & Mobile ride timer stayed at \texttt{00:00} on clock skew. & Server clock slightly ahead of phone; anchored client pickup ms in \texttt{session\allowbreak Storage} (\texttt{2f8ad35}). & Closed \\
+    \texttt{DEF-04} & Med & \texttt{TC-11} & Mobile ride timer stayed at \texttt{00:00} on clock skew. & Server clock slightly ahead of phone; anchored client pickup timestamp locally on session start. & Closed \\
     \hline
-    \texttt{DEF-05} & Med & \texttt{TC-13} & Parking page required manual refresh after approval. & Missing polling hook; added $4\text{ s}$ live interval + focus listener (\texttt{2f8ad35}). & Closed \\
+    \texttt{DEF-05} & Med & \texttt{TC-13} & Parking page required manual refresh after approval. & Missing polling hook on parking view; added $4\text{ s}$ live interval and window-focus refresh. & Closed \\
     \hline
-    \texttt{DEF-06} & Med & \texttt{TC-02} & New accounts shared \texttt{PV-018} ID and locked input. & Global storage key; scoped per \texttt{user.id} (\texttt{PV-00X}) and unlocked plate editing (\texttt{18c2341}). & Closed \\
+    \texttt{DEF-06} & Med & \texttt{TC-02} & New accounts shared \texttt{PV-018} ID and locked input. & Unscoped vehicle state key; isolated private EV profile per user account and unlocked plate editing. & Closed \\
     \hline
-    \texttt{DEF-07} & High & \texttt{TC-13} & Student parking cancel showed \textit{Rejected by operator}. & \texttt{cancel()} branched on \texttt{isOperator(user)} during portal switch; fixed \texttt{cancel()} to always log \texttt{STUDENT\_\allowbreak CANCELLED} (\texttt{1731892}). & Closed \\
+    \texttt{DEF-07} & High & \texttt{TC-13} & Student parking cancel showed \textit{Rejected by operator}. & Cancel handler branched on account role during portal switch; fixed customer cancel to always record \texttt{STUDENT\_\allowbreak CANCELLED}. & Closed \\
     \hline
-    \texttt{DEF-08} & High & \texttt{TC-18} & 2 students blocked from same hour on 2-free-port hub. & UI defaulted both to \texttt{BK-C02}; added default \texttt{AUTO} free-port mode shading only when all hub ports are busy (\texttt{1731892}). & Closed \\
+    \texttt{DEF-08} & High & \texttt{TC-18} & 2 students blocked from same hour on 2-free-port hub. & UI defaulted both requests to port \texttt{BK-C02}; added default \texttt{AUTO} free-port mode shading only when all hub ports are busy. & Closed \\
     \hline
-    \texttt{DEF-09} & Low & \texttt{TC-01} & Occasional grey map tiles under ISP throttling. & Restored OpenStreetMap \texttt{a/b/c} subdomains with automatic retry \& \texttt{ResizeObserver} (\texttt{11fd8a2}). & Closed \\
+    \texttt{DEF-09} & Low & \texttt{TC-01} & Occasional grey map tiles under ISP throttling. & Enabled OpenStreetMap multi-subdomain tile retry with automatic mobile container resize observer. & Closed \\
     \hline
   \end{tabularx}
 \end{table}
