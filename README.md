@@ -2,7 +2,13 @@
 
 **Electric Mobility Coordination System for the VNU-HCM Urban Area**
 
-Course project — Software Engineering (HK261), Ho Chi Minh City University of Technology (HCMUT)
+Course project — Software Engineering (CO3001, Semester 261), Ho Chi Minh City University of Technology (HCMUT) — **Group 7** (Advisor: Dr. Nguyễn Thành Công)
+
+## Final Project Report & Documentation (`final/report`)
+
+- **Compiled Final Report (PDF):** [`report/Smart_E_Mobility_Hub_Group7.pdf`](report/Smart_E_Mobility_Hub_Group7.pdf)
+- **Overleaf Ready-to-Import Archive (`.zip`):** [`report/Smart_EMobility_Hub_Group7_CO3001_Overleaf.zip`](report/Smart_EMobility_Hub_Group7_CO3001_Overleaf.zip)
+- **Full LaTeX Source & Monochrome UML 2.5 Diagrams:** [`report/latex/`](report/latex/) (`report.tex`, `hcmut-report.cls`, `chapters/01..07`, `graphics/`)
 
 ## Project Overview
 
@@ -66,6 +72,7 @@ The system uses a **Layered Modular Monolith** architecture:
 ├── database/                  # MySQL DDL schema.sql & seed.sql scripts
 ├── simulation/                # Standalone simulation scenario specs & scripts
 ├── tests/                     # Automated integration & unit test suites
+├── report/                    # Final compiled PDF, Overleaf .zip, and full LaTeX source
 └── README.md
 ```
 

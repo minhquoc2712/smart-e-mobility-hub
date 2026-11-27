@@ -1,0 +1,236 @@
+\section{Testing and Validation}
+\label{sec:testing}
+
+\safesubsection{Comprehensive Test Plan}
+\label{subsec:test-plan}
+Planned in parallel with Sprint 2 and updated for the final V2.2 web and mobile-LAN release, \Cref{tab:test-plan} documents all eleven mandatory components of Group 7's Software Test Plan.
+
+\begin{table}[H]
+  \centering
+  \singlespacing\footnotesize
+  \caption{Structured Software Test Plan Summary}
+  \label{tab:test-plan}
+  \renewcommand{\arraystretch}{1.22}
+  \begin{tabularx}{\textwidth}{|L{3.5cm}|Y|}
+    \hline
+    \rowcolor{tblHeader}
+    \textbf{Test Plan Item} & \textbf{Group 7 Specification} \\
+    \hline
+    \textbf{1.\ Testing Objectives} & Validate (a) Student hub discovery, 5-stage EV rental, Zone C parking, and concurrent \texttt{AUTO} charger booking; (b) Operator monitoring, approval/rejection, 2-table priority charging, incident isolation, and 2-phase dispatch; (c) What-If simulation isolation and recommendations; and (d) concurrency locks and mobile LAN responsiveness. \\
+    \hline
+    \textbf{2.\ Scope of Testing} & \emph{In scope:} REST APIs, MySQL transactions, state transitions, Student \& Operator UIs (desktop + mobile LAN), What-If engine. \emph{Out of scope:} Physical EV hardware, live bank billing, cloud cluster load testing. \\
+    \hline
+    \textbf{3.\ Tested Features} & Auth/JWT/RBAC, live map \& search, shared EV booking/approval/QR/return/cancel, multi-port parking \& charging, 3-zone check-in/out, 2-table priority/plug/swap/unplug, incident lifecycle, slot redistribution, 4+ What-If scenarios. \\
+    \hline
+    \textbf{4.\ Untested Features \& Justification} & Production Google Cloud OAuth token exchange in offline grading environments (replaced by verified local JWT registration/login and demo autofill accounts for offline reproducibility). \\
+    \hline
+    \textbf{5.\ Testing Levels \& Types} & \emph{Unit Testing} (white-box \texttt{node:test} assertions on validators, error mapper, and \texttt{FOR UPDATE} lock order); \emph{Integration Testing} (Express + MySQL InnoDB); \emph{System / Use-Case Testing} (black-box E2E); \emph{Cross-Device Concurrency \& Mobile LAN QA}. \\
+    \hline
+    \textbf{6.\ Test Environment} & Windows 11 host (Node.js v20, Vite v5.4, MySQL 8.0 with \texttt{tz: '+07:00'}), Chrome 131 desktop (\texttt{localhost:5173}), and iOS Safari / Android Chrome over Wi-Fi LAN (\texttt{192.168.1.7:\allowbreak 5173}). \\
+    \hline
+    \textbf{7.\ Test Data Strategy} & Deterministic reset via \texttt{schema.sql} + \texttt{seed.sql}: 4 VNU-HCM hubs, 24 parking slots, 16 EVs (\texttt{AVAILABLE}, \texttt{CHARGING}, \texttt{OUT\_\allowbreak OF\_\allowbreak SERVICE}), 12 chargers, 2 open incidents, 4 scenario templates. \\
+    \hline
+    \textbf{8.\ Roles \& Responsibilities} & \emph{QA Lead (Lê Minh Nhật):} Test Plan, EP/BVA/Decision-Table design, test suite authoring. \emph{Mobile \& Workflow QA (Trần Tiến Phát):} Two-device LAN execution \& bug logging. \emph{Dev Leads (Khánh Phát, Minh Quốc, Tuấn Minh):} Unit tests \& defect fixes. \\
+    \hline
+    \textbf{9.\ Entry Criteria} & Frozen OpenAPI 3.0 contract, seeded MySQL 8.0 database, clean Vite production build (\texttt{0} errors). \\
+    \hline
+    \textbf{10.\ Exit / Completion Criteria} & $100\%$ pass rate on \texttt{High}-priority core flows, $\ge 95\%$ overall test pass rate, and $0$ open \texttt{Critical}/\texttt{High} defects. \\
+    \hline
+    \textbf{11.\ Schedule \& Tools} & Test design: 03/11--16/11/2026; execution \& regression cycles: 17/11--27/11/2026; tools: native \texttt{node:test} + \texttt{node:assert/\allowbreak strict}, Chrome/Safari DevTools, GitHub issue/commit tracking. \\
+    \hline
+  \end{tabularx}
+\end{table}
+
+\safesubsection{Test Design and Test Techniques}
+\label{subsec:test-techniques}
+Five formal Software Engineering test-design techniques were applied systematically:
+\begin{enumerate}
+  \item \textbf{Equivalence Partitioning (EP):} Divided inputs into valid and invalid partitions across RBAC roles (\texttt{USER}, \texttt{OPERATOR}, anonymous), ownership (\texttt{RENTAL}, \texttt{PRIVATE}), slot zones (\texttt{SHARED\_\allowbreak EV}, \texttt{PRIVATE\_\allowbreak EV}, \texttt{UNIVERSAL}), priority enums (\texttt{URGENT..LOW} vs.\ invalid string), and identifier types (positive safe integer vs.\ boolean, \texttt{null}, float \texttt{1.5}, whitespace).
+  \item \textbf{Boundary-Value Analysis (BVA) \& Decision-Table Testing:} Derived exact threshold tests and combinatorial charger allocation rules (\Cref{tab:bva-decision}).
+  \item \textbf{State-Transition Testing:} Covered all valid lifecycle arcs and illegal transition guards (e.g., QR pickup while \texttt{PENDING} $\rightarrow$ \texttt{409 AWAITING\_\allowbreak OPERATOR\_\allowbreak APPROVAL}; cancelling \texttt{CHARGING} or \texttt{COMPLETED} $\rightarrow$ \texttt{409 INVALID\_\allowbreak STATE\_\allowbreak TRANSITION}).
+  \item \textbf{Use-Case \& Concurrent Lock Testing:} Verified SQL lock ordering (\texttt{users} before \texttt{vehicles}) via stubbed transaction executors and executed live two-student simultaneous bookings over Wi-Fi LAN.
+\end{enumerate}
+
+\begin{table}[H]
+  \centering
+  \singlespacing\footnotesize
+  \caption{Boundary-Value Analysis Thresholds and Smart Charging Decision Table}
+  \label{tab:bva-decision}
+  \renewcommand{\arraystretch}{1.22}
+  \begin{tabularx}{\textwidth}{|L{3.5cm}|L{3.9cm}|Y|}
+    \hline
+    \rowcolor{tblHeader}
+    \textbf{Domain Parameter / Rule} & \textbf{Tested Boundary / Condition Inputs} & \textbf{Expected Deterministic Outcome} \\
+    \hline
+    Rental EV Battery SoC (\texttt{BVA}) & $-1\%, 0\%, 19\%$ $|$ $20\%, 88\%, 100\%$ $|$ $101\%$ & $<0$ or $>100 \rightarrow \texttt{400}$; $0..19\% \rightarrow \texttt{409 BATTERY\_\allowbreak TOO\_\allowbreak LOW}$; $20..100\% \rightarrow$ Eligible. \\
+    \hline
+    Charging Target SoC (\texttt{BVA}) & $\text{target}=95\%, 99\%$ $|$ $\text{target}=100\%, \text{cur}=35\%$ $|$ $\text{cur}=100\%$ & $\text{target}\neq 100$ or $\text{target}\le\text{cur} \rightarrow \texttt{422 TARGET\_\allowbreak BATTERY\_\allowbreak INVALID}$; $(35\rightarrow 100\%) \rightarrow$ Valid. \\
+    \hline
+    Hub Occupancy Ratio (\texttt{BVA}) & $4/6$ ($66.7\%$) $|$ $5/6$ ($83.3\% \ge 80\%$) $|$ $6/6$ ($100\%$) & $66.7\% \rightarrow \texttt{ACTIVE}$; $83.3\% \rightarrow \texttt{NEAR\_\allowbreak FULL}$; $100\% \rightarrow \texttt{FULL}$. \\
+    \hline
+    Time Window Bounds (\texttt{BVA}) & $t_e < t_s$, $t_e = t_s$, \texttt{2026-02-30}, \texttt{24:00} & Rejected pre-transaction (\texttt{400 INVALID\_\allowbreak TIME\_\allowbreak WINDOW} / \texttt{VALIDATION\_\allowbreak FAILED}). \\
+    \hline
+    Decision Rule D1 (\texttt{UC09}) & Hub active, target $100\%$, $\ge 2$ free ports in $[t_s,t_e)$ & Student 1 assigned Port 1 (\texttt{BK-C02}, \texttt{SCHEDULED}). \\
+    \hline
+    Decision Rule D2 (\texttt{UC09}) & Hub active, target $100\%$, $1$ free port left (Student 2 same hour) & Student 2 assigned Port 2 (\texttt{BK-C03}, \texttt{SCHEDULED}) concurrently. \\
+    \hline
+    Decision Rule D3 (\texttt{UC09}) & Hub active, target $100\%$, $0$ free ports in $[t_s,t_e)$ & Request placed in \texttt{QUEUED} priority waitlist without preempting locked ports. \\
+    \hline
+  \end{tabularx}
+\end{table}
+
+\safesubsection{System Test Cases}
+\label{subsec:test-cases}
+\Cref{tab:tc-part1,tab:tc-part2} document the 32 formal test cases (\texttt{TC-01}--\texttt{TC-32}) covering normal flows, invalid inputs, boundaries, resource conflicts, state transitions, failures, What-If simulation, and UI integration.
+
+\begin{table}[H]
+  \centering
+  \singlespacing\scriptsize
+  \caption{System Test Cases --- Part 1: Auth, Rental, Approval, QR \& Parking (\texttt{TC-01}--\texttt{TC-16})}
+  \label{tab:tc-part1}
+  \renewcommand{\arraystretch}{1.20}
+  \begin{tabularx}{\textwidth}{|C{1.25cm}|C{1.40cm}|L{1.95cm}|Y|L{3.95cm}|C{0.95cm}|}
+    \hline
+    \rowcolor{tblHeader}
+    \textbf{ID} & \textbf{Ref} & \textbf{Technique} & \textbf{Test Scenario \& Input} & \textbf{Expected Result} & \textbf{Res} \\
+    \hline
+    \texttt{TC-01} & \texttt{UC01} & Use-Case & Open Hubs \& Live Map on desktop \& mobile LAN; filter \texttt{Electric scooter}. & 4 VNU-HCM pins render on OSM map; matching EV counts \& VND rates shown. & Pass \\
+    \hline
+    \texttt{TC-02} & \texttt{FR-03} & EP (Isolation) & Register 2 new student accounts; check \textit{My Vehicles} default ID \& edit plate. & Per-user isolated storage (\texttt{PV-005}, \texttt{PV-006}); plate field editable. & Pass \\
+    \hline
+    \texttt{TC-03} & \texttt{NFR-05} & EP (RBAC) & Invoke \texttt{POST /approve} and \texttt{/operator/\allowbreak redistribute} with \texttt{USER} JWT. & Rejected (\texttt{HTTP 403 FORBIDDEN}); 0 DB mutations. & Pass \\
+    \hline
+    \texttt{TC-04} & \texttt{NFR-06} & EP / BVA & Send boolean/\texttt{null}/float \texttt{1.5}/\texttt{MAX\_\allowbreak SAFE\_\allowbreak INT+1} IDs \& date \texttt{2026-02-30}. & Rejected pre-transaction (\texttt{400 VALIDATION\_\allowbreak FAILED}); 0 SQL queries run. & Pass \\
+    \hline
+    \texttt{TC-05} & \texttt{FR-04} & BVA (SoC) & Reserve shared e-bike with $\text{SoC}=19\%$ vs.\ $\text{SoC}=20\%$. & $19\% \rightarrow \texttt{409 BATTERY\_\allowbreak TOO\_\allowbreak LOW}$; $20\% \rightarrow \texttt{201 PENDING}$. & Pass \\
+    \hline
+    \texttt{TC-06} & \texttt{FR-04} & BVA (Time) & Submit vehicle reservation with $t_{\text{end}} \le t_{\text{start}}$. & Rejected (\texttt{400 INVALID\_\allowbreak TIME\_\allowbreak WINDOW}). & Pass \\
+    \hline
+    \texttt{TC-07} & \texttt{BR-01} & Concurrency & Student with \texttt{PENDING}/\allowbreak\texttt{CONFIRMED}/\allowbreak\texttt{ACTIVE} booking requests 2nd EV. & \texttt{users} mutex locked; rejected (\texttt{409 USER\_\allowbreak HAS\_\allowbreak ACTIVE\_\allowbreak RENTAL}). & Pass \\
+    \hline
+    \texttt{TC-08} & \texttt{FR-04} & Conflict Lock & User B requests \texttt{EB-102} (10:00--12:00) overlapping User A (11:00--13:00). & Rejected (\texttt{409 VEHICLE\_\allowbreak TIME\_\allowbreak SLOT\_\allowbreak BOOKED}). & Pass \\
+    \hline
+    \texttt{TC-09} & \texttt{FR-05} & State Guard & Student calls \texttt{POST /pickup} while reservation is still \texttt{PENDING}. & Rejected (\texttt{409 AWAITING\_\allowbreak OPERATOR\_\allowbreak APPROVAL}). & Pass \\
+    \hline
+    \texttt{TC-10} & \texttt{UC04} & Integration & Operator clicks \textit{Approve} while Student views Pickup screen on phone. & Within $4\text{ s}$, Student UI syncs to \texttt{CONFIRMED} and shows Optical QR Scanner. & Pass \\
+    \hline
+    \texttt{TC-11} & \texttt{UC06} & Mobile E2E & Student confirms QR pickup on iPhone over LAN; watch ride timer. & Status $\rightarrow$ \texttt{ACTIVE}, EV $\rightarrow$ \texttt{IN\_\allowbreak USE}, slot $\rightarrow$ \texttt{FREE}; timer ticks \texttt{00:01...} smoothly. & Pass \\
+    \hline
+    \texttt{TC-12} & \texttt{UC07} & Capacity BVA & Attempt return to hub with $0$ free rental/universal bays vs.\ free hub. & Full hub $\rightarrow \texttt{409}$; free hub docks EV \& sets \texttt{COMPLETED}. & Pass \\
+    \hline
+    \texttt{TC-13} & \texttt{UC05} & Role Cancel & Student cancels parking booking (both as \texttt{USER} and switched \texttt{OPERATOR}). & Displays \texttt{CANCELLED BY STUDENT} (never \texttt{OPERATOR\_\allowbreak REJECTED}); slot freed. & Pass \\
+    \hline
+    \texttt{TC-14} & \texttt{FR-05} & State Guard & Operator clicks \textit{Reject} on \texttt{PENDING} booking in Control Console. & Status $\rightarrow$ \texttt{CANCELLED} (\texttt{REJECTED BY OPERATOR}); held EV/slot released. & Pass \\
+    \hline
+    \texttt{TC-15} & \texttt{UC08} & Multi-Bay & Two students book Zone C parking at HCMUT Hub (15:00--16:00, \texttt{AUTO}). & Both succeed concurrently (\texttt{BK-P05}, \texttt{BK-P06}); hub status syncs. & Pass \\
+    \hline
+    \texttt{TC-16} & \texttt{BR-04} & Zone Rule & Operator attempts to check in private customer EV into Zone A \texttt{SHARED\_\allowbreak EV} bay. & Blocked with zone-isolation error; permitted only in Zone C. & Pass \\
+    \hline
+  \end{tabularx}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \singlespacing\scriptsize
+  \caption{System Test Cases --- Part 2: Charging, Incidents, Dispatch, What-If \& UI (\texttt{TC-17}--\texttt{TC-32})}
+  \label{tab:tc-part2}
+  \renewcommand{\arraystretch}{1.20}
+  \begin{tabularx}{\textwidth}{|C{1.25cm}|C{1.40cm}|L{1.95cm}|Y|L{3.95cm}|C{0.95cm}|}
+    \hline
+    \rowcolor{tblHeader}
+    \textbf{ID} & \textbf{Ref} & \textbf{Technique} & \textbf{Test Scenario \& Input} & \textbf{Expected Result} & \textbf{Res} \\
+    \hline
+    \texttt{TC-17} & \texttt{FR-09} & BVA (Target) & Submit charging request with \texttt{targetBatteryLevel = 95} vs.\ \texttt{100}. & \texttt{95} rejected pre-transaction (\texttt{422}); \texttt{100} accepted. & Pass \\
+    \hline
+    \texttt{TC-18} & \texttt{UC09} & Decision D1/2 & At HCMUT Hub (\texttt{BK-C02, BK-C03} free), Student 1 \& 2 book 16:00--17:00 (\texttt{AUTO}). & Both \texttt{SCHEDULED}: Student 1 gets \texttt{BK-C02}, Student 2 gets \texttt{BK-C03}. & Pass \\
+    \hline
+    \texttt{TC-19} & \texttt{FR-10} & Decision D3 & Student 3 requests 16:00--17:00 after \texttt{BK-C02} \& \texttt{BK-C03} are locked. & Hour shaded in \texttt{AUTO}; unallocated API request enters \texttt{QUEUED} waitlist. & Pass \\
+    \hline
+    \texttt{TC-20} & \texttt{FR-09} & State Guard & Attempt cancel on a charging session in \texttt{CHARGING} or \texttt{COMPLETED}. & Rejected (\texttt{409 INVALID\_\allowbreak STATE\_\allowbreak TRANSITION}). & Pass \\
+    \hline
+    \texttt{TC-21} & \texttt{UC15} & EP (Priority) & Operator updates waitlist priority to \texttt{URGENT} and \texttt{LOW}. & Accepted; waitlist re-sorts \texttt{URGENT > HIGH > NORMAL > LOW}. & Pass \\
+    \hline
+    \texttt{TC-22} & \texttt{UC15} & Integration & Operator runs \texttt{Plug-in}, \texttt{Swap} (active $\leftrightarrow$ queued), and \texttt{Unplug}. & Charger binding and both EV statuses update atomically. & Pass \\
+    \hline
+    \texttt{TC-23} & \texttt{UC11} & Fault Isolate & Log incident with missing unit vs.\ selecting \texttt{EB-205}. & Missing unit rejected; \texttt{EB-205} set \texttt{OUT\_\allowbreak OF\_\allowbreak SERVICE} immediately. & Pass \\
+    \hline
+    \texttt{TC-24} & \texttt{FR-13} & Fault Block & Attempt booking \texttt{EB-309} (\texttt{OUT\_\allowbreak OF\_\allowbreak SERVICE}) or at \texttt{MAINTENANCE} hub. & Rejected (\texttt{409 VEHICLE\_\allowbreak NOT\_\allowbreak AVAILABLE} / \texttt{HUB\_\allowbreak CLOSED}). & Pass \\
+    \hline
+    \texttt{TC-25} & \texttt{UC12} & State Recovery & Operator assigns incident (\texttt{IN\_\allowbreak PROGRESS}) and closes with repair notes. & Incident $\rightarrow$ \texttt{CLOSED}; target restored to \texttt{AVAILABLE}/\texttt{FREE}. & Pass \\
+    \hline
+    \texttt{TC-26} & \texttt{UC13} & 2-Phase Move & Dispatch 2 \texttt{AVAILABLE} shared EVs from Dorm B to Metro Hub via slot builder. & Src slots $\rightarrow$ \texttt{FREE}; dst slots $\rightarrow$ \texttt{OCCUPIED}; private EVs excluded. & Pass \\
+    \hline
+    \texttt{TC-27} & \texttt{UC14} & EP (Telemetry) & Post valid \texttt{A3} telemetry report vs.\ malformed negative battery report. & Valid updates SoC; invalid rejected preserving last valid state. & Pass \\
+    \hline
+    \texttt{TC-28} & \texttt{UC16} & What-If Surge & Execute \texttt{SCN-METRO-SURGE} ($+45$ requests) and verify live MySQL tables. & Returns \texttt{I1..I8} \& Rule \texttt{R1} in $<1\text{ s}$; $0$ live DB rows modified. & Pass \\
+    \hline
+    \texttt{TC-29} & \texttt{UC16} & What-If Outage & Execute \texttt{SCN-CHARGER-OUTAGE} ($50\%$ fail) and \texttt{SCN-DORMB-FULL}. & Generates \texttt{R4} reroute and \texttt{R3} overflow transfer; live DB untouched. & Pass \\
+    \hline
+    \texttt{TC-30} & \texttt{UC18} & Revalidation & Operator clicks \textit{Apply Recommendation} under valid vs.\ stale live state. & Valid state executes dispatch; stale state rejected (\texttt{409}). & Pass \\
+    \hline
+    \texttt{TC-31} & \texttt{NFR-06} & Unit Faults & Trigger \texttt{ER\_\allowbreak LOCK\_\allowbreak DEADLOCK}, \texttt{ER\_\allowbreak DUP\_\allowbreak ENTRY}, and generic SQL exception. & Deadlock/dup $\rightarrow \texttt{409}$; raw SQL hidden behind safe \texttt{500} message. & Pass \\
+    \hline
+    \texttt{TC-32} & \texttt{NFR-07} & Mobile Layout & Audit all Student \& Operator screens at $375\times 812\text{ px}$ (Light \& Dark). & Zero horizontal overflow; 2-column operator cards render cleanly. & Pass \\
+    \hline
+  \end{tabularx}
+\end{table}
+
+\safesubsection{Test Execution Summary, Defect Log, and Traceability}
+\label{subsec:test-results}
+\textbf{Execution Results:} All \textbf{15/15 automated white-box unit and lock-ordering tests} (\texttt{node --test tests/\allowbreak unit/\allowbreak task43b.test.js}) passed in $99.5\text{ ms}$ ($100\%$), and all \textbf{32/32 black-box system, concurrency, and cross-device mobile-LAN test cases} passed ($100\%$) after resolving the nine defects logged in \Cref{tab:defects}. \Cref{tab:traceability} confirms $100\%$ bidirectional traceability across \texttt{FR-01..FR-18}.
+
+\begin{table}[H]
+  \centering
+  \singlespacing\scriptsize
+  \caption{Defect Summary Log Discovered and Resolved During Integration \& Mobile QA (\texttt{DEF-01}--\texttt{DEF-09})}
+  \label{tab:defects}
+  \renewcommand{\arraystretch}{1.20}
+  \begin{tabularx}{\textwidth}{|C{1.40cm}|C{1.05cm}|C{1.25cm}|L{3.95cm}|Y|C{1.10cm}|}
+    \hline
+    \rowcolor{tblHeader}
+    \textbf{ID} & \textbf{Sev.} & \textbf{TC} & \textbf{Observed Failure} & \textbf{Root Cause \& Verified Resolution} & \textbf{State} \\
+    \hline
+    \texttt{DEF-01} & High & \texttt{TC-08} & Booked hours shifted by 7h between DB and UI. & UTC conversion drift; set \texttt{timezone: '+07:00'} in MySQL pool and local ISO formatter. & Closed \\
+    \hline
+    \texttt{DEF-02} & Med & \texttt{TC-21} & \textit{Set Priority} failed when choosing \texttt{LOW}. & Missing \texttt{'LOW'} in route validator whitelist; added full \texttt{LOW..URGENT} parity. & Closed \\
+    \hline
+    \texttt{DEF-03} & Med & \texttt{TC-32} & Fleet filter overflowed iPhone portrait width. & Fixed \texttt{min-width: 184px}; replaced with responsive \texttt{flex: 1 1 0} mobile grid (\texttt{0d82ab8}). & Closed \\
+    \hline
+    \texttt{DEF-04} & Med & \texttt{TC-11} & Mobile ride timer stayed at \texttt{00:00} on clock skew. & Server clock slightly ahead of phone; anchored client pickup ms in \texttt{session\allowbreak Storage} (\texttt{2f8ad35}). & Closed \\
+    \hline
+    \texttt{DEF-05} & Med & \texttt{TC-13} & Parking page required manual refresh after approval. & Missing polling hook; added $4\text{ s}$ live interval + focus listener (\texttt{2f8ad35}). & Closed \\
+    \hline
+    \texttt{DEF-06} & Med & \texttt{TC-02} & New accounts shared \texttt{PV-018} ID and locked input. & Global storage key; scoped per \texttt{user.id} (\texttt{PV-00X}) and unlocked plate editing (\texttt{18c2341}). & Closed \\
+    \hline
+    \texttt{DEF-07} & High & \texttt{TC-13} & Student parking cancel showed \textit{Rejected by operator}. & \texttt{cancel()} branched on \texttt{isOperator(user)} during portal switch; fixed \texttt{cancel()} to always log \texttt{STUDENT\_\allowbreak CANCELLED} (\texttt{1731892}). & Closed \\
+    \hline
+    \texttt{DEF-08} & High & \texttt{TC-18} & 2 students blocked from same hour on 2-free-port hub. & UI defaulted both to \texttt{BK-C02}; added default \texttt{AUTO} free-port mode shading only when all hub ports are busy (\texttt{1731892}). & Closed \\
+    \hline
+    \texttt{DEF-09} & Low & \texttt{TC-01} & Occasional grey map tiles under ISP throttling. & Restored OpenStreetMap \texttt{a/b/c} subdomains with automatic retry \& \texttt{ResizeObserver} (\texttt{11fd8a2}). & Closed \\
+    \hline
+  \end{tabularx}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \singlespacing\footnotesize
+  \caption{Requirements-to-Test-Case Traceability Matrix (\texttt{FR-01}--\texttt{FR-18})}
+  \label{tab:traceability}
+  \renewcommand{\arraystretch}{1.22}
+  \begin{tabularx}{\textwidth}{|L{2.5cm}|L{4.7cm}|L{2.5cm}|Y|}
+    \hline
+    \rowcolor{tblHeader}
+    \textbf{Req ID} & \textbf{Verified Test Cases} & \textbf{Req ID} & \textbf{Verified Test Cases} \\
+    \hline
+    \texttt{FR-01, FR-02} & \texttt{TC-01, TC-05, TC-32} & \texttt{FR-10, FR-12} & \texttt{TC-19, TC-21, TC-22} \\
+    \hline
+    \texttt{FR-03} & \texttt{TC-02, TC-16} & \texttt{FR-11} & \texttt{TC-10, TC-32} \\
+    \hline
+    \texttt{FR-04, FR-05} & \texttt{TC-03..TC-11, TC-14} & \texttt{FR-13, FR-14} & \texttt{TC-23, TC-24, TC-25} \\
+    \hline
+    \texttt{FR-06, FR-07} & \texttt{TC-12, TC-13} & \texttt{FR-15} & \texttt{TC-03, TC-26} \\
+    \hline
+    \texttt{FR-08, FR-09} & \texttt{TC-15, TC-17, TC-18, TC-20} & \texttt{FR-16..FR-18} & \texttt{TC-27, TC-28, TC-29, TC-30} \\
+    \hline
+  \end{tabularx}
+\end{table}

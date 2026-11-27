@@ -1,0 +1,84 @@
+\section{Introduction}
+\label{sec:introduction}
+
+\safesubsection{Problem Context}
+\label{subsec:problem-context}
+The Vietnam National University Ho Chi Minh City (VNU-HCM) Urban Area connects multiple member universities, central libraries, large student dormitory complexes (Zones A and B), service facilities, and the Suoi Tien -- VNU-HCM terminal of Metro Line 1. As students increasingly commute via Metro Line 1 and rely on shared electric bicycles, shared electric scooters, or privately owned electric vehicles (EVs) for inter-campus travel, limited parking bays, charging ports, and shared fleets must be coordinated across distributed locations. Without centralized software coordination, peak-hour transitions cause hub saturation, blocked vehicle returns, charger queues, and severe fleet imbalance across campus zones.
+
+\safesubsection{Project Objectives}
+\label{subsec:objectives}
+Group 7 designed and implemented the \textbf{Smart E-Mobility Hub} platform around six concrete Software Engineering objectives:
+\begin{enumerate}
+  \item \textbf{Network-Wide Resource State Management:} Track and synchronize shared EVs, 3-zone parking bays, and charging ports across distributed VNU-HCM Mobility Hubs in near real time.
+  \item \textbf{Dual-Mode Student Mobility:} Support both shared-EV rentals (via a 5-stage operator-approved optical QR lifecycle) and private-EV Zone C parking and charging reservations.
+  \item \textbf{Conflict-Free Concurrent Allocation:} Prevent double-booking and capacity overflow under concurrent student requests using explicit state-machine guards, time-window checks, and database row-level locking.
+  \item \textbf{Centralized Operator Control:} Equip staff with live network KPIs, booking approval queues, two-table charging management (Active Chargers vs.\ Priority Waitlist), mandatory-target incident isolation, and slot-to-slot fleet dispatch.
+  \item \textbf{Smart Priority Charging \& Rebalancing:} Combine scheduled charger slot locks with battery-aware waitlist prioritization and validated inter-hub transfers to minimize student waiting time.
+  \item \textbf{Isolated What-If Scenario Simulation:} Evaluate demand surges, full hubs, charger failures, and fleet imbalances on an in-memory state copy and apply revalidated recommendations only upon operator confirmation.
+\end{enumerate}
+
+\safesubsection{System Scope}
+\label{subsec:scope}
+The system models four VNU-HCM Mobility Hubs (\textit{HCMUT Main Gate Hub}, \textit{VNU Central Library Hub}, \textit{Dormitory Zone B Hub}, and \textit{Metro Suoi Tien -- VNU Hub}) and delivers:
+\begin{itemize}
+  \item \textbf{Interactive Campus Discovery:} 2D OpenStreetMap/Leaflet live hub map, search autocomplete, and fleet filtering by vehicle type, battery percentage, range, and VND rate.
+  \item \textbf{Shared EV Rental Flow:} 7-day reservation window, operator approval/rejection, optical QR unlock, live elapsed ride timer, and capacity-checked return at any operational hub.
+  \item \textbf{Private EV Services:} Isolated per-user private EV profiles and 7-day Zone C parking / charger booking with \texttt{AUTO} free-port/bay assignment supporting concurrent student bookings.
+  \item \textbf{Operator \& Simulation Suite:} Network utilization analytics, 3-zone parking check-in/out, 2-table priority charging (\texttt{Plug-in}, \texttt{Unplug}, \texttt{Swap}, \texttt{Set Priority}), incident isolation/closure, two-phase slot-to-slot redistribution, and discrete-time What-If simulation.
+\end{itemize}
+
+\safesubsection{System Boundary}
+\label{subsec:system-boundary}
+\Cref{tab:system-boundary} establishes a strict boundary separating software responsibilities from external physical infrastructure \cite{sommerville2016}.
+
+\begin{table}[H]
+  \centering
+  \singlespacing\footnotesize
+  \caption{Smart E-Mobility Hub System Boundary (Inside vs.\ Outside Responsibilities)}
+  \label{tab:system-boundary}
+  \renewcommand{\arraystretch}{1.28}
+  \begin{tabularx}{\textwidth}{|Y|Y|}
+    \hline
+    \rowcolor{tblHeader}
+    \textbf{Inside System Boundary (Software Scope)} & \textbf{Outside System Boundary (External Environment)} \\
+    \hline
+    State machines for Hubs, Vehicles, Parking Slots, Charging Points, Reservations, Charging Requests, and Incidents. & Physical EV frames, battery management circuits (BMS), mechanical rack locks, and charger relays. \\
+    \hline
+    Role-based web and mobile-LAN interfaces for Students (\texttt{USER}) and Hub Operators (\texttt{OPERATOR}). & 3D terrain rendering and turn-by-turn street navigation engines (2D campus hub map is used instead). \\
+    \hline
+    Transactional vehicle/parking booking, 15-minute hold rules, operator approval, and QR pickup/return validation. & Metro Line 1 train operations, schedules, and public transit ticketing gates. \\
+    \hline
+    Smart charging scheduler (\texttt{AUTO} port lock + priority waitlist) and 3-zone parking isolation. & Physical wrench repair, towing, and van transport (executed by field crew; logged by Operator). \\
+    \hline
+    A3 telemetry ingestion/validation and isolated in-memory What-If simulation + recommendation engine. & Real banking/e-wallet payment gateways (transparent VND fees are computed without live billing). \\
+    \hline
+  \end{tabularx}
+\end{table}
+
+\safesubsection{Assumptions and Constraints}
+\label{subsec:assumptions}
+\Cref{tab:assumptions} summarizes the key operational assumptions and project constraints governing system design.
+
+\begin{table}[H]
+  \centering
+  \singlespacing\footnotesize
+  \caption{Operational Assumptions and Technical/Project Constraints}
+  \label{tab:assumptions}
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabularx}{\textwidth}{|C{1.6cm}|L{2.9cm}|Y|}
+    \hline
+    \rowcolor{tblHeader}
+    \textbf{ID} & \textbf{Type} & \textbf{Statement} \\
+    \hline
+    \texttt{ASM-01} & Operational & Mobility Hubs operate at fixed VNU-HCM campus coordinates with known slot and charger counts. \\
+    \hline
+    \texttt{ASM-02} & Telemetry & Vehicle SoC, slot occupancy, and charger states are supplied via simulated A3 REST telemetry reports. \\
+    \hline
+    \texttt{ASM-03} & Network Access & Students and staff access the responsive web portal via desktop browsers or smartphones over campus Wi-Fi/LAN. \\
+    \hline
+    \texttt{CON-01} & State Isolation & What-If simulations must execute on an isolated RAM snapshot with zero writes to live MySQL tables unless confirmed. \\
+    \hline
+    \texttt{CON-02} & Language \& Demo & All UI screens and report artifacts use English (with VND tariff display); system demo is pre-recorded ($\sim 3\text{ min}$). \\
+    \hline
+  \end{tabularx}
+\end{table}

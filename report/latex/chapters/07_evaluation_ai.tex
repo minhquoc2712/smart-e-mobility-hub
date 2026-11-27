@@ -1,0 +1,49 @@
+\section{Evaluation, Conclusion, and Generative AI Declaration}
+\label{sec:evaluation}
+
+\safesubsection{Achievement of Objectives and System Strengths}
+\label{subsec:evaluation-strengths}
+Group 7 achieved \textbf{100\% functional completion} across all six project objectives (\Cref{subsec:objectives}) and all 18 functional requirements (\texttt{FR-01..FR-18}):
+\begin{itemize}
+  \item \textbf{Transactional Integrity Under Concurrency:} Canonically ordered InnoDB \texttt{SELECT ... FOR UPDATE} row locks combined with centralized state-machine tables prevent double-booking, negative slot counts, and illegal state jumps across shared EVs, Zone C parking bays, and multi-port \texttt{AUTO} chargers.
+  \item \textbf{Cohesive Student--Operator Real-Time Workflow:} The 5-stage approval and optical QR unlock pipeline, 2-table smart charging console, mandatory-target incident isolation, and two-phase slot-to-slot dispatch synchronize seamlessly across desktop and mobile Wi-Fi/LAN clients.
+  \item \textbf{Safe What-If Decision Support:} Ephemeral RAM snapshot cloning delivers sub-second scenario evaluation (\texttt{I1..I8}) and ranked mitigations (\texttt{R1..R4}) with zero risk of corrupting live operational tables.
+\end{itemize}
+
+\safesubsection{Design Trade-Offs, Limitations, and Lessons Learned}
+\label{subsec:limitations-lessons}
+\begin{itemize}
+  \item \textbf{Significant Trade-Offs:} Selecting a Three-Tier Modular Monolith with $4\text{ s}$ HTTP polling over distributed microservices and WebSockets streamlined cross-table ACID transactions and mobile LAN resilience, trading off horizontal multi-node database sharding and push-socket efficiency. Fixing target SoC at $100\%$ simplified deterministic port locking while deferring partial-charge billing.
+  \item \textbf{Known Limitations:} (1) Physical EV locks, BMS battery sensors, and QR hardware are simulated in software; (2) VND rental and charging fees are displayed transparently without live e-wallet payment settlement; and (3) What-If arrival curves rely on parameterized models rather than multi-year historical VNU-HCM ridership telemetry.
+  \item \textbf{Lessons Learned:} (1) Contract-first OpenAPI specification paired with a stateful frontend mock enabled 7 members to develop UI and backend modules in parallel without integration bottlenecks; (2) real two-device LAN testing (PC Operator + iPhone Student) uncovered practical concurrency and UX bugs (\texttt{DEF-04, DEF-07, DEF-08}) invisible on single-tab localhost; and (3) reconciling UML models directly against \texttt{schema.sql} kept documentation faithful to code.
+\end{itemize}
+
+\safesubsection{Future Improvements and Conclusion}
+\label{subsec:future-conclusion}
+\textbf{Future Improvements:} For campus-wide VNU-HCM deployment, the system can integrate (1) MQTT/OCPP 1.6J IoT gateways for physical rack locks and EVSE chargers; (2) HCMUT SSO (\texttt{@hcmut.edu.vn}) and VietQR/MoMo micro-payments; (3) WebSocket/SSE event push; and (4) spatiotemporal demand forecasting trained on Metro Line 1 arrival logs.
+
+\textbf{Conclusion:} The \textbf{Smart E-Mobility Hub} demonstrates end-to-end Software Engineering rigor—from boundary-driven requirements and monochrome UML 2.5 behavioral/structural modeling to ACID-hardened modular implementation, isolated What-If simulation, and systematic white-box/black-box verification—delivering a practical coordination platform for sustainable electric mobility across the VNU-HCM Urban Area.
+
+\safesubsection{Generative AI Usage Declaration}
+\label{subsec:ai-declaration}
+In strict compliance with CO3001 Academic Integrity Policy and Section 6.1 of the Project Report Guideline, Group 7 provides a transparent declaration of Generative AI usage in \Cref{tab:ai-declaration}.
+
+\begin{table}[H]
+  \centering
+  \singlespacing\footnotesize
+  \caption{Mandatory Generative AI Usage Declaration and Student Accountability}
+  \label{tab:ai-declaration}
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabularx}{\textwidth}{|L{2.8cm}|L{3.7cm}|Y|}
+    \hline
+    \rowcolor{tblHeader}
+    \textbf{AI Tool(s) Used} & \textbf{Purpose \& Project Phase} & \textbf{Student Verification, Revision \& Original Ownership} \\
+    \hline
+    Google Gemini / ChatGPT & \textbf{UI Refactoring \& Responsive Styling:} Assisted in scaffolding Leaflet map tile retry hooks, Dark/Light CSS tokens, and mobile layout adjustments. & Group 7 authored all UX flows and wireframes, tested every screen across PC and mobile LAN, diagnosed and fixed layout/timer/booking bugs (\texttt{DEF-01..DEF-09}), and verified all UI behaviors. \\
+    \hline
+    Google Gemini / Coding Assistant & \textbf{Backend Edge-Case Auditing \& Test Mocking:} Assisted in reviewing SQL overlap predicates, role-safe cancel attribution, and \texttt{node:test} mock scaffolding. & All business rules (\texttt{BR-01..BR-07}), the 10-table MySQL schema, OpenAPI spec, InnoDB lock order, and What-If scoring formulas were designed, implemented, and validated by Group 7. \\
+    \hline
+    Google Gemini / Grammarly & \textbf{LaTeX Formatting \& English Proofreading:} Assisted in formatting bordered LaTeX tables and polishing academic English from Group 7's consolidated drafts. & Every requirement, UML diagram, test case, and defect analysis reflects Group 7's actual system. All seven members understand and take 100\% responsibility for defending the entire submission. \\
+    \hline
+  \end{tabularx}
+\end{table}

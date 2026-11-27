@@ -1,0 +1,321 @@
+\documentclass[oneside,final]{hcmut-report}
+
+\usepackage{gensymb,textcomp}
+\usepackage[table]{xcolor}
+\usepackage{array,longtable,multirow,tabularx}
+\usepackage{enumitem}
+\usepackage{caption,subcaption,float}
+\usepackage{xurl}
+\usepackage[nameinlink]{cleveref}
+
+\captionsetup{font=small,labelfont=bf,skip=5pt}
+\captionsetup[subfigure]{font=footnotesize,skip=3pt}
+\setlength{\emergencystretch}{3em}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\LTpre}{4pt}
+\setlength{\LTpost}{4pt}
+\hbadness=10000
+\vbadness=10000
+
+\definecolor{tblHeader}{HTML}{EFEFEF}
+
+% Compact list spacing
+\setlist[itemize]{topsep=3pt,itemsep=2pt,parsep=0pt,leftmargin=1.4em}
+\setlist[enumerate]{topsep=3pt,itemsep=2pt,parsep=0pt,leftmargin=1.5em}
+
+% Full-grid bordered table column types
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+% Automatic page-break guard so headings never sit orphaned at page bottom
+\newcommand{\safesubsection}[1]{%
+  \par\ifdim\pagetotal>0.80\textheight\newpage\fi\subsection{#1}%
+}
+\newcommand{\safesubsubsection}[1]{%
+  \par\ifdim\pagetotal>0.83\textheight\newpage\fi\subsubsection{#1}%
+}
+
+% Cover page metadata (Semester 261)
+\coursename{SOFTWARE ENGINEERING (CO3001) --- SEMESTER 261}
+\reporttype{FINAL PROJECT REPORT --- GROUP 7}
+\title{Smart E-Mobility Hub:\\[0.24cm]{\fontsize{13.5pt}{18.5pt}\selectfont Electric Mobility Coordination System for the\\VNU-HCM Urban Area}}
+\advisor{Dr.\ Nguyễn Thành Công}
+\stuname{%
+  & Mã Trần Minh Quốc & (ID: 2353026) \\
+  & Lục Khánh Phát & (ID: 2452942) \\
+  & Trần Tiến Phát & (ID: 2452950) \\
+  & Lê Minh Nhật & (ID: 2452891) \\
+  & Phạm Tuấn Minh & (ID: 2452766) \\
+  & Nguyễn Thùy Trang & (ID: 2453272) \\
+  & Nils Tanguy BOUSQUET & (ID: 2660011) \\
+}
+\reportplace{Ho Chi Minh City}
+\reporttime{November 2026}
+
+\begin{document}
+\coverpage
+
+% ============================================================================
+% CONCISE TASK ASSIGNMENT TABLE (BORDERED GRID, KEYWORDS ONLY)
+% ============================================================================
+\section*{Group 7 --- Member List \& Task Assignment}
+\addcontentsline{toc}{section}{Group 7 --- Member List \& Task Assignment}
+
+{\singlespacing\small
+\renewcommand{\arraystretch}{1.35}
+\noindent
+\begin{tabularx}{\textwidth}{|C{0.9cm}|L{4.1cm}|C{2.1cm}|Y|C{2.1cm}|}
+  \hline
+  \rowcolor{tblHeader}
+  \textbf{No.} & \textbf{Full Name} & \textbf{Student ID} & \textbf{Assigned Keywords} & \textbf{Workload} \\
+  \hline
+  1 & Mã Trần Minh Quốc & 2353026 & Frontend Lead, Operator UI, Campus Map, Report & 100\% \\
+  \hline
+  2 & Lục Khánh Phát & 2452942 & Reservation \& Charging APIs, Class Diagram, ERD, Report & 100\% \\
+  \hline
+  3 & Trần Tiến Phát & 2452950 & Activity \& State Diagrams, Operator APIs, Mobile QA & 100\% \\
+  \hline
+  4 & Lê Minh Nhật & 2452891 & System Architecture, Business Rules, Test Plan \& QA & 100\% \\
+  \hline
+  5 & Phạm Tuấn Minh & 2452766 & Functional Requirements, OpenAPI, Auth \& Integration & 100\% \\
+  \hline
+  6 & Nguyễn Thùy Trang & 2453272 & Non-Functional Requirements, UI Wireframes, Slide Deck & 100\% \\
+  \hline
+  7 & Nils Tanguy BOUSQUET & 2660011 & Use-Case \& Sequence Diagrams, What-If Engine, Demo & 100\% \\
+  \hline
+\end{tabularx}
+}
+
+\vspace{10pt}
+\noindent\textbf{Source Code Repository:} \url{https://github.com/minhquoc2712/smart-e-mobility-hub} (Branch: \texttt{final/project})
+
+\clearpage
+\tableofcontents
+
+% ============================================================================
+% BORDERED LIST OF FIGURES & LIST OF TABLES (MULTI-PAGE LONGTABLE, ZERO BLANK PAGES)
+% ============================================================================
+\clearpage
+\section*{List of Figures}
+\addcontentsline{toc}{section}{List of Figures}
+
+{\singlespacing\footnotesize
+\renewcommand{\arraystretch}{1.22}
+\begin{longtable}[l]{|C{1.5cm}|L{11.85cm}|C{1.32cm}|}
+  \hline
+  \rowcolor{tblHeader}
+  \textbf{Figure} & \textbf{Figure Title} & \textbf{Page} \\
+  \hline
+  \endfirsthead
+  \hline
+  \rowcolor{tblHeader}
+  \textbf{Figure} & \textbf{Figure Title (Continued)} & \textbf{Page} \\
+  \hline
+  \endhead
+  \endfoot
+  \endlastfoot
+  \ref{fig:uc-s1} & Use-Case Diagram 1 --- Student: Hub Discovery, Vehicle Search \& Reservation (\texttt{UC01}--\texttt{UC05, UC04a}) & \pageref{fig:uc-s1} \\
+  \hline
+  \ref{fig:uc-s2} & Use-Case Diagram 2 --- Student: QR Pickup, Return, Parking \& Smart Charging (\texttt{UC06}--\texttt{UC09}) & \pageref{fig:uc-s2} \\
+  \hline
+  \ref{fig:uc-op1} & Use-Case Diagram 3 --- Operator: Monitoring, Incidents, Dispatch \& Telemetry (\texttt{UC10}--\texttt{UC14, UC13a}) & \pageref{fig:uc-op1} \\
+  \hline
+  \ref{fig:uc-op2} & Use-Case Diagram 4 --- Operator: Smart Charging Priority \& What-If Simulation (\texttt{UC15}--\texttt{UC18}) & \pageref{fig:uc-op2} \\
+  \hline
+  \ref{fig:act-rental} & Activity Diagram --- 5-Stage Shared EV Reservation, Approval, QR Pickup \& Return & \pageref{fig:act-rental} \\
+  \hline
+  \ref{fig:act-charging} & Activity Diagram --- Zone C Parking Reservation \& Multi-Charger \texttt{AUTO} Scheduling & \pageref{fig:act-charging} \\
+  \hline
+  \ref{fig:act-incident} & Activity Diagram --- Mandatory-Target Incident Isolation \& Repair Resolution & \pageref{fig:act-incident} \\
+  \hline
+  \ref{fig:act-dispatch} & Activity Diagram --- Two-Phase Slot-to-Slot Vehicle Redistribution \& Charging Priority & \pageref{fig:act-dispatch} \\
+  \hline
+  \ref{fig:act-sim} & Activity Diagram --- Isolated What-If Simulation \& Live Revalidation & \pageref{fig:act-sim} \\
+  \hline
+  \ref{fig:seq-reserve} & Sequence Diagram --- Reserve Shared EV, Operator Approval \& Optical QR Pickup & \pageref{fig:seq-reserve} \\
+  \hline
+  \ref{fig:seq-charging} & Sequence Diagram --- Concurrent Multi-Charger Scheduling \& Priority Waitlist & \pageref{fig:seq-charging} \\
+  \hline
+  \ref{fig:seq-dispatch} & Sequence Diagram --- Two-Phase Slot-to-Slot Vehicle Redistribution & \pageref{fig:seq-dispatch} \\
+  \hline
+  \ref{fig:seq-sim} & Sequence Diagram --- Isolated What-If Scenario Execution \& Recommendation Ranking & \pageref{fig:seq-sim} \\
+  \hline
+  \ref{fig:sm-vehicle} & State Machine Diagram --- Shared Fleet \texttt{Vehicle} Lifecycle & \pageref{fig:sm-vehicle} \\
+  \hline
+  \ref{fig:sm-reservation} & State Machine Diagram --- 5-Stage \texttt{Reservation} Lifecycle & \pageref{fig:sm-reservation} \\
+  \hline
+  \ref{fig:sm-slot-charger} & State Machine Diagrams --- \texttt{ParkingSlot} and \texttt{ChargingPoint} Lifecycles & \pageref{fig:sm-slot-charger} \\
+  \hline
+  \ref{fig:ui-nav} & Role-Based Navigation Sitemap Across Student Portal and Operator Console & \pageref{fig:ui-nav} \\
+  \hline
+  \ref{fig:wf-student} & Student Portal V2.2 Structural Wireframes (Live Map, QR Scanner, 7-Day \texttt{AUTO} Picker) & \pageref{fig:wf-student} \\
+  \hline
+  \ref{fig:wf-operator} & Operator Console V2.2 Structural Wireframes (Approval Queue, 2-Table Charging, What-If) & \pageref{fig:wf-operator} \\
+  \hline
+  \ref{fig:ui-auth} & Delivered V2.2 Unified Authentication and Registration Interface & \pageref{fig:ui-auth} \\
+  \hline
+  \ref{fig:ui-student-map} & Delivered V2.2 Student Mobility Hub Network and Interactive OpenStreetMap Views & \pageref{fig:ui-student-map} \\
+  \hline
+  \ref{fig:ui-student-flows} & Delivered V2.2 Student Pickup/Return Lifecycle and Multi-Port \texttt{AUTO} Charger Registration & \pageref{fig:ui-student-flows} \\
+  \hline
+  \ref{fig:ui-operator-console} & Delivered V2.2 Operator Network Overview, Booking Approval, and Smart Charging Console & \pageref{fig:ui-operator-console} \\
+  \hline
+  \ref{fig:ui-operator-ops} & Delivered V2.2 Operator Incident Isolation, Slot-to-Slot Dispatch, What-If Simulation, and Staff Profile & \pageref{fig:ui-operator-ops} \\
+  \hline
+  \ref{fig:ui-mobile-lan} & Delivered V2.2 Responsive Mobile Interfaces in Dark Mode over Campus Wi-Fi LAN (\texttt{192.168.1.7:5173}) & \pageref{fig:ui-mobile-lan} \\
+  \hline
+  \ref{fig:architecture} & High-Level Three-Tier Modular Monolithic Software Architecture & \pageref{fig:architecture} \\
+  \hline
+  \ref{fig:component} & UML 2.5 Component Diagram with Provided and Required Interfaces & \pageref{fig:component} \\
+  \hline
+  \ref{fig:deployment} & Campus Wi-Fi / LAN Runtime Deployment Topology & \pageref{fig:deployment} \\
+  \hline
+  \ref{fig:class-diagram} & Implementation-Oriented UML Class Diagram & \pageref{fig:class-diagram} \\
+  \hline
+  \ref{fig:erd} & Physical MySQL 8.0 Entity-Relationship Diagram (10 Normalized InnoDB Tables) & \pageref{fig:erd} \\
+  \hline
+\end{longtable}
+}
+
+\clearpage
+\section*{List of Tables}
+\addcontentsline{toc}{section}{List of Tables}
+
+{\singlespacing\footnotesize
+\renewcommand{\arraystretch}{1.20}
+\begin{longtable}[l]{|C{1.5cm}|L{11.85cm}|C{1.32cm}|}
+  \hline
+  \rowcolor{tblHeader}
+  \textbf{Table} & \textbf{Table Title} & \textbf{Page} \\
+  \hline
+  \endfirsthead
+  \hline
+  \rowcolor{tblHeader}
+  \textbf{Table} & \textbf{Table Title (Continued)} & \textbf{Page} \\
+  \hline
+  \endhead
+  \endfoot
+  \endlastfoot
+  \ref{tab:system-boundary} & Smart E-Mobility Hub System Boundary (Inside vs.\ Outside Responsibilities) & \pageref{tab:system-boundary} \\
+  \hline
+  \ref{tab:assumptions} & Operational Assumptions and Technical/Project Constraints & \pageref{tab:assumptions} \\
+  \hline
+  \ref{tab:stakeholders} & Stakeholder Analysis (\texttt{S1}--\texttt{S6}) for the VNU-HCM Smart E-Mobility Hub & \pageref{tab:stakeholders} \\
+  \hline
+  \ref{tab:actors} & External System Actors (\texttt{A1}--\texttt{A3}) Derived from the System Boundary & \pageref{tab:actors} \\
+  \hline
+  \ref{tab:fr-student} & Functional Requirements --- Part 1: Student Workflows (\texttt{FR-01}--\texttt{FR-10}) & \pageref{tab:fr-student} \\
+  \hline
+  \ref{tab:fr-operator} & Functional Requirements --- Part 2: Operator, Simulation \& Telemetry (\texttt{FR-11}--\texttt{FR-18}) & \pageref{tab:fr-operator} \\
+  \hline
+  \ref{tab:nfr} & Concrete and Verifiable Non-Functional Requirements (\texttt{NFR-01}--\texttt{NFR-08}) & \pageref{tab:nfr} \\
+  \hline
+  \ref{tab:business-rules} & Core Domain Business Rules and Operational Constraints (\texttt{BR-01}--\texttt{BR-07}) & \pageref{tab:business-rules} \\
+  \hline
+  \ref{tab:uc-catalog} & Master Use-Case Catalog (\texttt{UC01}--\texttt{UC18} and Included Use Cases) & \pageref{tab:uc-catalog} \\
+  \hline
+  \ref{tab:uc01} & Use-Case Specification --- \texttt{UC01}: View Hubs and Resources & \pageref{tab:uc01} \\
+  \hline
+  \ref{tab:uc02} & Use-Case Specification --- \texttt{UC02}: Search Rental Vehicles & \pageref{tab:uc02} \\
+  \hline
+  \ref{tab:uc03} & Use-Case Specification --- \texttt{UC03}: View Parking and Charging & \pageref{tab:uc03} \\
+  \hline
+  \ref{tab:uc04} & Use-Case Specification --- \texttt{UC04}: Reserve Vehicle & \pageref{tab:uc04} \\
+  \hline
+  \ref{tab:uc04a} & Use-Case Specification --- \texttt{UC04a}: Check Availability (Included in \texttt{UC04}) & \pageref{tab:uc04a} \\
+  \hline
+  \ref{tab:uc05} & Use-Case Specification --- \texttt{UC05}: Cancel Reservation & \pageref{tab:uc05} \\
+  \hline
+  \ref{tab:uc06} & Use-Case Specification --- \texttt{UC06}: Pick Up Vehicle & \pageref{tab:uc06} \\
+  \hline
+  \ref{tab:uc07} & Use-Case Specification --- \texttt{UC07}: Return Vehicle & \pageref{tab:uc07} \\
+  \hline
+  \ref{tab:uc08} & Use-Case Specification --- \texttt{UC08}: Reserve Parking Space & \pageref{tab:uc08} \\
+  \hline
+  \ref{tab:uc09} & Use-Case Specification --- \texttt{UC09}: Schedule Charging & \pageref{tab:uc09} \\
+  \hline
+  \ref{tab:uc10} & Use-Case Specification --- \texttt{UC10}: Monitor Hub Network & \pageref{tab:uc10} \\
+  \hline
+  \ref{tab:uc11} & Use-Case Specification --- \texttt{UC11}: Record Incident & \pageref{tab:uc11} \\
+  \hline
+  \ref{tab:uc12} & Use-Case Specification --- \texttt{UC12}: Close Incident After Repair & \pageref{tab:uc12} \\
+  \hline
+  \ref{tab:uc13} & Use-Case Specification --- \texttt{UC13}: Redistribute Vehicles & \pageref{tab:uc13} \\
+  \hline
+  \ref{tab:uc13a} & Use-Case Specification --- \texttt{UC13a}: Check Free Parking (Included in \texttt{UC13}) & \pageref{tab:uc13a} \\
+  \hline
+  \ref{tab:uc14} & Use-Case Specification --- \texttt{UC14}: Update Resource Status & \pageref{tab:uc14} \\
+  \hline
+  \ref{tab:uc15} & Use-Case Specification --- \texttt{UC15}: Set Charging Priority & \pageref{tab:uc15} \\
+  \hline
+  \ref{tab:uc15a} & Use-Case Specification --- \texttt{UC15a}: Check Status (Included in \texttt{UC15}) & \pageref{tab:uc15a} \\
+  \hline
+  \ref{tab:uc16} & Use-Case Specification --- \texttt{UC16}: Run What-If Simulation & \pageref{tab:uc16} \\
+  \hline
+  \ref{tab:uc16a} & Use-Case Specification --- \texttt{UC16a}: Save Operational State (Included in \texttt{UC16}) & \pageref{tab:uc16a} \\
+  \hline
+  \ref{tab:uc17} & Use-Case Specification --- \texttt{UC17}: View Recommendations & \pageref{tab:uc17} \\
+  \hline
+  \ref{tab:uc18} & Use-Case Specification --- \texttt{UC18}: Apply Recommendation (Extends \texttt{UC17}) & \pageref{tab:uc18} \\
+  \hline
+  \ref{tab:ui-screens} & Summary of Student Portal and Operator Console Screens and Feedback Mechanisms & \pageref{tab:ui-screens} \\
+  \hline
+  \ref{tab:arch-tradeoffs} & Architectural Comparison and Trade-Off Justification & \pageref{tab:arch-tradeoffs} \\
+  \hline
+  \ref{tab:db-tables} & Physical MySQL 8.0 Relational Tables, Keys, and Domain Roles & \pageref{tab:db-tables} \\
+  \hline
+  \ref{tab:sim-scenarios} & Supported What-If Scenarios and Configurable Input Parameters & \pageref{tab:sim-scenarios} \\
+  \hline
+  \ref{tab:sim-indicators} & What-If Impact Indicators (\texttt{I1}--\texttt{I8}) and Coordination Rules (\texttt{R1}--\texttt{R4}) & \pageref{tab:sim-indicators} \\
+  \hline
+  \ref{tab:tech-stack} & Implementation Technology Stack and Selection Rationale & \pageref{tab:tech-stack} \\
+  \hline
+  \ref{tab:code-mapping} & Mapping from Architectural Design Components to Repository Modules & \pageref{tab:code-mapping} \\
+  \hline
+  \ref{tab:impl-decisions} & Key Technical Implementation Decisions Enforcing Concurrency and Consistency & \pageref{tab:impl-decisions} \\
+  \hline
+  \ref{tab:deviations} & Documented Design-to-Implementation Deviations and Limitations & \pageref{tab:deviations} \\
+  \hline
+  \ref{tab:test-plan} & Structured Software Test Plan Summary & \pageref{tab:test-plan} \\
+  \hline
+  \ref{tab:bva-decision} & Boundary-Value Analysis Thresholds and Smart Charging Decision Table & \pageref{tab:bva-decision} \\
+  \hline
+  \ref{tab:tc-part1} & System Test Cases --- Part 1: Auth, Rental, Approval, QR \& Parking (\texttt{TC-01}--\texttt{TC-16}) & \pageref{tab:tc-part1} \\
+  \hline
+  \ref{tab:tc-part2} & System Test Cases --- Part 2: Charging, Incidents, Dispatch, What-If \& UI (\texttt{TC-17}--\texttt{TC-32}) & \pageref{tab:tc-part2} \\
+  \hline
+  \ref{tab:defects} & Defect Summary Log Discovered and Resolved During Integration \& Mobile QA (\texttt{DEF-01}--\texttt{DEF-09}) & \pageref{tab:defects} \\
+  \hline
+  \ref{tab:traceability} & Requirements-to-Test-Case Traceability Matrix (\texttt{FR-01}--\texttt{FR-18}) & \pageref{tab:traceability} \\
+  \hline
+  \ref{tab:ai-declaration} & Mandatory Generative AI Usage Declaration and Student Accountability & \pageref{tab:ai-declaration} \\
+  \hline
+\end{longtable}
+}
+
+% ============================================================================
+% MAIN SECTIONS (ORDERED: USE-CASE -> ACTIVITY -> SEQUENCE -> ARCHITECTURE -> IMPL -> TEST -> EVAL)
+% ============================================================================
+\clearpage
+\input{chapters/01_introduction.tex}
+\clearpage
+\input{chapters/02_requirements.tex}
+\clearpage
+\input{chapters/03_behavioral_ui.tex}
+\clearpage
+\input{chapters/04_architecture_data_sim.tex}
+\clearpage
+\input{chapters/05_implementation.tex}
+\clearpage
+\input{chapters/06_testing.tex}
+\clearpage
+\input{chapters/07_evaluation_ai.tex}
+
+\clearpage
+\bibliographystyle{plain}
+\bibliography{refs/references}
+\nocite{*}
+
+\end{document}
