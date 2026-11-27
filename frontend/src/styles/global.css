@@ -5898,3 +5898,86 @@ textarea {
     padding: 0 14px !important;
   }
 }
+
+/* Fix mobile horizontal overflow on HubListPage Filter fleet & global shell */
+html,
+body,
+.app-shell,
+.staff-shell {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.vehicle-type-filter button {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+  border-radius: 12px;
+}
+
+.vehicle-type-filter button.active {
+  background: var(--bg-soft-green);
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  font-weight: 700;
+}
+
+.view-vehicles-button {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+@media (max-width: 900px) {
+  .container {
+    padding: 14px;
+  }
+
+  .find-hub-page .onboarding-steps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+
+  .vehicle-type-filter {
+    width: 100%;
+  }
+
+  .vehicle-type-filter > div,
+  .vehicle-type-filter__group {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .vehicle-type-filter button {
+    min-width: 0 !important;
+    width: 100%;
+    height: 46px;
+    padding: 0 8px;
+    font-size: 13.5px;
+    white-space: nowrap;
+  }
+
+  .hub-location-search {
+    height: 52px;
+    padding: 0 10px;
+  }
+
+  .hub-location-search input {
+    min-width: 0;
+    font-size: 14px;
+  }
+
+  .hub-location-search button {
+    white-space: nowrap;
+    font-size: 13.5px;
+    padding: 0 10px;
+  }
+}
